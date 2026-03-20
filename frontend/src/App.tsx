@@ -5,6 +5,7 @@ import CortadorBolacha from './pages/CortadorBolacha';
 import PonteiraLapisSvg from './pages/PonteiraLapisSvg';
 import PonteiraLapisTexto from './pages/PonteiraLapisTexto';
 import Ferramentas from './pages/Ferramentas';
+import ChaveiroSimples from './pages/ChaveiroSimples';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/cortador-bolacha" element={<CortadorBolacha />} />
         <Route path="/ponteira-svg" element={<PonteiraLapisSvg />} />
         <Route path="/ponteira-texto" element={<PonteiraLapisTexto />} />
+        <Route path="/chaveiro-simples" element={<ChaveiroSimples />} />
         <Route path="/ferramentas" element={<Ferramentas />} />
       </Routes>
     </BrowserRouter>

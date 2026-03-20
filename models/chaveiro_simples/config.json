@@ -1,0 +1,200 @@
+{
+  "id": "chaveiro_simples",
+  "title": {
+    "pt": "Chaveiro Simples",
+    "en": "Simple Keychain"
+  },
+  "output_format": "3mf",
+  "parts": ["base", "letters", "outline", "hole"],
+  "text_to_svg": true,
+  "parameters": [
+    {
+      "id": "text_line_1",
+      "name": "Texto Superior",
+      "type": "text",
+      "default": "Nome"
+    },
+    {
+      "id": "text_line_2",
+      "name": "Texto Inferior",
+      "type": "text",
+      "default": ""
+    },
+    {
+      "id": "base_width",
+      "name": "Largura da Base",
+      "type": "range",
+      "min": 30,
+      "max": 120,
+      "step": 1,
+      "default": 60,
+      "unit": "mm"
+    },
+    {
+      "id": "base_height",
+      "name": "Altura da Base",
+      "type": "range",
+      "min": 20,
+      "max": 90,
+      "step": 1,
+      "default": 45,
+      "unit": "mm"
+    },
+    {
+      "id": "base_thickness",
+      "name": "Espessura da Base",
+      "type": "range",
+      "min": 1,
+      "max": 6,
+      "step": 0.1,
+      "default": 2,
+      "unit": "mm"
+    },
+    {
+      "id": "base_radius",
+      "name": "Raio dos Cantos da Base",
+      "type": "range",
+      "min": 0,
+      "max": 10,
+      "step": 0.5,
+      "default": 3,
+      "unit": "mm"
+    },
+    {
+      "id": "text_size_1",
+      "name": "Tamanho Texto Superior",
+      "type": "range",
+      "min": 4,
+      "max": 20,
+      "step": 0.5,
+      "default": 9,
+      "unit": "mm"
+    },
+    {
+      "id": "text_size_2",
+      "name": "Tamanho Texto Inferior",
+      "type": "range",
+      "min": 4,
+      "max": 18,
+      "step": 0.5,
+      "default": 7,
+      "unit": "mm"
+    },
+    {
+      "id": "text_height",
+      "name": "Espessura do Texto",
+      "type": "range",
+      "min": 0.5,
+      "max": 5,
+      "step": 0.1,
+      "default": 1,
+      "unit": "mm"
+    },
+    {
+      "id": "spacing",
+      "name": "Espaçamento Entre Letras",
+      "type": "range",
+      "min": 0.5,
+      "max": 2,
+      "step": 0.05,
+      "default": 1
+    },
+    {
+      "id": "word_spacing",
+      "name": "Espaçamento do Espaço",
+      "type": "range",
+      "min": 0.1,
+      "max": 2,
+      "step": 0.05,
+      "default": 1
+    },
+    {
+      "id": "line_spacing",
+      "name": "Espaçamento Entre Linhas",
+      "type": "range",
+      "min": 0.1,
+      "max": 2,
+      "step": 0.05,
+      "default": 1
+    },
+    {
+      "id": "outline_distance",
+      "name": "Distância do Offset do Texto",
+      "type": "range",
+      "min": 0,
+      "max": 5,
+      "step": 0.1,
+      "default": 1,
+      "unit": "mm"
+    },
+    {
+      "id": "outline_height",
+      "name": "Espessura do Offset do Texto",
+      "type": "range",
+      "min": 0.1,
+      "max": 2,
+      "step": 0.1,
+      "default": 0.4,
+      "unit": "mm"
+    },
+    {
+      "id": "outline_mode",
+      "name": "Modo do Offset",
+      "type": "select",
+      "default": "fill",
+      "options": [
+        { "value": "fill", "label": "Preenchido" },
+        { "value": "hollow", "label": "Vazado (não suporte completo)" }
+      ]
+    },
+    {
+      "id": "hole_outer_diameter",
+      "name": "Diâmetro Externo do Furo",
+      "type": "range",
+      "min": 3,
+      "max": 12,
+      "step": 0.1,
+      "default": 5,
+      "unit": "mm"
+    },
+    {
+      "id": "hole_inner_diameter",
+      "name": "Diâmetro Interno do Furo",
+      "type": "range",
+      "min": 2,
+      "max": 10,
+      "step": 0.1,
+      "default": 3,
+      "unit": "mm"
+    },
+    {
+      "id": "base_color",
+      "name": "Cor da Base",
+      "type": "color",
+      "default": "#1B40D1"
+    },
+    {
+      "id": "letters_color",
+      "name": "Cor dos Textos",
+      "type": "color",
+      "default": "#FFFFFF"
+    },
+    {
+      "id": "outline_color",
+      "name": "Cor do Offset",
+      "type": "color",
+      "default": "#00FFAA"
+    },
+    {
+      "id": "max_width",
+      "name": "Largura Máxima de Texto (0 = sem limite)",
+      "type": "range",
+      "min": 0,
+      "max": 300,
+      "step": 1,
+      "default": 0,
+      "unit": "mm"
+    }
+  ],
+  "sections": []
+}
