@@ -1,0 +1,16 @@
+node_modules
+.env
+__pycache__
+.venv
+
+# Generated 3D output at root level (debug/test artifacts)
+*.stl
+*.3mf
+temp_*.scad
+temp_*.svg
+debug*.scad
+debug*.stl
+test_*.scad
+test_*.stl
+test_*.svg
+test.png

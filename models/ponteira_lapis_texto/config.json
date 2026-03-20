@@ -1,0 +1,211 @@
+{
+    "id": "name_topper",
+    "title": {
+        "pt": "Letreiro Personalizado",
+        "en": "Name Topper"
+    },
+    "output_format": "3mf",
+    "parts": [
+        "base",
+        "letters"
+    ],
+    "text_to_svg": true,
+    "parameters": [
+        {
+            "id": "text_line_1",
+            "name": "Linha 1",
+            "type": "text",
+            "default": "Vinicius"
+        },
+        {
+            "id": "text_size_1",
+            "name": "Tamanho da Linha 1",
+            "type": "range",
+            "min": 5,
+            "max": 50,
+            "step": 1,
+            "default": 9,
+            "unit": "mm"
+        },
+        {
+            "id": "font_name",
+            "name": "Fonte",
+            "type": "select",
+            "default": "Chewy:style=Regular",
+            "options": [
+                {
+                    "value": "Chewy:style=Regular",
+                    "label": "Chewy"
+                },
+                {
+                    "value": "Bangers:style=Regular",
+                    "label": "Bangers"
+                }
+            ]
+        }
+    ],
+    "sections": [
+        {
+            "name": "Linha 2 (Opcional)",
+            "parameters": [
+                {
+                    "id": "text_line_2",
+                    "name": "Texto da Linha 2",
+                    "type": "text",
+                    "placeholder": "Ex: Aniversário",
+                    "default": ""
+                },
+                {
+                    "id": "text_size_2",
+                    "name": "Tamanho da Linha 2",
+                    "type": "range",
+                    "min": 5,
+                    "max": 50,
+                    "step": 1,
+                    "default": 10,
+                    "unit": "mm"
+                }
+            ]
+        },
+        {
+            "name": "Cores",
+            "parameters": [
+                {
+                    "id": "base_color",
+                    "name": "Cor da Base",
+                    "type": "color",
+                    "default": "#1B40D1"
+                },
+                {
+                    "id": "letters_color",
+                    "name": "Cor das Letras",
+                    "type": "color",
+                    "default": "#FFFFFF"
+                }
+            ]
+        },
+        {
+            "name": "Ajustes Finos",
+            "parameters": [
+                {
+                    "id": "letter_height",
+                    "name": "Altura da letra",
+                    "type": "range",
+                    "min": 0.2,
+                    "max": 10.0,
+                    "step": 0.1,
+                    "default": 1.2,
+                    "unit": "mm"
+                },
+                {
+                    "id": "base_height",
+                    "name": "Altura da base",
+                    "type": "range",
+                    "min": 1,
+                    "max": 50,
+                    "step": 1,
+                    "default": 12,
+                    "unit": "mm"
+                },
+                {
+                    "id": "outline_margin",
+                    "name": "Margem do contorno",
+                    "type": "range",
+                    "min": 0,
+                    "max": 10,
+                    "step": 0.1,
+                    "default": 2.3,
+                    "unit": "mm"
+                },
+                {
+                    "id": "max_width",
+                    "name": "Largura Máxima (0 = ilimitado)",
+                    "type": "range",
+                    "min": 0,
+                    "max": 300,
+                    "step": 1,
+                    "default": 0,
+                    "unit": "mm"
+                },
+                {
+                    "id": "spacing",
+                    "name": "Espaçamento das letras",
+                    "type": "range",
+                    "min": 0.5,
+                    "max": 2.0,
+                    "step": 0.05,
+                    "default": 1.0
+                },
+                {
+                    "id": "word_spacing",
+                    "name": "Largura do espaço",
+                    "type": "range",
+                    "min": 0.1,
+                    "max": 2.0,
+                    "step": 0.05,
+                    "default": 1.0
+                },
+                {
+                    "id": "line_spacing",
+                    "name": "Distância entre linhas",
+                    "type": "range",
+                    "min": 0.1,
+                    "max": 2.0,
+                    "step": 0.05,
+                    "default": 1.0
+                }
+            ]
+        },
+        {
+            "name": "Furação",
+            "parameters": [
+                {
+                    "id": "hole_orientation",
+                    "name": "Orientação do Furo",
+                    "type": "select",
+                    "options": [
+                        {
+                            "value": "FRONTBACK",
+                            "label": "Horizontal (Passante)"
+                        },
+                        {
+                            "value": "TOPBOTTOM",
+                            "label": "Vertical (Chaveiro/Topper)"
+                        },
+                        {
+                            "value": "NONE",
+                            "label": "Sem Furo"
+                        }
+                    ],
+                    "default": "FRONTBACK"
+                },
+                {
+                    "id": "hole_type",
+                    "name": "Formato do Furo",
+                    "type": "select",
+                    "options": [
+                        {
+                            "value": "CIRCLE",
+                            "label": "Círculo"
+                        },
+                        {
+                            "value": "HEXAGON",
+                            "label": "Hexágono"
+                        }
+                    ],
+                    "default": "CIRCLE"
+                },
+                {
+                    "id": "hole_diameter",
+                    "name": "Diâmetro do Furo",
+                    "type": "range",
+                    "min": 1,
+                    "max": 20,
+                    "step": 0.1,
+                    "default": 7.6,
+                    "unit": "mm"
+                }
+            ]
+        }
+    ]
+}

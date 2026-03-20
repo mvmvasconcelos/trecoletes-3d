@@ -1,0 +1,118 @@
+{
+    "id": "ponteira_lapis_svg",
+    "title": {
+        "pt": "Ponteira de Lápis SVG",
+        "en": "SVG Pencil Topper"
+    },
+    "output_format": "3mf",
+    "parts": [
+        "base",
+        "svg"
+    ],
+    "parameters": [],
+    "sections": [
+        {
+            "name": "Cores",
+            "parameters": [
+                {
+                    "id": "base_color",
+                    "name": "Cor da Base",
+                    "type": "color",
+                    "default": "#1B40D1"
+                },
+                {
+                    "id": "letters_color",
+                    "name": "Cor da Arte",
+                    "type": "color",
+                    "default": "#FFFFFF"
+                }
+            ]
+        },
+        {
+            "name": "Ajustes Finos",
+            "parameters": [
+                {
+                    "id": "letter_height",
+                    "name": "Espessura da arte",
+                    "type": "range",
+                    "min": 0.2,
+                    "max": 10.0,
+                    "step": 0.1,
+                    "default": 1.2,
+                    "unit": "mm"
+                },
+                {
+                    "id": "base_height",
+                    "name": "Espessura da base",
+                    "type": "range",
+                    "min": 1,
+                    "max": 50,
+                    "step": 1,
+                    "default": 10,
+                    "unit": "mm"
+                },
+                {
+                    "id": "outline_margin",
+                    "name": "Margem do contorno",
+                    "type": "range",
+                    "min": 0,
+                    "max": 10,
+                    "step": 0.1,
+                    "default": 2.6,
+                    "unit": "mm"
+                }
+            ]
+        },
+        {
+            "name": "Furação",
+            "parameters": [
+                {
+                    "id": "hole_orientation",
+                    "name": "Orientação do Furo",
+                    "type": "select",
+                    "options": [
+                        {
+                            "value": "TOPBOTTOM",
+                            "label": "Vertical (Chaveiro/Topper)"
+                        },
+                        {
+                            "value": "FRONTBACK",
+                            "label": "Horizontal (Passante)"
+                        },
+                        {
+                            "value": "NONE",
+                            "label": "Sem Furo"
+                        }
+                    ],
+                    "default": "FRONTBACK"
+                },
+                {
+                    "id": "hole_type",
+                    "name": "Formato do Furo",
+                    "type": "select",
+                    "options": [
+                        {
+                            "value": "CIRCLE",
+                            "label": "Círculo"
+                        },
+                        {
+                            "value": "HEXAGON",
+                            "label": "Hexágono"
+                        }
+                    ],
+                    "default": "CIRCLE"
+                },
+                {
+                    "id": "hole_diameter",
+                    "name": "Diâmetro do Furo",
+                    "type": "range",
+                    "min": 1,
+                    "max": 20,
+                    "step": 0.1,
+                    "default": 7.6,
+                    "unit": "mm"
+                }
+            ]
+        }
+    ]
+}

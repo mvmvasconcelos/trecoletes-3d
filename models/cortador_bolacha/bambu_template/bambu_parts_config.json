@@ -1,0 +1,19 @@
+{
+  "parts": [
+    {
+      "scad_name": "carimbo_base",
+      "display_name": "Base do Carimbo",
+      "extruder": 3
+    },
+    {
+      "scad_name": "carimbo_arte",
+      "display_name": "Arte do Carimbo",
+      "extruder": 3
+    },
+    {
+      "scad_name": "cortador",
+      "display_name": "Cortador",
+      "extruder": 3
+    }
+  ]
+}

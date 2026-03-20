@@ -1,0 +1,28 @@
+{
+    "id": "test_holes_vertical",
+    "title": {
+        "pt": "Teste de Furos Verticais",
+        "en": "Vertical Hole Test"
+    },
+    "output_format": "stl",
+    "parameters": [
+        {
+            "id": "holes",
+            "name": "Furos",
+            "description": "Adicione um diâmetro por furo (mm). Cada furo acrescenta (diâmetro + 2×margem) à altura e à profundidade da peça.",
+            "type": "holes_list",
+            "default": [5.3, 5.8, 6.5, 7.8, 8.1]
+        },
+        {
+            "id": "margin",
+            "name": "Margem",
+            "description": "Espaço entre cada furo e as bordas da peça (mm).",
+            "type": "range",
+            "default": 3,
+            "min": 1,
+            "max": 5,
+            "step": 0.5,
+            "unit": "mm"
+        }
+    ]
+}

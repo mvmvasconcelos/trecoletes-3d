@@ -1,0 +1,14 @@
+{
+  "parts": [
+    {
+      "scad_name":    "base",
+      "display_name": "Base",
+      "extruder":     3
+    },
+    {
+      "scad_name":    "letters",
+      "display_name": "Letras",
+      "extruder":     1
+    }
+  ]
+}

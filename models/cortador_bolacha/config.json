@@ -1,0 +1,63 @@
+{
+    "id": "cortador_cookie",
+    "title": {
+        "pt": "Cortador de Biscoito",
+        "en": "Cookie Cutter"
+    },
+    "output_format": "stl",
+    "parameters": [
+        {
+            "id": "line_offset",
+            "name": "Engrossar Linhas",
+            "description": "Expande o traçado (em px).",
+            "type": "range",
+            "default": 0.5,
+            "min": 0,
+            "max": 5.0,
+            "step": 0.1,
+            "unit": "px",
+            "scad_multiplier": 0.3
+        },
+        {
+            "id": "silhouette_exp",
+            "name": "Espaçamento Arte/Borda",
+            "description": "Margem entre a arte e a borda da silhueta do carimbo.",
+            "type": "range",
+            "default": 4.0,
+            "min": 1.0,
+            "max": 15.0,
+            "step": 0.5,
+            "unit": "mm"
+        },
+        {
+            "id": "folga",
+            "name": "Folga Carimbo/Cortador",
+            "description": "Distanciamento de segurança entre a base e a parede.",
+            "type": "range",
+            "default": 0.5,
+            "min": 0.0,
+            "max": 3.0,
+            "step": 0.1,
+            "unit": "mm"
+        },
+        {
+            "id": "wall_height",
+            "name": "Altura do Cortador",
+            "description": "Altura total do cortador em milímetros.",
+            "type": "range",
+            "default": 15.0,
+            "min": 10.0,
+            "max": 30.0,
+            "step": 1.0,
+            "unit": "mm"
+        },
+        {
+            "id": "sharp_edge",
+            "name": "Borda de Corte Afiada",
+            "description": "Adiciona um chanfro no topo do cortador para facilitar o corte da massa.",
+            "type": "boolean",
+            "default": true
+        }
+    ],
+    "sections": []
+}
