@@ -51,6 +51,16 @@ export default function Home() {
           </div>
         </Link>
 
+        <Link to="/teste-tolerancia-texto" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
+          <div className="w-12 h-12 rounded-lg bg-emerald-900/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
+            <Sliders className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Teste de Tolerância Texto</h2>
+            <p className="text-neutral-500 mt-2 text-sm">Teste tolerâncias de encaixe com textos subtraídos em chapas.</p>
+          </div>
+        </Link>
+
         <Link to="/ferramentas" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-amber-500 hover:shadow-lg hover:shadow-amber-900/20 transition-all">
           <div className="w-12 h-12 rounded-lg bg-amber-900/30 flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
             <Sliders className="w-6 h-6" />

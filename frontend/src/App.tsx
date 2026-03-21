@@ -6,6 +6,7 @@ import PonteiraLapisSvg from './pages/PonteiraLapisSvg';
 import PonteiraLapisTexto from './pages/PonteiraLapisTexto';
 import Ferramentas from './pages/Ferramentas';
 import ChaveiroSimples from './pages/ChaveiroSimples';
+import TesteToleranciaTexto from './pages/TesteToleranciaTexto';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
         <Route path="/ponteira-svg" element={<PonteiraLapisSvg />} />
         <Route path="/ponteira-texto" element={<PonteiraLapisTexto />} />
         <Route path="/chaveiro-simples" element={<ChaveiroSimples />} />
+        <Route path="/teste-tolerancia-texto" element={<TesteToleranciaTexto />} />
         <Route path="/ferramentas" element={<Ferramentas />} />
       </Routes>
     </BrowserRouter>

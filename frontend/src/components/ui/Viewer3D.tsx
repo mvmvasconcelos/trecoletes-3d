@@ -73,9 +73,10 @@ export interface Viewer3DProps {
     artColor: string;
     modelColor: string;
     modelType?: 'cortador' | 'ponteira' | 'ferramenta' | 'default';
+    artOffset?: [number, number, number];
 }
 
-export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, isGenerating, artColor, modelColor, modelType = 'default' }: Viewer3DProps) {
+export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, isGenerating, artColor, modelColor, modelType = 'default', artOffset }: Viewer3DProps) {
     const [camInfo, setCamInfo] = useState<CameraInfo | null>(null);
     const [elapsed, setElapsed] = useState(0);
     const [msgIndex, setMsgIndex] = useState(0);
@@ -194,7 +195,11 @@ export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, is
                     {hasModel ? (
                         <>
                             {carimbBaseUrl && <StlMesh key={carimbBaseUrl} url={carimbBaseUrl} color={modelColor} />}
-                            {carimbArteUrl && <StlMesh key={carimbArteUrl} url={carimbArteUrl} color={artColor} />}
+                            {carimbArteUrl && (
+                                <group position={artOffset ?? [0, 0, 0]}>
+                                    <StlMesh key={carimbArteUrl} url={carimbArteUrl} color={artColor} />
+                                </group>
+                            )}
                             {cortadorUrl && <StlMesh key={cortadorUrl} url={cortadorUrl} color={modelColor} />}
                         </>
                     ) : (

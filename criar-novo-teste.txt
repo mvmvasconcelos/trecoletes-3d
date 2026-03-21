@@ -1,0 +1,11 @@
+
+1 - já existe o models\test_holes_vertical, você pode se basear nele
+3 - A chapa negativa pode ter um tamanho variável na largura e na altura, vai depender da tolerância da peça positiva mais uma margem de 2mm. Seria algo como largura+2xmargem+tolerância ou algo assim (confira)
+2 - Verifique no models\test_holes_vertical, lá o usuário define os tamanhos dos furos, no nosso caso, o usuário define a tolerância, pode começar com duas padrão de 0,2 e 0,4mm (se necessário deve ter a opção de adicionar mais outra entrada de tolerância) o tamanho da chapa deve ser de acordo com a maior tolerância definida
+4 - A chapa com os negativos e o texto positivo usado para fazer o negativo separado 10mm abaixo da chapa
+5 - A peça macho/positiva deve ter tamanho fixo, é o parte negativa que deve ter sua tolerância ajustada, isso é muito importante.
+6 - Para MVP apenas texto. Deve haver um input para gerar o texto e um slider para definir o tamanho (padrão de 10mm)
+
+Veja como foi implementado no exemplo dos furos, leia os docs e se necessário para implementar textos, pode ler ponteira_lapis_texto também.
+
+Lembre-se de que você deve usar comandos apenas dentro do container, nada no ambiente local.
