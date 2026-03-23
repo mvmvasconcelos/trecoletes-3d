@@ -708,6 +708,85 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
             args.extend(["-D", f"scale_x={round(scale_x, 6)}"])
             print(f"[MAX_WIDTH] natural={natural_w:.2f}mm > max={max_width}mm → scale_x={scale_x:.4f}", flush=True)
 
+    # ── Preencher gap VERTICAL entre linha 1 e linha 2 ─────────────────────────
+    # O gap existe quando as duas linhas de texto ficam com espaço entre elas
+    # e o offset() não consegue uni-las com uma margem pequena.
+    fill_word_gaps_raw = params.get("fill_word_gaps", "true")
+    fill_word_gaps = str(fill_word_gaps_raw).lower() in ("true", "1", "yes", "on")
+    print(f"[FILL_GAPS_DEBUG] raw={repr(fill_word_gaps_raw)}, parsed={fill_word_gaps}", flush=True)
+
+    if fill_word_gaps:
+        text_1 = params.get("text_line_1", "")
+        text_2 = params.get("text_line_2", "")
+
+        if text_1 and text_2:
+            try:
+                size1 = float(params.get("text_size_1", 12))
+                size2 = float(params.get("text_size_2", 10))
+                line_spacing_val = float(params.get("line_spacing", 1.0))
+                spacing_val = float(params.get("spacing", 1.0))
+                word_spacing_val = float(params.get("word_spacing", 1.0))
+                outline_margin_val = float(params.get("outline_margin", 2.3))
+
+                font = TTFont(ttf_path)
+                cap_h = font['OS/2'].sCapHeight or font['head'].unitsPerEm
+                cmap = font.getBestCmap() or {}
+                hmtx = font['hmtx'].metrics
+
+                def _line_total_w(text: str, size_mm: float) -> float:
+                    sc = size_mm / cap_h
+                    return sum(
+                        hmtx.get(cmap.get(ord(ch), '.notdef'), hmtx.get('.notdef', (0,)))[0]
+                        * sc * (word_spacing_val if ch == ' ' else spacing_val)
+                        for ch in text
+                    )
+
+                width_1 = _line_total_w(text_1, size1)
+                width_2 = _line_total_w(text_2, size2)
+
+                # Espelha _line_y() do SCAD:
+                #   _line_y(0) = sizes[1] * line_spacing * 0.6  ← centro Y da linha 1 (cima)
+                #   _line_y(1) = -sizes[0] * line_spacing * 0.6 ← centro Y da linha 2 (baixo)
+                line_y_0 = size2 * line_spacing_val * 0.6
+                line_y_1 = -(size1 * line_spacing_val * 0.6)
+
+                # em base_2d(): translate([xs[i], _line_y(i) - size_i/2]) com valign="baseline"
+                baseline_1 = line_y_0 - size1 / 2   # baseline da linha 1
+                baseline_2 = line_y_1 - size2 / 2   # baseline da linha 2
+
+                # Limites verticais visíveis das letras
+                bottom_line1 = baseline_1                # fundo da linha 1 ≈ baseline
+                top_line2    = baseline_2 + size2 * 0.7  # topo da linha 2 ≈ cap height
+
+                vertical_gap = bottom_line1 - top_line2  # >0 = gap real; <0 = sobreposição
+
+                print(f"[FILL_GAPS] bottom_line1={bottom_line1:.2f}, top_line2={top_line2:.2f}, vertical_gap={vertical_gap:.2f}mm", flush=True)
+
+                # Injeta bridge sempre que o gap for menor que outline_margin
+                # (sobreposição mínima cria "pescoço" fino que deixa buracos no offset)
+                if vertical_gap > -(outline_margin_val * 0.5):
+                    bridge_w = min(width_1, width_2)
+                    bridge_h = max(vertical_gap + 0.2, 0.4)
+                    x_center = 0.0   # ambas as linhas são centralizadas em x=0
+                    y_center = (bottom_line1 + top_line2) / 2
+
+                    rects_str = f"[[{round(x_center,4)},{round(y_center,4)},{round(bridge_w,4)},{round(bridge_h,4)}]]"
+                    args.extend(["-D", f"fill_gap_rects={rects_str}"])
+                    print(f"[FILL_GAPS] Bridge injected: y_center={y_center:.2f}, w={bridge_w:.2f}, h={bridge_h:.2f}", flush=True)
+                    print(f"[FILL_GAPS] SCAD arg: fill_gap_rects={rects_str}", flush=True)
+                else:
+                    print(f"[FILL_GAPS] Lines overlap {-vertical_gap:.2f}mm > threshold, no bridge needed", flush=True)
+
+            except Exception as exc:
+                import traceback
+                print(f"[FILL_GAPS] ERROR: {exc}", flush=True)
+                print(traceback.format_exc(), flush=True)
+        else:
+            print(f"[FILL_GAPS] Skipped: need both lines ('{text_1}' / '{text_2}')", flush=True)
+
+    import sys
+    print(f"[FILL_GAPS_FINAL] Returning args with {len(args)} elements", flush=True)
+    sys.stdout.flush()
     return args
 
 

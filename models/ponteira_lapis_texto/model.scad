@@ -37,6 +37,9 @@ hole_x           = 0;
 hole_y           = 0;
 hole_z           = base_height / 2;
 
+/*[Preenchimento de Gaps]*/
+fill_gap_rects = [];  // Retângulos para preencher gaps entre palavras, injetado pelo backend
+
 /*[Cores]*/
 base_color    = "#1B40D1";
 letters_color = "#FFFFFF";
@@ -53,6 +56,19 @@ function _line_y(i) =
     (len(_lines) == 1) ? 0 :
     (i == 0) ?  (_sizes[1] * line_spacing * 0.6) :
                -(_sizes[0] * line_spacing * 0.6);
+
+// ── Preenchimento de gaps entre palavras ──────────────────────────────────
+// Cada retângulo é centrado no ponto (x, y) e tem dimensões (w, h)
+module gap_fillers_2d() {
+    for (rect = fill_gap_rects) {
+        x = rect[0];
+        y = rect[1];
+        w = rect[2];
+        h = rect[3];
+        translate([x, y, 0])
+            square([w, h], center = true);
+    }
+}
 
 // ── Base: usa as mesmas posições injetadas pelo backend ───────────────────
 // Ao usar char_xs (idêntico ao raised_letters), a silhueta da base acompanha
@@ -72,6 +88,10 @@ module base_2d() {
                     translate([char_xs2[i], _line_y(1) - text_size_2/2, 0])
                         text(chars2[i], size = text_size_2, font = font_name,
                              halign = "left", valign = "baseline");
+        
+        // Preencher gaps entre palavras se configurado
+        if (len(fill_gap_rects) > 0)
+            gap_fillers_2d();
     } else {
         // Fallback: text() convencional (quando backend não injeta posições)
         for (i = [0 : len(_lines) - 1])

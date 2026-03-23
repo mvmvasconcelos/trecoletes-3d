@@ -14,7 +14,7 @@
             "name": "Diametros finais",
             "description": "Cada valor representa o diametro interno do trecho cilindrico final de 2 mm. O perfil comeca em 2 mm e cresce ao longo de 23 mm ate esse valor.",
             "type": "holes_list",
-            "default": [7.2, 7.5]
+            "default": [8.2, 8.5]
         },
         {
             "id": "margin",

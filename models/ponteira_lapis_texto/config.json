@@ -153,6 +153,12 @@
                     "max": 2.0,
                     "step": 0.05,
                     "default": 1.0
+                },
+                {
+                    "id": "fill_word_gaps",
+                    "name": "Preencher espaços entre palavras",
+                    "type": "checkbox",
+                    "default": true
                 }
             ]
         },

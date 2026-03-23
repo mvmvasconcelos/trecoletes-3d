@@ -224,6 +224,20 @@ export default function PonteiraLapisTexto() {
                         </select>
                     </div>
                 );
+            case 'checkbox':
+                return (
+                    <div key={p.id} className="space-y-1">
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={val === true || val === 'true'}
+                                onChange={e => setParam(p.id, e.target.checked)}
+                                className="w-4 h-4 accent-violet-500 cursor-pointer"
+                            />
+                            <span className="text-sm text-neutral-400">{p.name}</span>
+                        </label>
+                    </div>
+                );
             default: return null;
         }
     };

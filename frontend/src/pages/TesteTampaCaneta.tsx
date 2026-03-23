@@ -56,7 +56,7 @@ export default function TesteTampaCaneta() {
     const maxDiametro = safeDiametros.length > 0 ? Math.max(...safeDiametros) : 2;
     const sumDiametros = safeDiametros.reduce((sum, current) => sum + current, 0);
     const dimX = sumDiametros + margin * (safeDiametros.length + 1);
-    const dimY = 25;
+    const dimY = 35;
     const dimZ = maxDiametro + margin * 2;
 
     const handleClearCache = async () => {

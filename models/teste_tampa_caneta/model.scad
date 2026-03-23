@@ -4,7 +4,7 @@ margin = 1.4; // mm
 part = "all";
 
 // Perfil externo dinamico (mm)
-block_len = 25;
+block_len = 35;
 
 // Perfil interno nominal da caneta (mm)
 cone_len = 23;
