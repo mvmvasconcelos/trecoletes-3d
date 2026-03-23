@@ -19,7 +19,8 @@ async function downloadBlob(url: string, filename: string) {
 
 export default function TesteTampaCaneta() {
     const [config, setConfig] = useState<any>(null);
-    const [params, setParams] = useState<Record<string, any>>({});
+    const [diametros, setDiametros] = useState<number[]>([7.2, 7.5, 7.8]);
+    const [margin, setMargin] = useState(1.4);
 
     const [isGenerating, setIsGenerating] = useState(false);
     const [isClearingCache, setIsClearingCache] = useState(false);
@@ -34,20 +35,29 @@ export default function TesteTampaCaneta() {
             .then((res) => {
                 const cfg = res.data;
                 setConfig(cfg);
-                const initial: Record<string, any> = {};
-                cfg.parameters?.forEach((p: any) => {
-                    initial[p.id] = p.default;
+                const loadedParams: any[] = cfg.parameters ?? [];
+                loadedParams.forEach((p: any) => {
+                    if (p.id === 'diametros' && Array.isArray(p.default)) setDiametros(p.default);
+                    if (p.id === 'margin') setMargin(Number(p.default));
                 });
-                setParams(initial);
             })
             .catch(() => {
                 setError('Nao foi possivel carregar a configuracao do modelo.');
             });
     }, []);
 
-    const setParam = (id: string, value: any) => {
-        setParams((prev) => ({ ...prev, [id]: value }));
+    const addDiametro = () => setDiametros((prev) => [...prev, 7.2]);
+    const removeDiametro = (index: number) => setDiametros((prev) => prev.filter((_, i) => i !== index));
+    const updateDiametro = (index: number, value: number) => {
+        setDiametros((prev) => prev.map((current, i) => (i === index ? value : current)));
     };
+
+    const safeDiametros = diametros.map((d) => Math.max(2, d));
+    const maxDiametro = safeDiametros.length > 0 ? Math.max(...safeDiametros) : 2;
+    const sumDiametros = safeDiametros.reduce((sum, current) => sum + current, 0);
+    const dimX = sumDiametros + margin * (safeDiametros.length + 1);
+    const dimY = 25;
+    const dimZ = maxDiametro + margin * 2;
 
     const handleClearCache = async () => {
         setIsClearingCache(true);
@@ -72,7 +82,8 @@ export default function TesteTampaCaneta() {
 
         try {
             const form = new FormData();
-            Object.entries(params).forEach(([k, v]) => form.append(k, String(v ?? '')));
+            form.append('diametros', `[${safeDiametros.join(', ')}]`);
+            form.append('margin', String(margin));
 
             const res = await axios.post(`${API_BASE}/api/generate_parametric/teste_tampa_caneta`, form);
             const files = res.data.files || {};
@@ -87,35 +98,6 @@ export default function TesteTampaCaneta() {
         }
     };
 
-    const renderParam = (p: any) => {
-        const value = params[p.id] ?? p.default;
-
-        if (p.type === 'range') {
-            return (
-                <div key={p.id} className="space-y-2">
-                    <label className="flex justify-between text-sm">
-                        <span className="text-neutral-400">{p.name}</span>
-                        <span className="text-blue-400 font-mono">
-                            {Number(value).toFixed(p.step < 1 ? 2 : 0)}{p.unit ? ` ${p.unit}` : ''}
-                        </span>
-                    </label>
-                    {p.description && <p className="text-xs text-neutral-600">{p.description}</p>}
-                    <input
-                        type="range"
-                        min={p.min}
-                        max={p.max}
-                        step={p.step}
-                        value={value}
-                        onChange={(e) => setParam(p.id, parseFloat(e.target.value))}
-                        className="w-full accent-blue-500"
-                    />
-                </div>
-            );
-        }
-
-        return null;
-    };
-
     return (
         <Layout title="Teste Tampa Caneta">
             <aside className="w-80 flex-shrink-0 bg-neutral-950 border-r border-neutral-800 flex flex-col overflow-y-auto">
@@ -125,29 +107,92 @@ export default function TesteTampaCaneta() {
                             <FlaskConical className="w-4 h-4" /> Encaixe BIC
                         </h2>
                         <p className="text-xs text-neutral-500">
-                            Bloco externo fixo de 25x10x10 mm. Perfil interno no eixo do comprimento: cone de 23 mm (d 2.0 para d 7.2) e trecho final cilindrico de 2 mm com d 7.2.
+                            Cada furo usa o mesmo perfil da caneta BIC: comeca em 2 mm, cresce ao longo de 23 mm e termina com 2 mm de trecho cilindrico no diametro final escolhido.
                         </p>
+                    </div>
+
+                    <div className="space-y-3">
+                        <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-widest">
+                            Diametros finais
+                        </h2>
+                        <p className="text-xs text-neutral-500">
+                            Cada valor vira um furo lado a lado. Exemplo: 7.2 e 7.5 geram uma unica peca maior com dois testes no mesmo bloco.
+                        </p>
+
+                        <div className="space-y-2">
+                            {diametros.map((diametro, index) => (
+                                <div key={index} className="flex items-center gap-2">
+                                    <span className="text-xs text-neutral-600 w-4 text-right">{index + 1}.</span>
+                                    <input
+                                        type="number"
+                                        min={2}
+                                        max={12}
+                                        step={0.1}
+                                        value={diametro}
+                                        onChange={(e) => updateDiametro(index, parseFloat(e.target.value) || 2)}
+                                        className="flex-1 bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+                                    />
+                                    <span className="text-xs text-neutral-500">mm</span>
+                                    <button
+                                        onClick={() => removeDiametro(index)}
+                                        disabled={diametros.length <= 1}
+                                        className="text-neutral-600 hover:text-red-400 transition-colors disabled:opacity-30"
+                                        title="Remover diametro"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={addDiametro}
+                            className="w-full py-2 rounded-lg border border-dashed border-neutral-700 hover:border-blue-500 text-neutral-500 hover:text-blue-400 text-sm transition-colors"
+                        >
+                            + Adicionar diametro
+                        </button>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="flex justify-between text-sm">
+                            <span className="text-neutral-400">Margem externa</span>
+                            <span className="text-blue-400 font-mono">{margin.toFixed(1)} mm</span>
+                        </label>
+                        <input
+                            type="range"
+                            min={1}
+                            max={4}
+                            step={0.1}
+                            value={margin}
+                            onChange={(e) => setMargin(parseFloat(e.target.value))}
+                            className="w-full accent-blue-500"
+                        />
+                        <p className="text-xs text-neutral-600">Define a parede externa e o espacamento entre os testes.</p>
                     </div>
 
                     <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 space-y-1.5">
                         <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-2">
-                            Dimensoes fixas
+                            Dimensoes calculadas
                         </h3>
                         <div className="flex justify-between text-sm">
-                            <span className="text-neutral-500">Corpo externo</span>
-                            <span className="text-blue-300 font-mono">25 x 10 x 10 mm</span>
+                            <span className="text-neutral-500">Largura (X)</span>
+                            <span className="text-blue-300 font-mono">{dimX.toFixed(1)} mm</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-neutral-500">Trecho conico</span>
-                            <span className="text-blue-300 font-mono">23 mm</span>
+                            <span className="text-neutral-500">Comprimento (Y)</span>
+                            <span className="text-blue-300 font-mono">{dimY.toFixed(1)} mm</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-neutral-500">Trecho cilindrico</span>
-                            <span className="text-blue-300 font-mono">2 mm</span>
+                            <span className="text-neutral-500">Altura (Z)</span>
+                            <span className="text-blue-300 font-mono">{dimZ.toFixed(1)} mm</span>
+                        </div>
+                        <div className="flex justify-between text-sm border-t border-neutral-800 pt-1.5 mt-1.5">
+                            <span className="text-neutral-500">Furos</span>
+                            <span className="text-blue-300 font-mono">{safeDiametros.length}x</span>
                         </div>
                     </div>
-
-                    {config?.parameters?.map(renderParam)}
 
                     {error && (
                         <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-sm text-red-300">
@@ -160,7 +205,7 @@ export default function TesteTampaCaneta() {
                     <div className="flex gap-2">
                         <button
                             onClick={handleGenerate}
-                            disabled={isGenerating || !config || isClearingCache}
+                            disabled={isGenerating || !config || isClearingCache || diametros.length === 0}
                             className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold rounded shadow-lg transition-all"
                         >
                             {isGenerating ? 'Gerando...' : 'Gerar Modelo 3D'}

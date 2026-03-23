@@ -7,10 +7,21 @@ from app.api.generator import router as generator_router
 
 app = FastAPI(title="Trecoletes 3D API")
 
-# Setup CORS for local React development
+# Setup CORS for frontend development.
+# Wildcard + credentials is rejected by browsers, so we keep explicit origins.
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
+allowed_origins = (
+    [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+    if allowed_origins_env
+    else [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

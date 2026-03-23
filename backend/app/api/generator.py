@@ -939,8 +939,23 @@ async def generate_parametric_model(request: Request, model_id: str):
     )
 
     # Hash determinístico para cache
+    # Inclui assinatura dos arquivos do modelo para invalidar cache
+    # automaticamente quando model.scad/config.json forem alterados.
     hasher = hashlib.md5()
     hasher.update(model_id.encode())
+    try:
+        scad_stat = os.stat(scad_path)
+        hasher.update(str(scad_stat.st_mtime_ns).encode())
+        hasher.update(str(scad_stat.st_size).encode())
+    except OSError:
+        pass
+    if os.path.exists(config_path):
+        try:
+            config_stat = os.stat(config_path)
+            hasher.update(str(config_stat.st_mtime_ns).encode())
+            hasher.update(str(config_stat.st_size).encode())
+        except OSError:
+            pass
     for k, v in text_params:
         hasher.update(f"{k}={v}".encode())
     job_id = hasher.hexdigest()[:16]

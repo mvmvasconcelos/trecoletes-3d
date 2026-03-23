@@ -10,7 +10,10 @@ export default function Home() {
         <h1 className="text-4xl font-bold tracking-wider">TRECOLETES 3D</h1>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-4xl">
+      {/* Seção de Modelos */}
+      <div className="w-full max-w-4xl mb-8">
+        <h2 className="text-lg font-semibold text-emerald-400 uppercase tracking-widest mb-6">Modelos</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Link to="/cortador-bolacha" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
           <div className="w-12 h-12 rounded-lg bg-emerald-900/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
             <Image className="w-6 h-6" />
@@ -50,7 +53,16 @@ export default function Home() {
             <p className="text-neutral-500 mt-2 text-sm">Gere ponteiras com nomes e textos 3D multicoloridos.</p>
           </div>
         </Link>
+        </div>
+      </div>
 
+      {/* Separador */}
+      <div className="w-full max-w-4xl border-t border-neutral-700 my-8"></div>
+
+      {/* Seção de Testes e Ferramentas */}
+      <div className="w-full max-w-4xl">
+        <h2 className="text-lg font-semibold text-sky-400 uppercase tracking-widest mb-6">Testes & Ferramentas</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Link to="/teste-tampa-caneta" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-sky-500 hover:shadow-lg hover:shadow-sky-900/20 transition-all">
           <div className="w-12 h-12 rounded-lg bg-sky-900/30 flex items-center justify-center text-sky-500 group-hover:scale-110 transition-transform">
             <FlaskConical className="w-6 h-6" />
@@ -90,6 +102,7 @@ export default function Home() {
             <p className="text-neutral-500 mt-2 text-sm">Calibre furos e outras utilidades técnicas de impressão 3D.</p>
           </div>
         </Link>
+        </div>
       </div>
     </div>
   );
