@@ -701,12 +701,37 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     except ValueError:
         max_width, outline_margin = 0.0, 2.3
 
+    natural_w = max_line_w + 2 * outline_margin if max_line_w > 0 else 0.0
+    final_w = natural_w
     if max_width > 0 and max_line_w > 0:
-        natural_w = max_line_w + 2 * outline_margin
         if natural_w > max_width:
             scale_x = max_width / natural_w
             args.extend(["-D", f"scale_x={round(scale_x, 6)}"])
+            final_w = max_width
             print(f"[MAX_WIDTH] natural={natural_w:.2f}mm > max={max_width}mm → scale_x={scale_x:.4f}", flush=True)
+
+    if final_w > 0:
+        args.extend(["-D", f"body_span_x={round(final_w, 6)}"])
+
+    try:
+        size1 = float(params.get("text_size_1", 12))
+        size2 = float(params.get("text_size_2", 10))
+        line_spacing = float(params.get("line_spacing", 1.0))
+        text_2 = params.get("text_line_2", "")
+    except ValueError:
+        size1, size2, line_spacing, text_2 = 12.0, 10.0, 1.0, ""
+
+    if text_2:
+        line_y_0 = size2 * line_spacing * 0.6
+        line_y_1 = -(size1 * line_spacing * 0.6)
+        top_y = line_y_0 + (size1 / 2)
+        bottom_y = line_y_1 - (size2 / 2)
+        span_y = (top_y - bottom_y) + (2 * outline_margin)
+    else:
+        span_y = size1 + (2 * outline_margin)
+
+    if span_y > 0:
+        args.extend(["-D", f"body_span_y={round(span_y, 6)}"])
 
     # ── Preencher gap VERTICAL entre linha 1 e linha 2 ─────────────────────────
     # O gap existe quando as duas linhas de texto ficam com espaço entre elas
