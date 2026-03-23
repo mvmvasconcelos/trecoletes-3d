@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Scissors, Image, Type, PenTool, Sliders, Key } from 'lucide-react';
+import { Scissors, Image, Type, PenTool, Sliders, Key, FlaskConical } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -48,6 +48,16 @@ export default function Home() {
           <div>
             <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Ponteira com Texto</h2>
             <p className="text-neutral-500 mt-2 text-sm">Gere ponteiras com nomes e textos 3D multicoloridos.</p>
+          </div>
+        </Link>
+
+        <Link to="/teste-tampa-caneta" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-sky-500 hover:shadow-lg hover:shadow-sky-900/20 transition-all">
+          <div className="w-12 h-12 rounded-lg bg-sky-900/30 flex items-center justify-center text-sky-500 group-hover:scale-110 transition-transform">
+            <FlaskConical className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-sky-400 transition-colors">Teste Tampa Caneta BIC</h2>
+            <p className="text-neutral-500 mt-2 text-sm">Protótipo de encaixe com furo cônico + cilindro final para calibrar folga.</p>
           </div>
         </Link>
 

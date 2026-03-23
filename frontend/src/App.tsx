@@ -8,6 +8,7 @@ import Ferramentas from './pages/Ferramentas';
 import ChaveiroSimples from './pages/ChaveiroSimples';
 import TesteToleranciaTexto from './pages/TesteToleranciaTexto';
 import TesteToleranciaTextoCQ from './pages/TesteToleranciaTextoCQ';
+import TesteTampaCaneta from './pages/TesteTampaCaneta';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
         <Route path="/ponteira-svg" element={<PonteiraLapisSvg />} />
         <Route path="/ponteira-texto" element={<PonteiraLapisTexto />} />
         <Route path="/chaveiro-simples" element={<ChaveiroSimples />} />
+        <Route path="/teste-tampa-caneta" element={<TesteTampaCaneta />} />
         <Route path="/teste-tolerancia-texto" element={<TesteToleranciaTexto />} />
         <Route path="/teste-tolerancia-cq" element={<TesteToleranciaTextoCQ />} />
         <Route path="/ferramentas" element={<Ferramentas />} />
