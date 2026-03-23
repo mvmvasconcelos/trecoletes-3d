@@ -20,6 +20,7 @@ async function downloadBlob(url: string, filename: string) {
 export default function Ferramentas() {
     const [holes, setHoles] = useState<number[]>([5, 5.2]);
     const [margin, setMargin] = useState(2);
+    const [holeType, setHoleType] = useState<'CIRCLE' | 'HEXAGON'>('CIRCLE');
     const [isGenerating, setIsGenerating] = useState(false);
     const [modelUrl, setModelUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -31,13 +32,18 @@ export default function Ferramentas() {
                 params.forEach((p: any) => {
                     if (p.id === 'holes' && Array.isArray(p.default)) setHoles(p.default);
                     if (p.id === 'margin') setMargin(Number(p.default));
+                    if (p.id === 'hole_type' && (p.default === 'CIRCLE' || p.default === 'HEXAGON')) {
+                        setHoleType(p.default);
+                    }
                 });
             })
             .catch(() => { });
     }, []);
 
-    const maxD = holes.length > 0 ? Math.max(...holes) : 0;
-    const sumD = holes.reduce((s, v) => s + v, 0);
+    const toCutDiameter = (raw: number) => (holeType === 'HEXAGON' ? (raw * 2) / Math.sqrt(3) : raw);
+    const holeCutDs = holes.map(toCutDiameter);
+    const maxD = holeCutDs.length > 0 ? Math.max(...holeCutDs) : 0;
+    const sumD = holeCutDs.reduce((s, v) => s + v, 0);
     const dimW = sumD + margin * (holes.length + 1);
     const dimD = 15;
     const dimH = maxD + margin * 2;
@@ -55,6 +61,7 @@ export default function Ferramentas() {
             const form = new FormData();
             form.append('holes', `[${holes.join(', ')}]`);
             form.append('margin', String(margin));
+            form.append('hole_type', holeType);
             const res = await axios.post(`${API_BASE}/api/generate_parametric/test_holes_vertical`, form);
             if (res.data?.files?.model) {
                 setModelUrl(`${API_BASE}${res.data.files.model}`);
@@ -74,7 +81,23 @@ export default function Ferramentas() {
                         <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-widest flex items-center gap-2">
                             <Sliders className="w-4 h-4" /> Furos a testar
                         </h2>
-                        <p className="text-xs text-neutral-500">Cada furo adiciona (⌀ + 2×margem) à altura e profundidade da peça.</p>
+                        <p className="text-xs text-neutral-500">
+                            {holeType === 'HEXAGON'
+                                ? 'No modo hexágono, o valor é lado a lado (flat-to-flat).'
+                                : 'No modo círculo, o valor é o diâmetro do furo.'}
+                        </p>
+
+                        <div className="space-y-2">
+                            <label className="block text-sm text-neutral-300">Formato do furo</label>
+                            <select
+                                value={holeType}
+                                onChange={e => setHoleType(e.target.value as 'CIRCLE' | 'HEXAGON')}
+                                className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-sm text-white focus:border-amber-500 focus:outline-none"
+                            >
+                                <option value="CIRCLE">Círculo</option>
+                                <option value="HEXAGON">Hexágono</option>
+                            </select>
+                        </div>
 
                         <div className="space-y-2">
                             {holes.map((d, i) => (
