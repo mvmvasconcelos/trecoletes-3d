@@ -6,3 +6,5 @@ trimesh==4.4.1
 networkx==3.3
 lxml==5.2.2
 fonttools==4.53.0
+shapely==2.0.6
+mapbox_earcut

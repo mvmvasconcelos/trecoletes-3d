@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 # Install OpenSCAD
 RUN apt-get update && \
-    apt-get install -y openscad && \
+    apt-get install -y openscad libgl1 libglu1-mesa fonts-liberation && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

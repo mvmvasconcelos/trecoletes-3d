@@ -1344,3 +1344,96 @@ async def generate_batch(request: Request, model_id: str):
         "total": len(names),
         "done": 0,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CadQuery: engine alternativo ao OpenSCAD para modelos com model.py
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/generate_cq/{model_id}")
+async def generate_cq_model(request: Request, model_id: str):
+    """
+    Endpoint para modelos CadQuery (engine=cadquery no config.json).
+    Carrega model.py do diretório do modelo e chama generate(params, output_dir).
+    Reutiliza o mesmo mecanismo de cache/hash e empacotamento 3MF do fluxo padrão.
+    """
+    import importlib.util
+
+    model_py_path = os.path.join(MODELS_DIR, model_id, "model.py")
+    if not os.path.exists(model_py_path):
+        return JSONResponse(status_code=404, content={"error": "model.py não encontrado"})
+
+    config_path = os.path.join(MODELS_DIR, model_id, "config.json")
+    model_config = {}
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            model_config = json.load(f)
+
+    parts_to_render = model_config.get("parts", [])
+
+    form_data = await request.form()
+    params = {k: v for k, v in form_data.items() if isinstance(v, str)}
+
+    # Hash determinístico (mesmo mecanismo do fluxo OpenSCAD)
+    hasher = hashlib.md5()
+    hasher.update(("cq_" + model_id).encode())
+    for k, v in sorted(params.items()):
+        hasher.update(f"{k}={v}".encode())
+    job_id = hasher.hexdigest()[:16]
+
+    job_dir     = os.path.join(GENERATED_DIR, job_id)
+    mf_filename = f"{model_id}_all.3mf"
+    mf_filepath = os.path.join(job_dir, mf_filename)
+
+    # Cache hit
+    if os.path.exists(mf_filepath):
+        print(f"[CQ CACHE HIT] job_id={job_id}", flush=True)
+        urls = {p: f"/static/generated/{job_id}/{model_id}_{p}.stl" for p in parts_to_render}
+        urls["3mf"] = f"/static/generated/{job_id}/{mf_filename}"
+        return {"success": True, "job_id": job_id, "files": urls, "from_cache": True}
+
+    _cleanup_old_jobs()
+    os.makedirs(job_dir, exist_ok=True)
+
+    # Carregar model.py dinamicamente
+    spec = importlib.util.spec_from_file_location(f"cq_model_{model_id}", model_py_path)
+    mod  = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    try:
+        raw_paths = mod.generate(params, job_dir)
+    except Exception as e:
+        import traceback
+        print(f"[CQ ERROR] {traceback.format_exc()}", flush=True)
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+    # Renomear arquivos para o padrão {model_id}_{part}.stl
+    for part in parts_to_render:
+        src = raw_paths.get(part)
+        dst = os.path.join(job_dir, f"{model_id}_{part}.stl")
+        if src and os.path.exists(src) and src != dst:
+            os.rename(src, dst)
+
+    generated_urls = {
+        p: f"/static/generated/{job_id}/{model_id}_{p}.stl"
+        for p in parts_to_render
+        if os.path.exists(os.path.join(job_dir, f"{model_id}_{p}.stl"))
+    }
+
+    # Empacotar 3MF via trimesh
+    try:
+        meshes = []
+        for part in parts_to_render:
+            stl_path = os.path.join(job_dir, f"{model_id}_{part}.stl")
+            if os.path.exists(stl_path):
+                loaded = trimesh.load(stl_path)
+                mesh = (trimesh.util.concatenate(list(loaded.geometry.values()))
+                        if isinstance(loaded, trimesh.Scene) else loaded)
+                meshes.append(mesh)
+        if meshes:
+            trimesh.Scene(meshes).export(mf_filepath, file_type='3mf')
+            generated_urls["3mf"] = f"/static/generated/{job_id}/{mf_filename}"
+    except Exception as e:
+        print(f"[CQ 3MF ERROR] {repr(e)}", flush=True)
+
+    return {"success": True, "job_id": job_id, "files": generated_urls, "from_cache": False}

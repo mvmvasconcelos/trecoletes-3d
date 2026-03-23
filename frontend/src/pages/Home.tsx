@@ -61,6 +61,16 @@ export default function Home() {
           </div>
         </Link>
 
+        <Link to="/teste-tolerancia-cq" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-violet-500 hover:shadow-lg hover:shadow-violet-900/20 transition-all">
+          <div className="w-12 h-12 rounded-lg bg-violet-900/30 flex items-center justify-center text-violet-500 group-hover:scale-110 transition-transform">
+            <Sliders className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-violet-400 transition-colors">Teste de Tolerância (CQ)</h2>
+            <p className="text-neutral-500 mt-2 text-sm">Variante CadQuery — largura de texto real via fonttools, sem OpenSCAD.</p>
+          </div>
+        </Link>
+
         <Link to="/ferramentas" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-amber-500 hover:shadow-lg hover:shadow-amber-900/20 transition-all">
           <div className="w-12 h-12 rounded-lg bg-amber-900/30 flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
             <Sliders className="w-6 h-6" />
