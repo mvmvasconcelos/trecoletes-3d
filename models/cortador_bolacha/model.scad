@@ -13,12 +13,12 @@ base_height    = 2.0;
 line_height    = 4.0;
 wall_height    = 15.0;
 brim_width     = 5.0;
-wall_thickness = 2.5;
+wall_thickness = 2.4;
 silhouette_exp = 4.0; // [mm] espaçamento entre a borda da arte e a silhueta externa
 folga          = 2.0;
 line_offset    = 0.0; // [mm] expande as linhas da arte para fora (efeito de espessura do traço)
 sharp_edge     = true;
-chamfer_height = 2.5; // Altura fixa para o chanfro no topo do cortador
+chamfer_height = 2.4; // Altura fixa para o chanfro no topo do cortador
 cutter_rounding = 2.0; // [mm] arredondamento dos cantos externos do cortador
 
 // Formato do cortador: "silhouette" | "square" | "circle" | "rectangle" | "hexagon"
@@ -168,18 +168,24 @@ module cortador() {
         
         // Topo chanfrado (camadas em degraus - stepped layers)
         // Reduz gradualmente da espessura bruta da parede até uma borda fina de 0.4mm
+        // A subtração do contorno interno é feita UMA ÚNICA VEZ no nível 3D (fora do loop),
+        // evitando chamar silhoueta_shape() 10x a mais. Reduz ~42% das chamadas pesadas.
         translate([0, 0, wall_height - chamfer_height])
-        for (i = [0 : 9]) {
-            z = i * (chamfer_height / 10);
-            h = (chamfer_height / 10) + 0.01;
-            shrink_amount = (wall_thickness - 0.4) * (i / 9);
-            
-            translate([0, 0, z])
-            linear_extrude(height = h) {
-                difference() {
-                    main_outline(extra_r = wall_thickness - shrink_amount);
-                    main_outline();
+        difference() {
+            union() {
+                for (i = [0 : 9]) {
+                    z = i * (chamfer_height / 10);
+                    h = (chamfer_height / 10) + 0.01;
+                    shrink_amount = (wall_thickness - 0.4) * (i / 9);
+                    translate([0, 0, z])
+                    linear_extrude(height = h) {
+                        main_outline(extra_r = wall_thickness - shrink_amount);
+                    }
                 }
+            }
+            translate([0, 0, -0.01])
+            linear_extrude(height = chamfer_height + 0.1) {
+                main_outline();
             }
         }
     } else {
@@ -238,10 +244,10 @@ if (part == "all") {
             }
             
             // Marca d'água Secundária
-            translate([0, -22, -0.1])
-            linear_extrude(height = 1.1) {
-                text("STUDIO", font="Eastman Condensed Alt Trial:style=Regular", size=4.5, halign="center", valign="center");
-            }
+            //translate([0, -22, -0.1])
+            //linear_extrude(height = 1.1) {
+              //  text("STUDIO", font="Eastman Condensed Alt Trial:style=Regular", size=4.5, halign="center", valign="center");
+            //}
         }
     }
 } else if (part == "carimbo_arte") {

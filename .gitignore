@@ -14,3 +14,4 @@ test_*.scad
 test_*.stl
 test_*.svg
 test.png
+backend/static/generated/
