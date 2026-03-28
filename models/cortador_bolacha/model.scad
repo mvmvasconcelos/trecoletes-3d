@@ -36,7 +36,6 @@ art_center_y = art_height / 2.0;
 // ============================================================
 // art_svg: redimensiona o SVG para o tamanho em mm com offset opcional da linha
 // ============================================================
-module art_svg() {
     // ── HISTÓRICO DE DEBUG DE CENTRALIZAÇÃO ──────────────────────
     // O SVG do frontend (paper.js) originalmente tinha o viewBox muito
     // maior que o conteúdo (ex: "0 0 500 500" mas as linhas em 90→410).
@@ -55,10 +54,10 @@ module art_svg() {
     //   adiciona o translate para começar de fato no zero (<g transform="translate(-mX,-mY)">)
     //   e define o viewBox como "0 0 contentW contentH". Após isso, o resize() do SCAD
     //   posiciona a arte perfeitamente de (0,0) → (art_width, art_height).
-    // ─────────────────────────────────────────────────────────────
+module art_svg() {
     translate([-art_width / 2, -art_height / 2]) {
         offset(r = line_offset) {
-            resize([art_width, art_height, 0], auto=[false, false, false]) {
+            resize([art_width, art_height], auto=[false, false]) {
                 import(svg_linhas_path);
             }
         }

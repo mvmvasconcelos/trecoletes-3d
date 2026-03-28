@@ -4,6 +4,8 @@ import { Upload, Sliders } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
 import { SvgPreviewModal } from '../components/ui/SvgPreviewModal';
 import Viewer3D from '../components/ui/Viewer3D';
+import { useCacheManagement } from '../hooks/useCacheManagement';
+import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 import { processSvgFile } from '../svgProcessor';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -24,6 +26,11 @@ export default function PonteiraLapisSvg() {
     const [carimbBaseUrl, setCarimbBaseUrl] = useState<string | null>(null);
     const [carimbArteUrl, setCarimbArteUrl] = useState<string | null>(null);
     const [tmfUrl, setTmfUrl] = useState<string | null>(null);
+    const { fromCache, setFromCache, isClearingCache, clearCache } = useCacheManagement();
+
+    const handleClearCache = () => clearCache(() => {
+        setCarimbBaseUrl(null); setCarimbArteUrl(null); setTmfUrl(null);
+    });
 
     const [artColor, setArtColor] = useState('#f5f0e8');
     const [modelColor, setModelColor] = useState('#34d399');
@@ -91,31 +98,32 @@ export default function PonteiraLapisSvg() {
             if (!text) return;
             setSvgText(text);
             try {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(text, 'image/svg+xml');
-                const svgEl = doc.querySelector('svg');
-                let natW = 0, natH = 0;
-                if (svgEl) {
-                    const vb = svgEl.getAttribute('viewBox');
-                    if (vb) {
-                        const parts = vb.split(/[\s,]+/).map(Number);
-                        if (parts.length >= 4) { natW = parts[2]; natH = parts[3]; }
-                    }
-                    if (!natW) natW = parseFloat(svgEl.getAttribute('width') || '0');
-                    if (!natH) natH = parseFloat(svgEl.getAttribute('height') || '0');
-                }
-                if (natW > 0 && natH > 0) {
-                    const ratio = natW / natH;
-                    setSvgAspectRatio(ratio);
-                    setArtHeight(70);
-                    setArtWidth(Math.round(70 * ratio * 10) / 10);
-                }
-            } catch (_) { }
-
-            try {
                 const currentLineOffset = dynamicParams['line_offset'] ?? 0.5;
                 const processed = await processSvgFile(text, currentLineOffset, 3.0);
                 setSvgPreview(processed);
+                // Read actual content dimensions from the normalized (processed) SVG
+                // The original SVG viewBox may be square even if the art is not.
+                if (processed) {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(processed.thickenedSvg, 'image/svg+xml');
+                    const svgEl = doc.querySelector('svg');
+                    let natW = 0, natH = 0;
+                    if (svgEl) {
+                        const vb = svgEl.getAttribute('viewBox');
+                        if (vb) {
+                            const parts = vb.split(/[\s,]+/).map(Number);
+                            if (parts.length >= 4) { natW = parts[2]; natH = parts[3]; }
+                        }
+                        if (!natW) natW = parseFloat(svgEl.getAttribute('width') || '0');
+                        if (!natH) natH = parseFloat(svgEl.getAttribute('height') || '0');
+                    }
+                    if (natW > 0 && natH > 0) {
+                        const ratio = natW / natH;
+                        setSvgAspectRatio(ratio);
+                        setArtHeight(70);
+                        setArtWidth(Math.round(70 * ratio * 10) / 10);
+                    }
+                }
                 setIsModalOpen(true);
             } catch (err) {
                 console.error("SVG Processing Error:", err);
@@ -134,7 +142,7 @@ export default function PonteiraLapisSvg() {
     const handleGenerateClick = async () => {
         if (!svgPreview) return;
         setIsGenerating(true);
-        setCarimbBaseUrl(null); setCarimbArteUrl(null); setTmfUrl(null);
+        setCarimbBaseUrl(null); setCarimbArteUrl(null); setTmfUrl(null); setFromCache(null);
         try {
             const formData = new FormData();
             formData.append('linhas_svg', new Blob([svgPreview.thickenedSvg], { type: 'image/svg+xml' }), 'linhas.svg');
@@ -151,6 +159,7 @@ export default function PonteiraLapisSvg() {
                 if (res.data.files.base) setCarimbBaseUrl(`${API_BASE}${res.data.files.base}`);
                 if (res.data.files.svg) setCarimbArteUrl(`${API_BASE}${res.data.files.svg}`);
                 if (res.data.files['3mf']) setTmfUrl(`${API_BASE}${res.data.files['3mf']}`);
+                setFromCache(res.data.from_cache ?? false);
             }
         } catch (err) {
             console.error("Error generating pieces:", err);
@@ -245,9 +254,12 @@ export default function PonteiraLapisSvg() {
                 </div>
 
                 <div className="mt-auto p-4 border-t border-neutral-800 bg-neutral-950">
-                    <button onClick={handleGenerateClick} disabled={!svgFile || isGenerating} className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded shadow-lg transition-all">
-                        {isGenerating ? 'Gerando OpenSCAD...' : 'Gerar Peças 3D'}
-                    </button>
+                    <div className="flex gap-2">
+                        <button onClick={handleGenerateClick} disabled={!svgFile || isGenerating} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded shadow-lg transition-all">
+                            {isGenerating ? 'Gerando OpenSCAD...' : 'Gerar Peças 3D'}
+                        </button>
+                        <ClearCacheButton isClearingCache={isClearingCache} isGenerating={isGenerating} onClick={handleClearCache} />
+                    </div>
                 </div>
             </aside>
 
@@ -258,7 +270,8 @@ export default function PonteiraLapisSvg() {
                     </div>
                 </div>
                 {tmfUrl && (
-                    <div className="flex-shrink-0 flex justify-center">
+                    <div className="flex-shrink-0 flex flex-col items-center gap-1">
+                        <CacheBadge fromCache={fromCache} />
                         <button onClick={() => downloadBlob(tmfUrl, 'ponteira_lapis_svg.3mf')} className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-lg text-sm transition-colors">
                             Baixar 3MF
                         </button>

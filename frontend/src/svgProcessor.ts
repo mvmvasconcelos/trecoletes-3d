@@ -6,6 +6,8 @@ export interface ProcessedSVG {
     silhouetteSvg: string;   // The unified filled outer bounds
     offsetX: number;         // Center correction info
     offsetY: number;
+    width: number;           // Actual content width
+    height: number;          // Actual content height
 }
 
 /**
@@ -19,17 +21,25 @@ function initPaper(): paper.Project {
     return paper.project;
 }
 
-function injectViewBox(svgStr: string): string {
-    if (svgStr.includes('viewBox=')) return svgStr;
-    const widthMatch = svgStr.match(/width="([^"]+)"/);
-    const heightMatch = svgStr.match(/height="([^"]+)"/);
-    if (widthMatch && heightMatch) {
-        const w = parseFloat(widthMatch[1]);
-        const h = parseFloat(heightMatch[1]);
-        // Return with extracted viewBox and force width/height to 100% so it respects flex containers
-        return svgStr.replace('<svg ', `<svg viewBox="0 0 ${w} ${h}" width="100%" height="100%" `);
-    }
-    return svgStr;
+function injectPaddedViewBox(svgStr: string, cbWidth: number, cbHeight: number): string {
+    let result = svgStr;
+    // Remove explicit dimensions on the root SVG element to force a fluid container
+    // We restrict the match strictly to the <svg > root tag so we don't destroy stroke-width=".." on children
+    result = result.replace(/(<svg\b[^>]*) width="[^"]*"/ig, '$1');
+    result = result.replace(/(<svg\b[^>]*) height="[^"]*"/ig, '$1');
+    result = result.replace(/(<svg\b[^>]*) viewBox="[^"]*"/ig, '$1');
+    
+    // Add safe padded margin for UI centering
+    const px = Math.max(cbWidth * 0.15, 10);
+    const py = Math.max(cbHeight * 0.15, 10);
+    const vx = -px;
+    const vy = -py;
+    const vw = cbWidth + px * 2;
+    const vh = cbHeight + py * 2;
+
+    // Use regex to locate `<svg` to unconditionally insert the new scaled viewBox
+    result = result.replace(/^<svg\b/i, `<svg viewBox="${vx} ${vy} ${vw} ${vh}" width="100%" height="100%"`);
+    return result;
 }
 
 /**
@@ -49,14 +59,23 @@ export async function processSvgFile(
             project.importSVG(svgString, {
                 expandShapes: true,
                 insert: true,
-                onError: (err) => reject(err),
+                onError: (err: any) => reject(err),
                 onLoad: (item: paper.Item) => {
-                    // Normalize scale/position if needed (Optional for now)
+                    // Remove invisible paths (like empty canvas rectangles) before any calculation
+                    const toRemove: paper.Item[] = [];
+                    item.getItems({ class: paper.PathItem }).forEach((child) => {
+                        if (child.parent && child.parent.className === 'CompoundPath') {
+                            return; // It's a member of a CompoundPath, skip
+                        }
+                        if (!child.strokeColor && !child.fillColor) {
+                            toRemove.push(child);
+                        }
+                    });
+                    toRemove.forEach(c => c.remove());
 
                     // 1. Traverse and extract all valid path items
                     const allPaths: paper.PathItem[] = [];
                     item.getItems({ class: paper.PathItem }).forEach((child) => {
-                        // For simplicity, we are working with Path and CompoundPath
                         if (child.className === 'Path' || child.className === 'CompoundPath') {
                             allPaths.push(child as paper.PathItem);
                         }
@@ -71,20 +90,38 @@ export async function processSvgFile(
                     // starts at (0, 0). This ensures the exported SVG has
                     // viewBox="0 0 W H", so OpenSCAD resize() places the art
                     // reliably at (0,0)→(art_width, art_height) in SCAD space.
-                    const cb = item.bounds;
+                    let cb: paper.Rectangle | null = null;
+                    item.getItems({ class: paper.PathItem }).forEach((child) => {
+                        if (child.parent && child.parent.className === 'CompoundPath') {
+                            return;
+                        }
+                        if (!cb) cb = child.bounds;
+                        else cb = cb.unite(child.bounds);
+                    });
+                    if (!cb) cb = item.bounds;
+
                     // FIXED: translate each path individually to bake coords into path data.
                     // (Group.translate adds a <g transform> that OpenSCAD ignores.)
                     const dx = -cb.left;
                     const dy = -cb.top;
                     item.getItems({ class: paper.PathItem }).forEach((child) => {
+                        // Only translate top level path items to avoid double translation
+                        if (child.parent && child.parent.className === 'CompoundPath') {
+                            return;
+                        }
                         child.translate(new paper.Point(dx, dy));
                     });
+
+
 
                     // 2. Thicken: set strokeWidth geometrically on cloned filled paths.
                     // Paper.js exports stroke as SVG attribute. OpenSCAD respects stroke-width
                     // when importing SVG, expanding the rendered geometry.
                     const thickenedItem = item.clone();
                     thickenedItem.getItems({ class: paper.PathItem }).forEach((child: paper.Item) => {
+                        if (child.parent && child.parent.className === 'CompoundPath') {
+                            return;
+                        }
                         const pathChild = child as paper.Path;
                         if (thickness > 0) {
                             pathChild.strokeWidth = thickness;
@@ -96,8 +133,10 @@ export async function processSvgFile(
                     });
 
                     const exportOptions = { asString: true, bounds: 'content' } as any;
-                    const thickenedSvg = injectViewBox(thickenedItem.exportSVG(exportOptions) as string);
+                    let thickenedSvgStr = thickenedItem.exportSVG(exportOptions) as string;
                     thickenedItem.remove();
+
+                    const thickenedSvg = injectPaddedViewBox(thickenedSvgStr, cb.width, cb.height);
 
                     // 3. Generate Silhouette (The Outer Cookie Cutter Rim)
                     // We unite all paths into a single solid block, remove internal holes, and then expand it by silhouetteOffset.
@@ -122,7 +161,7 @@ export async function processSvgFile(
                     }
 
                     // If the union created a CompoundPath, we only want the outermost boundary (no holes for the cutter base)
-                    if (unified.className === 'CompoundPath') {
+                    if ((unified as paper.Item).className === 'CompoundPath') {
                         // Keep only the children with the largest area or clockwise orientation
                         // A naive approach is to just take the first child (often the outer hull in simple SVGs)
                         const compound = unified as paper.CompoundPath;
@@ -140,7 +179,7 @@ export async function processSvgFile(
                             }
                             const singlePath = new paper.Path(largestHull.segments);
                             singlePath.closed = true;
-                            unified.remove();
+                            (unified as paper.Item).remove();
                             unified = singlePath;
                         }
                     }
@@ -152,7 +191,8 @@ export async function processSvgFile(
                     unified.strokeWidth = silhouetteOffset * 2; // Expand in all directions
                     unified.strokeJoin = 'round';
 
-                    const silhouetteSvg = injectViewBox(unified.exportSVG(exportOptions) as string);
+                    const silhouetteSvgRaw = unified.exportSVG(exportOptions) as string;
+                    const silhouetteSvg = injectPaddedViewBox(silhouetteSvgRaw, cb.width, cb.height);
 
                     project.clear();
 
@@ -161,7 +201,9 @@ export async function processSvgFile(
                         thickenedSvg: thickenedSvg,
                         silhouetteSvg: silhouetteSvg,
                         offsetX: 0,
-                        offsetY: 0
+                        offsetY: 0,
+                        width: cb.width,
+                        height: cb.height
                     });
                 }
             });

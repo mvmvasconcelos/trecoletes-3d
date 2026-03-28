@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Ruler, Trash2 } from 'lucide-react';
+import { Ruler } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
 import Viewer3D from '../components/ui/Viewer3D';
+import { useCacheManagement } from '../hooks/useCacheManagement';
+import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -24,11 +26,10 @@ export default function TesteToleranciaTextoCQ() {
     const [margem, setMargem] = useState(2);
 
     const [isGenerating, setIsGenerating] = useState(false);
-    const [isClearingCache, setIsClearingCache] = useState(false);
+    const { fromCache, setFromCache, isClearingCache, clearCache } = useCacheManagement();
     const [chapaUrl, setChapaUrl] = useState<string | null>(null);
     const [textoUrl, setTextoUrl] = useState<string | null>(null);
     const [tmfUrl, setTmfUrl] = useState<string | null>(null);
-    const [fromCache, setFromCache] = useState<boolean | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     // Carrega defaults do config.json
@@ -62,20 +63,11 @@ export default function TesteToleranciaTextoCQ() {
     const updateTol = (i: number, val: number) =>
         setTolerancias(prev => prev.map((v, idx) => (idx === i ? val : v)));
 
-    const handleClearCache = async () => {
-        setIsClearingCache(true);
-        setError(null);
-        try {
-            await axios.post(`${API_BASE}/api/clear_cache`);
-            setChapaUrl(null);
-            setTextoUrl(null);
-            setTmfUrl(null);
-            setFromCache(null);
-        } catch (err: any) {
-            setError('Erro ao limpar cache: ' + (err?.response?.data?.detail ?? err?.message ?? 'desconhecido'));
-        }
-        setIsClearingCache(false);
-    };
+    const handleClearCache = () => clearCache(() => {
+        setChapaUrl(null);
+        setTextoUrl(null);
+        setTmfUrl(null);
+    });
 
     const handleGenerate = async () => {
         if (tolerancias.length === 0 || !texto.trim()) return;
@@ -253,14 +245,7 @@ export default function TesteToleranciaTextoCQ() {
                         >
                             {isGenerating ? 'Gerando...' : 'Gerar Modelos'}
                         </button>
-                        <button
-                            onClick={handleClearCache}
-                            disabled={isClearingCache || isGenerating}
-                            title="Limpar cache"
-                            className="px-3 py-3 bg-neutral-800 hover:bg-red-900 text-neutral-400 hover:text-red-300 rounded border border-neutral-700 hover:border-red-700 transition-all"
-                        >
-                            {isClearingCache ? '...' : <Trash2 className="w-4 h-4" />}
-                        </button>
+                        <ClearCacheButton isClearingCache={isClearingCache} isGenerating={isGenerating} onClick={handleClearCache} />
                     </div>
                 </div>
             </aside>
@@ -284,11 +269,7 @@ export default function TesteToleranciaTextoCQ() {
 
                 {(chapaUrl || textoUrl || tmfUrl) && (
                     <div className="flex-shrink-0 flex justify-center gap-3 flex-wrap">
-                        {fromCache !== null && (
-                            <span className="self-center text-xs text-neutral-600">
-                                {fromCache ? 'do cache' : 'gerado agora'}
-                            </span>
-                        )}
+                        <CacheBadge fromCache={fromCache} />
                         {chapaUrl && (
                             <button
                                 onClick={() => downloadBlob(chapaUrl, 'chapa_negativa.stl')}

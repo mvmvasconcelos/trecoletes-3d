@@ -4,6 +4,8 @@ import { Type, Sliders, ChevronDown } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
 import { BambuColorPicker } from '../components/ui/BambuColorPicker';
 import Viewer3D from '../components/ui/Viewer3D';
+import { useCacheManagement } from '../hooks/useCacheManagement';
+import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -26,7 +28,6 @@ export default function TampaCaneta() {
     const [baseUrl, setBaseUrl] = useState<string | null>(null);
     const [lettersUrl, setLettersUrl] = useState<string | null>(null);
     const [tmfUrl, setTmfUrl] = useState<string | null>(null);
-    const [fromCache, setFromCache] = useState<boolean | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
@@ -38,17 +39,12 @@ export default function TampaCaneta() {
     const [batchFromCache, setBatchFromCache] = useState<boolean | null>(null);
     const batchFileRef = useRef<HTMLInputElement>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const [isClearingCache, setIsClearingCache] = useState(false);
+    const { fromCache, setFromCache, isClearingCache, clearCache } = useCacheManagement();
 
-    const handleClearCache = async () => {
-        setIsClearingCache(true);
-        try {
-            await axios.post(`${API_BASE}/api/clear_cache`);
-            setTmfUrl(null); setBaseUrl(null); setLettersUrl(null); setFromCache(null);
-            setBatchTmfUrl(null); setBatchFromCache(null); setBatchProgress(null); setBatchId(null);
-        } catch { }
-        setIsClearingCache(false);
-    };
+    const handleClearCache = () => clearCache(() => {
+        setTmfUrl(null); setBaseUrl(null); setLettersUrl(null);
+        setBatchTmfUrl(null); setBatchFromCache(null); setBatchProgress(null); setBatchId(null);
+    });
 
     useEffect(() => {
         axios.get(`${API_BASE}/api/models/tampa_caneta/config`)
@@ -294,12 +290,7 @@ export default function TampaCaneta() {
                         >
                             {isGenerating ? 'Gerando...' : 'Gerar Modelo 3D'}
                         </button>
-                        <button
-                            onClick={handleClearCache} disabled={isClearingCache || isGenerating} title="Limpar cache"
-                            className="px-3 py-3 bg-neutral-800 hover:bg-red-900 text-neutral-400 hover:text-red-300 rounded border border-neutral-700 hover:border-red-700 transition-all"
-                        >
-                            {isClearingCache ? '...' : 'L'}
-                        </button>
+                        <ClearCacheButton isClearingCache={isClearingCache} isGenerating={isGenerating} onClick={handleClearCache} />
                     </div>
 
                     <div className="border-t border-neutral-800 pt-3 space-y-2">
@@ -332,11 +323,7 @@ export default function TampaCaneta() {
                         )}
                         {batchTmfUrl && (
                             <div className="space-y-1.5">
-                                {batchFromCache !== null && (
-                                    <p className={`text-xs text-center font-medium ${batchFromCache ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                        {batchFromCache ? '⚡ Do cache' : '✔ Recém gerado'}
-                                    </p>
-                                )}
+                                <CacheBadge fromCache={batchFromCache} centered />
                                 <button
                                     type="button" onClick={() => downloadBlob(batchTmfUrl!, 'tampa_caneta_lote.zip')}
                                     className="w-full py-2 flex items-center justify-center gap-2 text-xs bg-emerald-700 hover:bg-emerald-600 text-white font-semibold rounded transition-all"
@@ -364,11 +351,7 @@ export default function TampaCaneta() {
                 </div>
                 {tmfUrl && (
                     <div className="flex-shrink-0 flex flex-col items-center gap-1">
-                        {fromCache !== null && (
-                            <p className={`text-xs font-medium ${fromCache ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                {fromCache ? '⚡ Do cache' : '✔ Recém gerado'}
-                            </p>
-                        )}
+                        <CacheBadge fromCache={fromCache} />
                         <button
                             onClick={() => downloadBlob(tmfUrl!, 'tampa_caneta_all.3mf')}
                             className="flex items-center gap-2 px-6 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-lg shadow-lg text-sm transition-colors"
