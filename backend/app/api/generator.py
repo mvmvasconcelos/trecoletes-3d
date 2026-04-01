@@ -905,8 +905,12 @@ async def generate_model(
 
     # DEBUG: print raw SVG header to inspect viewBox from Paper.js
     print(f"[DEBUG linhas.svg first 300]: {linhas_bytes_raw[:300].decode('utf-8','ignore')}", flush=True)
-    linhas_bytes = normalize_svg_viewbox(linhas_bytes_raw)
-    linhas_bytes = normalize_svg_to_origin(linhas_bytes)
+    # normalize_svg_viewbox é intencionalmente omitido aqui: ele adicionava um <g transform> baseado
+    # no offset do viewBox, que se acumulava incorretamente com o <g transform> de normalize_svg_to_origin
+    # (o qual calcula os bounds a partir dos atributos 'd' brutos, sem considerar o translate externo).
+    # normalize_svg_to_origin é suficiente: ele substitui o viewBox pelo tamanho real do conteúdo e
+    # aplica um único translate que leva o conteúdo exatamente para a origem.
+    linhas_bytes = normalize_svg_to_origin(linhas_bytes_raw)
     print(f"[DEBUG linhas.svg after normalize first 400]: {linhas_bytes[:400].decode('utf-8','ignore')}", flush=True)
 
     linhas_path = os.path.join(job_dir, "linhas.svg")
