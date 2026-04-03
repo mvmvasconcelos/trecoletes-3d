@@ -16,7 +16,14 @@ interface CameraInfo {
 
 function CameraTracker({ onUpdate }: { onUpdate: (info: CameraInfo) => void }) {
     const { camera } = useThree();
+    const lastEmitRef = useRef(0);
+
     useFrame(() => {
+        const now = performance.now();
+        // Debug HUD não precisa atualização em 60fps.
+        if (now - lastEmitRef.current < 120) return;
+        lastEmitRef.current = now;
+
         const pos = camera.position;
         const target = (camera as any).__orbitTarget as THREE.Vector3 | undefined;
         onUpdate({
@@ -46,8 +53,13 @@ function ControlsWithTarget() {
 
 function PlateVisibilityTracker({ onUnderPlateChange }: { onUnderPlateChange: (isUnder: boolean) => void }) {
     const { camera } = useThree();
+    const lastValueRef = useRef<boolean | null>(null);
+
     useFrame(() => {
-        onUnderPlateChange(camera.position.z < 4);
+        const isUnder = camera.position.z < 4;
+        if (lastValueRef.current === isUnder) return;
+        lastValueRef.current = isUnder;
+        onUnderPlateChange(isUnder);
     });
     return null;
 }
@@ -456,6 +468,14 @@ export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, is
             <Canvas
                 shadows
                 camera={{ position: INITIAL_CAMERA, fov: 40, near: 5, far: 1800 }}
+                dpr={[1, 1.5]}
+                gl={{
+                    powerPreference: 'high-performance',
+                    antialias: true,
+                    alpha: false,
+                    stencil: false,
+                    depth: true,
+                }}
                 onPointerMissed={() => setShowDimensions(false)}
             >
                 <color attach="background" args={['#262626']} />
