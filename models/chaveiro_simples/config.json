@@ -38,6 +38,7 @@
     "sections": [
         {
             "name": "Dimensões e Contorno",
+            "collapsed": true,
             "parameters": [
                 {
                     "id": "text_size_1",
@@ -99,6 +100,7 @@
         },
         {
             "name": "Furação",
+            "collapsed": true,
             "parameters": [
                 {
                     "id": "ring_outer_diameter",
@@ -146,6 +148,7 @@
         },
         {
             "name": "Cores",
+            "collapsed": true,
             "parameters": [
                 {
                     "id": "base_color",

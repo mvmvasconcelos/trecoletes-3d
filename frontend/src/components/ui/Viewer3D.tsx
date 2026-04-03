@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Canvas, useLoader, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Center } from '@react-three/drei';
 import * as THREE from 'three';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
+import a1BuildPlateUrl from './A1_build_plate.stl?url';
 
 // ------------------------------------------------------------------
 // Camera HUD
@@ -32,6 +33,8 @@ function ControlsWithTarget() {
         <OrbitControls
             makeDefault
             target={[0, 0, 0]}
+            minDistance={120}
+            maxDistance={900}
             onChange={(e) => {
                 if (e?.target?.object) {
                     (e.target.object as any).__orbitTarget = e.target.target.clone();
@@ -41,6 +44,14 @@ function ControlsWithTarget() {
     );
 }
 
+function PlateVisibilityTracker({ onUnderPlateChange }: { onUnderPlateChange: (isUnder: boolean) => void }) {
+    const { camera } = useThree();
+    useFrame(() => {
+        onUnderPlateChange(camera.position.z < 4);
+    });
+    return null;
+}
+
 // ------------------------------------------------------------------
 // STL meshes
 // ------------------------------------------------------------------
@@ -48,7 +59,14 @@ function StlMesh({ url, color }: { url: string; color: string }) {
     const geom = useLoader(STLLoader, url);
     return (
         <mesh geometry={geom} castShadow receiveShadow>
-            <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
+            <meshStandardMaterial
+                color={color}
+                roughness={0.4}
+                metalness={0.1}
+                polygonOffset
+                polygonOffsetFactor={-1}
+                polygonOffsetUnits={-1}
+            />
         </mesh>
     );
 }
@@ -62,55 +80,98 @@ function PlaceholderModel() {
     );
 }
 
-function BuildPlateA1({ size = 256 }: { size?: number }) {
-    const half = size / 2;
-    const plateThickness = 2;
+function BuildPlateA1({
+    isUnderPlateView = false,
+}: {
+    isUnderPlateView?: boolean;
+}) {
+    const plateGeom = useLoader(STLLoader, a1BuildPlateUrl);
+    const peiTexture = useMemo(() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.fillStyle = '#d2b258';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grão fino para lembrar a textura de chapa PEI.
+            for (let i = 0; i < 17000; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const a = 0.05 + Math.random() * 0.14;
+                const warm = 205 + Math.floor(Math.random() * 38);
+                const cool = 118 + Math.floor(Math.random() * 26);
+                ctx.fillStyle = `rgba(${warm}, ${warm - 12}, ${cool}, ${a.toFixed(3)})`;
+                ctx.fillRect(x, y, 1.0, 1.0);
+            }
+
+            for (let i = 0; i < 5200; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const a = 0.03 + Math.random() * 0.06;
+                ctx.fillStyle = `rgba(116, 98, 42, ${a.toFixed(3)})`;
+                ctx.fillRect(x, y, 1.0, 1.0);
+            }
+        }
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(2.8, 2.8);
+        tex.anisotropy = 4;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.needsUpdate = true;
+        return tex;
+    }, []);
+    const { center, minZ } = useMemo(() => {
+        plateGeom.computeBoundingBox();
+        const bb = plateGeom.boundingBox;
+        if (!bb) {
+            return {
+                center: new THREE.Vector3(0, 0, 0),
+                minZ: 0,
+            };
+        }
+        return {
+            center: new THREE.Vector3(
+                (bb.min.x + bb.max.x) * 0.5,
+                (bb.min.y + bb.max.y) * 0.5,
+                (bb.min.z + bb.max.z) * 0.5,
+            ),
+            minZ: bb.min.z,
+        };
+    }, [plateGeom]);
+
+    // Traz a chapa para o centro do mundo e apoia no plano Z=0.
+    const platePosition: [number, number, number] = [
+        -center.x,
+        -center.y,
+        -minZ - 0.5,
+    ];
+    const bodyOpacityFinal = isUnderPlateView ? 0.12 : 0.42;
+    const plateMaterialBase = {
+        transparent: true,
+        side: THREE.DoubleSide as THREE.Side,
+        depthWrite: false,
+        depthTest: !isUnderPlateView,
+    };
 
     return (
-        <group position={[0, 0, -plateThickness / 2]} receiveShadow>
-            {/* Corpo principal da mesa */}
-            <mesh receiveShadow>
-                <boxGeometry args={[size, size, plateThickness]} />
-                <meshStandardMaterial color="#4a4a4f" roughness={0.85} metalness={0.15} />
-            </mesh>
-
-            {/* Área útil levemente destacada */}
-            <mesh position={[0, 0, plateThickness / 2 + 0.02]} receiveShadow>
-                <planeGeometry args={[size - 8, size - 8]} />
-                <meshStandardMaterial color="#55555b" roughness={0.9} metalness={0.05} />
-            </mesh>
-
-            {/* Borda visual */}
-            <lineSegments position={[0, 0, plateThickness / 2 + 0.08]}>
-                <edgesGeometry args={[new THREE.PlaneGeometry(size, size)]} />
-                <lineBasicMaterial color="#6b6b73" />
-            </lineSegments>
-
-            {/* Marcas de eixo no topo da mesa */}
-            <line position={[0, 0, plateThickness / 2 + 0.1]}>
-                <bufferGeometry
-                    attach="geometry"
-                    onUpdate={(geo: THREE.BufferGeometry) => {
-                        geo.setFromPoints([
-                            new THREE.Vector3(-half, 0, 0),
-                            new THREE.Vector3(half, 0, 0),
-                        ]);
-                    }}
+        <group receiveShadow>
+            {/* Chapa real da A1 via STL */}
+            <mesh geometry={plateGeom} position={platePosition} receiveShadow>
+                <meshStandardMaterial
+                    color="#dfc56a"
+                    map={peiTexture}
+                    roughness={0.9}
+                    metalness={0.18}
+                    emissive="#3a3116"
+                    emissiveIntensity={0.08}
+                    {...plateMaterialBase}
+                    opacity={bodyOpacityFinal}
                 />
-                <lineBasicMaterial color="#6a6a70" />
-            </line>
-            <line position={[0, 0, plateThickness / 2 + 0.1]}>
-                <bufferGeometry
-                    attach="geometry"
-                    onUpdate={(geo: THREE.BufferGeometry) => {
-                        geo.setFromPoints([
-                            new THREE.Vector3(0, -half, 0),
-                            new THREE.Vector3(0, half, 0),
-                        ]);
-                    }}
-                />
-                <lineBasicMaterial color="#6a6a70" />
-            </line>
+            </mesh>
         </group>
     );
 }
@@ -131,7 +192,9 @@ export interface Viewer3DProps {
 }
 
 export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, isGenerating, artColor, modelColor, modelType = 'default', artOffset, showBuildPlate = true }: Viewer3DProps) {
+    const MODEL_Z_LIFT = 0.8;
     const [camInfo, setCamInfo] = useState<CameraInfo | null>(null);
+    const [isUnderPlateView, setIsUnderPlateView] = useState(false);
     const [elapsed, setElapsed] = useState(0);
     const [msgIndex, setMsgIndex] = useState(0);
     const fmt = (n: number) => n.toFixed(1);
@@ -239,43 +302,52 @@ export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, is
                 </div>
             )}
 
-            <Canvas shadows camera={{ position: [0, -220, 120], fov: 42 }}>
+            <Canvas shadows camera={{ position: [0, -300, 210], fov: 40, near: 5, far: 1800 }}>
                 <color attach="background" args={['#262626']} />
-                <ambientLight intensity={0.5} />
-                <hemisphereLight intensity={0.5} color="#ffffff" groundColor="#404040" />
-                <directionalLight position={[50, 50, 100]} intensity={1.5} castShadow shadow-mapSize={[2048, 2048]} />
+                <ambientLight intensity={0.65} />
+                <hemisphereLight intensity={0.6} color="#fff8ef" groundColor="#40392b" />
+                <directionalLight position={[50, 50, 100]} intensity={1.65} castShadow shadow-mapSize={[2048, 2048]} />
 
-                {showBuildPlate && <BuildPlateA1 size={256} />}
+                {showBuildPlate && (
+                    <BuildPlateA1
+                        isUnderPlateView={isUnderPlateView}
+                    />
+                )}
 
                 <React.Suspense fallback={null}>
-                    <Center disableZ>
-                        {hasModel ? (
-                            <>
-                                {carimbBaseUrl && <StlMesh key={carimbBaseUrl} url={carimbBaseUrl} color={modelColor} />}
-                                {carimbArteUrl && (
-                                    <group position={artOffset ?? [0, 0, 0]}>
-                                        <StlMesh key={carimbArteUrl} url={carimbArteUrl} color={artColor} />
-                                    </group>
-                                )}
-                                {cortadorUrl && <StlMesh key={cortadorUrl} url={cortadorUrl} color={modelColor} />}
-                            </>
-                        ) : (
-                            <PlaceholderModel />
-                        )}
-                    </Center>
+                    <group position={[0, 0, MODEL_Z_LIFT]}>
+                        <Center disableZ>
+                            {hasModel ? (
+                                <>
+                                    {carimbBaseUrl && <StlMesh key={carimbBaseUrl} url={carimbBaseUrl} color={modelColor} />}
+                                    {carimbArteUrl && (
+                                        <group position={artOffset ?? [0, 0, 0]}>
+                                            <StlMesh key={carimbArteUrl} url={carimbArteUrl} color={artColor} />
+                                        </group>
+                                    )}
+                                    {cortadorUrl && <StlMesh key={cortadorUrl} url={cortadorUrl} color={modelColor} />}
+                                </>
+                            ) : (
+                                <PlaceholderModel />
+                            )}
+                        </Center>
+                    </group>
                 </React.Suspense>
 
                 <ControlsWithTarget />
+                <PlateVisibilityTracker onUnderPlateChange={setIsUnderPlateView} />
                 <CameraTracker onUpdate={setCamInfo} />
                 <axesHelper args={[50]} />
             </Canvas>
 
             {camInfo && (
-                <div className="absolute bottom-3 right-3 z-20 font-mono text-xs bg-black/70 text-emerald-400 rounded-lg px-3 py-2 space-y-0.5 border border-emerald-900/50 backdrop-blur-sm select-all">
+                <div className="absolute bottom-3 right-3 z-20">
+                    <div className="font-mono text-xs bg-black/70 text-emerald-400 rounded-lg px-3 py-2 space-y-0.5 border border-emerald-900/50 backdrop-blur-sm select-all">
                     <div className="text-neutral-500 text-[10px] uppercase tracking-widest mb-1">Câmera (debug)</div>
                     <div>pos  <span className="text-white">[{fmt(camInfo.px)}, {fmt(camInfo.py)}, {fmt(camInfo.pz)}]</span></div>
                     <div>alvo <span className="text-white">[{fmt(camInfo.tx)}, {fmt(camInfo.ty)}, {fmt(camInfo.tz)}]</span></div>
                     <div>fov  <span className="text-white">{fmt(camInfo.fov)}°</span></div>
+                    </div>
                 </div>
             )}
         </div>
