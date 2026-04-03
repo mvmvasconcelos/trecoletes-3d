@@ -135,7 +135,7 @@ function ViewResetter({ resetToken, initialCamera }: { resetToken: number; initi
 function StlMesh({ url, color }: { url: string; color: string }) {
     const geom = useLoader(STLLoader, url);
     return (
-        <mesh geometry={geom} castShadow receiveShadow>
+        <mesh geometry={geom} receiveShadow>
             <meshStandardMaterial
                 color={color}
                 roughness={0.4}
@@ -150,7 +150,7 @@ function StlMesh({ url, color }: { url: string; color: string }) {
 
 function PlaceholderModel() {
     return (
-        <mesh castShadow receiveShadow>
+        <mesh receiveShadow>
             <boxGeometry args={[40, 40, 10]} />
             <meshStandardMaterial color="#404040" metalness={0.2} roughness={0.3} />
         </mesh>
