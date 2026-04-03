@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Canvas, useLoader, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Center } from '@react-three/drei';
+import { OrbitControls, Center, Line, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import a1BuildPlateUrl from './A1_build_plate.stl?url';
@@ -176,6 +176,63 @@ function BuildPlateA1({
     );
 }
 
+interface ModelBounds {
+    min: [number, number, number];
+    max: [number, number, number];
+    size: [number, number, number];
+}
+
+function DimensionLabel({ pos, text }: { pos: [number, number, number]; text: string }) {
+    return (
+        <Html position={pos} center occlude={false} zIndexRange={[120, 0]}>
+            <div
+                className="px-2.5 py-1 rounded-md bg-black/85 border border-emerald-400/80 text-emerald-300 text-[13px] font-bold whitespace-nowrap shadow-lg shadow-emerald-950/60"
+                style={{ pointerEvents: 'none' }}
+            >
+                {text}
+            </div>
+        </Html>
+    );
+}
+
+function DimensionOverlay({ bounds, visible }: { bounds: ModelBounds | null; visible: boolean }) {
+    if (!visible || !bounds) return null;
+
+    const [minX, minY, minZ] = bounds.min;
+    const [maxX, maxY, maxZ] = bounds.max;
+    const [sizeX, sizeY, sizeZ] = bounds.size;
+    const fmt = (n: number) => `${n.toFixed(2)}mm`;
+    const off = 10;
+    const tick = 2.2;
+
+    const xY = maxY + off;
+    const yX = maxX + off;
+    const zX = minX - off;
+    const zY = minY - off;
+
+    return (
+        <group>
+            {/* Eixo X */}
+            <Line points={[[minX, xY, minZ], [maxX, xY, minZ]]} color="#22c55e" lineWidth={1.5} />
+            <Line points={[[minX, xY - tick, minZ], [minX, xY + tick, minZ]]} color="#22c55e" lineWidth={1.2} />
+            <Line points={[[maxX, xY - tick, minZ], [maxX, xY + tick, minZ]]} color="#22c55e" lineWidth={1.2} />
+            <DimensionLabel pos={[(minX + maxX) / 2, xY + 2.6, maxZ + 1.6]} text={fmt(sizeX)} />
+
+            {/* Eixo Y */}
+            <Line points={[[yX, minY, minZ], [yX, maxY, minZ]]} color="#22c55e" lineWidth={1.5} />
+            <Line points={[[yX - tick, minY, minZ], [yX + tick, minY, minZ]]} color="#22c55e" lineWidth={1.2} />
+            <Line points={[[yX - tick, maxY, minZ], [yX + tick, maxY, minZ]]} color="#22c55e" lineWidth={1.2} />
+            <DimensionLabel pos={[yX + 2.8, (minY + maxY) / 2, maxZ + 1.6]} text={fmt(sizeY)} />
+
+            {/* Eixo Z */}
+            <Line points={[[zX, zY, minZ], [zX, zY, maxZ]]} color="#22c55e" lineWidth={1.5} />
+            <Line points={[[zX - tick, zY, minZ], [zX + tick, zY, minZ]]} color="#22c55e" lineWidth={1.2} />
+            <Line points={[[zX - tick, zY, maxZ], [zX + tick, zY, maxZ]]} color="#22c55e" lineWidth={1.2} />
+            <DimensionLabel pos={[zX + 3.2, zY, (minZ + maxZ) / 2]} text={fmt(sizeZ)} />
+        </group>
+    );
+}
+
 // ------------------------------------------------------------------
 // Props & Main Viewer
 // ------------------------------------------------------------------
@@ -193,12 +250,39 @@ export interface Viewer3DProps {
 
 export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, isGenerating, artColor, modelColor, modelType = 'default', artOffset, showBuildPlate = true }: Viewer3DProps) {
     const MODEL_Z_LIFT = 0.8;
+    const modelRef = useRef<THREE.Group>(null);
     const [camInfo, setCamInfo] = useState<CameraInfo | null>(null);
     const [isUnderPlateView, setIsUnderPlateView] = useState(false);
+    const [showDimensions, setShowDimensions] = useState(false);
+    const [modelBounds, setModelBounds] = useState<ModelBounds | null>(null);
     const [elapsed, setElapsed] = useState(0);
     const [msgIndex, setMsgIndex] = useState(0);
     const fmt = (n: number) => n.toFixed(1);
     const hasModel = carimbBaseUrl || carimbArteUrl || cortadorUrl;
+
+    const updateModelBounds = useCallback(() => {
+        if (!modelRef.current) return;
+        const box = new THREE.Box3().setFromObject(modelRef.current);
+        if (box.isEmpty()) return;
+
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        setModelBounds({
+            min: [box.min.x, box.min.y, box.min.z],
+            max: [box.max.x, box.max.y, box.max.z],
+            size: [size.x, size.y, size.z],
+        });
+    }, []);
+
+    useEffect(() => {
+        if (!hasModel) {
+            setShowDimensions(false);
+            setModelBounds(null);
+            return;
+        }
+        const t = setTimeout(updateModelBounds, 0);
+        return () => clearTimeout(t);
+    }, [hasModel, carimbBaseUrl, carimbArteUrl, cortadorUrl, artOffset, updateModelBounds]);
 
     const MESSAGES_BY_TYPE = {
         cortador: [
@@ -302,7 +386,11 @@ export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, is
                 </div>
             )}
 
-            <Canvas shadows camera={{ position: [0, -300, 210], fov: 40, near: 5, far: 1800 }}>
+            <Canvas
+                shadows
+                camera={{ position: [0, -300, 210], fov: 40, near: 5, far: 1800 }}
+                onPointerMissed={() => setShowDimensions(false)}
+            >
                 <color attach="background" args={['#262626']} />
                 <ambientLight intensity={0.65} />
                 <hemisphereLight intensity={0.6} color="#fff8ef" groundColor="#40392b" />
@@ -318,7 +406,14 @@ export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, is
                     <group position={[0, 0, MODEL_Z_LIFT]}>
                         <Center disableZ>
                             {hasModel ? (
-                                <>
+                                <group
+                                    ref={modelRef}
+                                    onPointerDown={(e) => {
+                                        e.stopPropagation();
+                                        updateModelBounds();
+                                        setShowDimensions(true);
+                                    }}
+                                >
                                     {carimbBaseUrl && <StlMesh key={carimbBaseUrl} url={carimbBaseUrl} color={modelColor} />}
                                     {carimbArteUrl && (
                                         <group position={artOffset ?? [0, 0, 0]}>
@@ -326,11 +421,13 @@ export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, is
                                         </group>
                                     )}
                                     {cortadorUrl && <StlMesh key={cortadorUrl} url={cortadorUrl} color={modelColor} />}
-                                </>
+                                </group>
                             ) : (
                                 <PlaceholderModel />
                             )}
                         </Center>
+
+                        <DimensionOverlay bounds={modelBounds} visible={showDimensions && !isGenerating} />
                     </group>
                 </React.Suspense>
 
@@ -342,6 +439,14 @@ export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, is
 
             {camInfo && (
                 <div className="absolute bottom-3 right-3 z-20">
+                    {showDimensions && modelBounds && (
+                        <div className="mb-2 font-mono bg-black/88 text-emerald-200 rounded-lg px-4 py-3 border border-emerald-500/70 backdrop-blur-sm min-w-[210px]">
+                            <div className="text-neutral-300 text-[11px] uppercase tracking-widest mb-2">Dimensões Atuais</div>
+                            <div className="text-sm">X: <span className="text-white font-semibold">{modelBounds.size[0].toFixed(2)} mm</span></div>
+                            <div className="text-sm">Y: <span className="text-white font-semibold">{modelBounds.size[1].toFixed(2)} mm</span></div>
+                            <div className="text-sm">Z: <span className="text-white font-semibold">{modelBounds.size[2].toFixed(2)} mm</span></div>
+                        </div>
+                    )}
                     <div className="font-mono text-xs bg-black/70 text-emerald-400 rounded-lg px-3 py-2 space-y-0.5 border border-emerald-900/50 backdrop-blur-sm select-all">
                     <div className="text-neutral-500 text-[10px] uppercase tracking-widest mb-1">Câmera (debug)</div>
                     <div>pos  <span className="text-white">[{fmt(camInfo.px)}, {fmt(camInfo.py)}, {fmt(camInfo.pz)}]</span></div>
