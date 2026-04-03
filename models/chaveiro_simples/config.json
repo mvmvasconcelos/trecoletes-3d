@@ -90,7 +90,8 @@
                 },
                 {
                     "id": "fill_letter_holes",
-                    "name": "Preencher Furos (Letras O, A, P)",
+                    "name": "Preencher Furos",
+                    "help_text": "Preenche os furos de letras O, A, P, etc",
                     "type": "checkbox",
                     "default": false
                 }
@@ -122,6 +123,7 @@
                 {
                     "id": "ring_offset_x",
                     "name": "Posição Horizontal",
+                    "help_text": "Posição horizontal do furo da argola em relação à borda esquerda do chaveiro",
                     "type": "range",
                     "min": -50,
                     "max": 50,
@@ -132,6 +134,7 @@
                 {
                     "id": "ring_offset_y",
                     "name": "Posição Vertical",
+                    "help_text": "Posição vertical do furo da argola em relação ao centro do chaveiro",
                     "type": "range",
                     "min": -50,
                     "max": 50,

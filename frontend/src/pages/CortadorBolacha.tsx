@@ -1,11 +1,12 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
-import { Upload, Sliders } from 'lucide-react';
+import { Upload, Sliders, Plus, Minus, Trash2, ChevronRight, GripVertical } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
 import { SvgPreviewModal } from '../components/ui/SvgPreviewModal';
 import Viewer3D from '../components/ui/Viewer3D';
 import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
+import { ParameterLabel } from '../components/ui/ParameterLabel';
 import { processSvgFile } from '../svgProcessor';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -244,14 +245,17 @@ export default function CortadorBolacha() {
                                     <div key={param.id} className="space-y-2 pt-2 pb-1">
                                         <label className="flex items-start gap-3 cursor-pointer group">
                                             <input type="checkbox" checked={Boolean(currentValue)} onChange={e => handleDynamicParamChange(param.id, e.target.checked)} className="w-5 h-5 rounded border-neutral-600 bg-neutral-800 accent-emerald-500" />
-                                            <span className="text-sm font-medium text-neutral-200">{param.name}</span>
+                                            <ParameterLabel name={param.name} helpText={param.help_text} className="text-sm font-medium text-neutral-200" />
                                         </label>
                                     </div>
                                 );
                             }
                             return (
                                 <div key={param.id} className="space-y-2">
-                                    <label className="flex justify-between text-sm"><span>{param.name}</span><span className="text-emerald-400 font-mono">{Number(currentValue).toFixed(1)}{param.unit}</span></label>
+                                    <label className="flex justify-between text-sm">
+                                        <ParameterLabel name={param.name} helpText={param.help_text} />
+                                        <span className="text-emerald-400 font-mono">{Number(currentValue).toFixed(1)}{param.unit}</span>
+                                    </label>
                                     <input type="range" min={param.min} max={param.max} step={param.step} value={Number(currentValue)} onChange={e => handleDynamicParamChange(param.id, parseFloat(e.target.value))} className="w-full accent-emerald-500" />
                                 </div>
                             );

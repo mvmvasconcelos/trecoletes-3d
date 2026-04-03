@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { ParameterLabel } from './ParameterLabel';
 
 const BAMBU_COLORS = [
     { label: 'Branco', hex: '#FFFFFF' },
@@ -15,12 +16,14 @@ export function BambuColorPicker({
     label,
     color,
     extruder,
+    helpText,
     onChangeColor,
     onChangeExtruder
 }: {
     label: string;
     color: string;
     extruder: number;
+    helpText?: string;
     onChangeColor: (val: string) => void;
     onChangeExtruder: (val: number) => void;
 }) {
@@ -41,7 +44,9 @@ export function BambuColorPicker({
 
     return (
         <div className="flex items-center justify-between gap-4">
-            <label className="text-sm text-neutral-400 flex-1">{label}</label>
+            <label className="text-sm text-neutral-400 flex-1">
+                <ParameterLabel name={label} helpText={helpText} />
+            </label>
 
             <div className="flex items-center gap-3">
                 {/* Color Dropdown */}

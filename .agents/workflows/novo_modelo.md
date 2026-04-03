@@ -10,6 +10,8 @@ Sempre que o usuário solicitar "Crie um novo modelo", siga rigorosamente os pas
 2. **Criar Arquivo config.json:**
    Crie o arquivo `models/<id_do_modelo>/config.json`.
    Preencha com o `name`, os arquivos resultantes em `parts` (ex: "carimbo_base", "cortador") e os `parameters` necessários. O FastAPI e o React vão ler essas propriedades de forma Server-Driven.
+   - **Tooltips:** Nos parâmetros dinâmicos de interface, adicione um `"help_text": "Sua explicação"`, e a UI global adotará de imediato uma bolinha `?` com informações no hover.
+   - **Abas Fechadas:** Nas seções (caso utilize UI com sanfonas para subdividir comandos), passe `"collapsed": true` se quiser que aquela sessão inicie recolhida por padrão na visualização do usuário.
     
 3. **Criar Arquivo model.scad:**
    Crie o arquivo `models/<id_do_modelo>/model.scad`.

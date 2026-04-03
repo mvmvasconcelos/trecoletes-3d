@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Sliders, ChevronDown, Key } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
 import { BambuColorPicker } from '../components/ui/BambuColorPicker';
+import { ParameterLabel } from '../components/ui/ParameterLabel';
 import Viewer3D from '../components/ui/Viewer3D';
 import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
@@ -54,7 +55,7 @@ export default function ChaveiroSimples() {
                 setParams(initial);
                 const initOpen: Record<string, boolean> = {};
                 cfg.sections?.forEach((s: any) => {
-                    initOpen[s.name] = true;
+                    initOpen[s.name] = s.collapsed !== undefined ? !s.collapsed : true;
                 });
                 setOpenSections(initOpen);
             })
@@ -90,7 +91,9 @@ export default function ChaveiroSimples() {
             case 'text':
                 return (
                     <div key={p.id} className="space-y-1">
-                        <label className="text-sm text-neutral-400">{p.name}</label>
+                        <label className="text-sm text-neutral-400">
+                            <ParameterLabel name={p.name} helpText={p.help_text} />
+                        </label>
                         <input
                             type="text" value={val} placeholder={p.placeholder ?? ''}
                             onChange={e => setParam(p.id, e.target.value)}
@@ -102,7 +105,7 @@ export default function ChaveiroSimples() {
                 return (
                     <div key={p.id} className="space-y-1">
                         <label className="flex justify-between text-sm">
-                            <span className="text-neutral-400">{p.name}</span>
+                            <ParameterLabel name={p.name} helpText={p.help_text} className="text-neutral-400" />
                             <span className="text-emerald-400 font-mono">
                                 {Number(val).toFixed(p.step < 1 ? 1 : 0)}{p.unit ? ` ${p.unit}` : ''}
                             </span>
@@ -119,7 +122,7 @@ export default function ChaveiroSimples() {
                 const extVal = params[extField] ?? (p.id === 'base_color' ? 1 : 2);
                 return (
                     <BambuColorPicker
-                        key={p.id} label={p.name} color={val} extruder={extVal}
+                        key={p.id} label={p.name} helpText={p.help_text} color={val} extruder={extVal}
                         onChangeColor={(newCol) => setParam(p.id, newCol)}
                         onChangeExtruder={(newExt) => setParam(extField, newExt)}
                     />
@@ -127,7 +130,9 @@ export default function ChaveiroSimples() {
             case 'select':
                 return (
                     <div key={p.id} className="space-y-1">
-                        <label className="text-sm text-neutral-400">{p.name}</label>
+                        <label className="text-sm text-neutral-400">
+                            <ParameterLabel name={p.name} helpText={p.help_text} />
+                        </label>
                         <select
                             value={val} onChange={e => setParam(p.id, e.target.value)}
                             className="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
@@ -148,7 +153,7 @@ export default function ChaveiroSimples() {
                                 onChange={e => setParam(p.id, e.target.checked)}
                                 className="w-4 h-4 accent-emerald-500 cursor-pointer"
                             />
-                            <span className="text-sm text-neutral-300 font-medium">{p.name}</span>
+                            <ParameterLabel name={p.name} helpText={p.help_text} className="text-sm text-neutral-300 font-medium" />
                         </label>
                     </div>
                 );
