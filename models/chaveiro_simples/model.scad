@@ -2,143 +2,117 @@
 use <Chewy-Regular.ttf>
 use <Bangers-Regular.ttf>
 
-// Parâmetros do modelo
-text_line_1       = "Nome";
-text_line_2       = "";
-text_size_1       = 9;
-text_size_2       = 7;
-text_height       = 1;
-font_name         = "Chewy:style=Regular";
-text_halign       = "center";
-spacing           = 1.0;
-word_spacing      = 1.0;
-line_spacing      = 1.0;
+/*[Texto]*/
+text_line_1    = "Verônica";          // Linha principal
+text_size_1    = 12;                  // Tamanho do Texto, mm
+font_name      = "Chewy:style=Regular";
+base_height    = 2.0;                 // Espessura da Base, mm
+letter_height  = 2.0;                 // Espessura do Relevo, mm
+outline_margin = 2.3;                 // Margem do contorno além do texto, mm
+spacing        = 1.0;                 // Espaçamento entre letras (1.0 = normal)
 
-base_width        = 60;
-base_height       = 45;
-base_thickness    = 2;
-base_radius       = 3;
+/*[Argola]*/
+ring_outer_diameter = 6.0;
+ring_inner_diameter = 3.0;
+ring_offset_x = -0.6;
+ring_offset_y = 6.0;
 
-outline_distance  = 1.0;
-outline_height    = 0.4;
-outline_mode      = "fill"; // fill/hollow
+/*[Cores]*/
+base_color    = "#1B40D1";
+letters_color = "#FFFFFF";
 
-hole_outer_diameter = 5;
-hole_inner_diameter = 3;
+/*[Letras Preenchidas]*/
+fill_letter_holes = false;
 
-// Texto-para-SVG (injetado pelo backend)
-chars1            = "";
-char_xs1          = [];
-chars2            = "";
-char_xs2          = [];
+/*[Posicionamento por caractere — injetado pelo backend]*/
+chars1   = "";   
+char_xs1 = [];   
+body_span_x = 0; // Injetado pelo backend
 
-// Ajuste de largura máxima  (0 = sem limitação)
-max_width         = 0;
-scale_x           = 1.0;
+// Cálculo automático da argola: se temos a largura total, ela vai para a borda esquerda
+final_ring_x = (body_span_x > 0) ? -(body_span_x / 2) + ring_offset_x : ring_offset_x;
+final_ring_y = 0 + ring_offset_y; // Inicia em 0 conforme solicitado
 
-// Cores
-base_color        = "#1B40D1";
-letters_color     = "#FFFFFF";
-outline_color     = "#00FFAA";
+/*[Direção]*/
+text_halign = "left";
 
-// Helpers
-lines = (text_line_2 == "") ? [text_line_1] : [text_line_1, text_line_2];
-sizes = (text_line_2 == "") ? [text_size_1] : [text_size_1, text_size_2];
-
-function line_y(i) =
-    len(lines) == 1 ? 0 :
-    i == 0 ? (sizes[1] * line_spacing * 0.6) :
-              -(sizes[0] * line_spacing * 0.6);
-
-module text_2d() {
-    if (len(chars1) > 0) {
-        for (i = [0 : len(chars1) - 1])
-            if (i < len(char_xs1))
-                translate([char_xs1[i], line_y(0) - text_size_1/2, 0])
-                    text(chars1[i], size = text_size_1, font = font_name,
-                         halign = "left", valign = "baseline");
-
-        if (len(chars2) > 0)
-            for (i = [0 : len(chars2) - 1])
-                if (i < len(char_xs2))
-                    translate([char_xs2[i], line_y(1) - text_size_2/2, 0])
-                        text(chars2[i], size = text_size_2, font = font_name,
-                             halign = "left", valign = "baseline");
-    } else {
-        for (i = [0 : len(lines) - 1])
-            translate([0, line_y(i), 0])
-                text(lines[i], size = sizes[i], font = font_name,
-                     halign = text_halign, valign = "center", spacing = spacing);
-    }
-}
-
-module text_outline_2d() {
-    if (outline_mode == "fill") {
-        offset(r = outline_distance, $fn = 64)
-            text_2d();
-    } else {
-        difference() {
-            offset(r = outline_distance, $fn = 64)
-                text_2d();
-            text_2d();
-        }
-    }
+module hole() {
+    translate([final_ring_x, final_ring_y, -0.1])
+        cylinder(d = ring_inner_diameter, h = base_height + 0.2, $fn = 50);
 }
 
 module base_2d() {
-    offset(r = base_radius)
-        square([base_width - 2*base_radius, base_height - 2*base_radius], center = true);
+    if (len(chars1) > 0) {
+        for (i = [0 : len(chars1) - 1])
+            if (i < len(char_xs1))
+                translate([char_xs1[i], -text_size_1/2, 0])
+                    text(chars1[i], size = text_size_1, font = font_name,
+                         halign = "left", valign = "baseline");
+    } else {
+        text(text_line_1, size = text_size_1, font = font_name,
+             halign = text_halign, valign = "center", spacing = spacing);
+    }
 }
 
-module keyring_piece() {
-    translate([-base_width/2, base_height/2, 0]) {
-        difference() {
-            translate([0, 0, base_thickness/2])
-                cylinder(d = hole_outer_diameter, h = base_thickness, center = true, $fn = 96);
-            translate([0, 0, base_thickness/2])
-                cylinder(d = hole_inner_diameter, h = base_thickness + 2, center = true, $fn = 96);
+module ring_2d() {
+    translate([final_ring_x, final_ring_y, 0])
+        circle(d = ring_outer_diameter, $fn = 50);
+}
+
+module base_with_hole() {
+    difference() {
+        linear_extrude(height = base_height) {
+            union() {
+                offset(r = outline_margin, $fn = 60)
+                    base_2d();
+                ring_2d();
+            }
+        }
+        hole();
+    }
+}
+
+// Quando fill_letter_holes=true, executamos um delta>0 seguido de delta<0 para preencher O, A, P.
+module _one_char(ch_code, x, y, sz) {
+    translate([x, y - sz/2, 0]) {
+        linear_extrude(height = letter_height) {
+            if (fill_letter_holes) {
+                offset(delta = -5.0, join_type = "miter") 
+                    offset(delta = 5.0, join_type = "miter") 
+                        text(ch_code, size = sz, font = font_name,
+                             halign = "left", valign = "baseline");
+            } else {
+                text(ch_code, size = sz, font = font_name,
+                     halign = "left", valign = "baseline");
+            }
         }
     }
 }
 
-module base_part() {
-    union() {
-        linear_extrude(height = base_thickness)
-            base_2d();
-        keyring_piece();
+module raised_letters() {
+    translate([0, 0, base_height]) {
+        if (len(chars1) > 0) {
+            for (i = [0 : len(chars1) - 1])
+                if (i < len(char_xs1))
+                    _one_char(chars1[i], char_xs1[i], 0, text_size_1);
+        } else {
+            // Fallback
+            translate([0, 0, 0])
+                linear_extrude(height = letter_height)
+                    text(text_line_1, size = text_size_1, font = font_name,
+                         halign = text_halign, valign = "center", spacing = spacing);
+        }
     }
 }
 
-module letters_part() {
-    translate([0, 0, base_thickness])
-        linear_extrude(height = text_height)
-            text_2d();
-}
-
-module outline_part() {
-    translate([0, 0, base_thickness])
-        linear_extrude(height = outline_height)
-            text_outline_2d();
-}
-
-module hole_part() {
-    keyring_piece();
-}
-
+// ── Dispatcher de partes ──────────────────────────────────────────────────
 part = "all";
 
-scale([scale_x, 1, 1]) {
-    if (part == "all") {
-        color(base_color)    base_part();
-        color(outline_color) outline_part();
-        color(letters_color) letters_part();
-    } else if (part == "base") {
-        color(base_color) base_part();
-    } else if (part == "letters") {
-        color(letters_color) letters_part();
-    } else if (part == "outline") {
-        color(outline_color) outline_part();
-    } else if (part == "hole") {
-        color(base_color) hole_part();
-    }
+if (part == "all") {
+    color(base_color)    base_with_hole();
+    color(letters_color) raised_letters();
+} else if (part == "base") {
+    color(base_color) base_with_hole();
+} else if (part == "letters") {
+    color(letters_color) raised_letters();
 }

@@ -1,0 +1,15 @@
+{
+    "model_id": "chaveiro_simples",
+    "parts": [
+        {
+            "scad_name": "base",
+            "display_name": "Base Fundo",
+            "extruder": 1
+        },
+        {
+            "scad_name": "letters",
+            "display_name": "Texto",
+            "extruder": 2
+        }
+    ]
+}
