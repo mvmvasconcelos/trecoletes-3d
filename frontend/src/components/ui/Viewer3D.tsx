@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Canvas, useLoader, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Center, Line, Html } from '@react-three/drei';
+import { OrbitControls, Center, Line, Html, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import * as THREE from 'three';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import a1BuildPlateUrl from './A1_build_plate.stl?url';
@@ -49,6 +49,71 @@ function PlateVisibilityTracker({ onUnderPlateChange }: { onUnderPlateChange: (i
     useFrame(() => {
         onUnderPlateChange(camera.position.z < 4);
     });
+    return null;
+}
+
+function ViewResetter({ resetToken, initialCamera }: { resetToken: number; initialCamera: [number, number, number] }) {
+    const { camera, controls } = useThree();
+    const animatingRef = useRef(false);
+    const startTimeRef = useRef(0);
+    const durationRef = useRef(0.45); // segundos
+    const startPosRef = useRef(new THREE.Vector3());
+    const endPosRef = useRef(new THREE.Vector3());
+    const startTargetRef = useRef(new THREE.Vector3());
+    const endTargetRef = useRef(new THREE.Vector3(0, 0, 0));
+
+    useEffect(() => {
+        const c = controls as any;
+        if (!c?.addEventListener) return;
+
+        const cancelAnimation = () => {
+            animatingRef.current = false;
+        };
+
+        c.addEventListener('start', cancelAnimation);
+        return () => c.removeEventListener('start', cancelAnimation);
+    }, [controls]);
+
+    useFrame(() => {
+        if (!animatingRef.current) return;
+
+        const elapsed = performance.now() / 1000 - startTimeRef.current;
+        const t = Math.min(1, elapsed / durationRef.current);
+        const easeOut = 1 - Math.pow(1 - t, 3);
+
+        camera.position.lerpVectors(startPosRef.current, endPosRef.current, easeOut);
+
+        const c = controls as any;
+        if (c?.target) {
+            c.target.lerpVectors(startTargetRef.current, endTargetRef.current, easeOut);
+            c.update?.();
+            (camera as any).__orbitTarget = c.target.clone();
+        } else {
+            (camera as any).__orbitTarget = new THREE.Vector3(0, 0, 0);
+        }
+
+        if (t >= 1) {
+            animatingRef.current = false;
+        }
+    });
+
+    useEffect(() => {
+        if (resetToken === 0) return;
+        startPosRef.current.copy(camera.position);
+        endPosRef.current.set(initialCamera[0], initialCamera[1], initialCamera[2]);
+
+        const c = controls as any;
+        if (c?.target) {
+            startTargetRef.current.copy(c.target);
+        } else {
+            const fallback = (camera as any).__orbitTarget as THREE.Vector3 | undefined;
+            startTargetRef.current.copy(fallback ?? new THREE.Vector3(0, 0, 0));
+        }
+
+        startTimeRef.current = performance.now() / 1000;
+        animatingRef.current = true;
+    }, [resetToken, camera, controls, initialCamera]);
+
     return null;
 }
 
@@ -250,11 +315,13 @@ export interface Viewer3DProps {
 
 export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, isGenerating, artColor, modelColor, modelType = 'default', artOffset, showBuildPlate = true }: Viewer3DProps) {
     const MODEL_Z_LIFT = 0.8;
+    const INITIAL_CAMERA = useMemo<[number, number, number]>(() => [0, -300, 210], []);
     const modelRef = useRef<THREE.Group>(null);
     const [camInfo, setCamInfo] = useState<CameraInfo | null>(null);
     const [isUnderPlateView, setIsUnderPlateView] = useState(false);
     const [showDimensions, setShowDimensions] = useState(false);
     const [modelBounds, setModelBounds] = useState<ModelBounds | null>(null);
+    const [resetViewToken, setResetViewToken] = useState(0);
     const [elapsed, setElapsed] = useState(0);
     const [msgIndex, setMsgIndex] = useState(0);
     const fmt = (n: number) => n.toFixed(1);
@@ -388,7 +455,7 @@ export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, is
 
             <Canvas
                 shadows
-                camera={{ position: [0, -300, 210], fov: 40, near: 5, far: 1800 }}
+                camera={{ position: INITIAL_CAMERA, fov: 40, near: 5, far: 1800 }}
                 onPointerMissed={() => setShowDimensions(false)}
             >
                 <color attach="background" args={['#262626']} />
@@ -433,9 +500,25 @@ export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, is
 
                 <ControlsWithTarget />
                 <PlateVisibilityTracker onUnderPlateChange={setIsUnderPlateView} />
+                <ViewResetter resetToken={resetViewToken} initialCamera={INITIAL_CAMERA} />
                 <CameraTracker onUpdate={setCamInfo} />
-                <axesHelper args={[50]} />
+                <GizmoHelper alignment="bottom-left" margin={[80, 80]}>
+                    <GizmoViewport
+                        axisColors={['#ef4444', '#84cc16', '#60a5fa']}
+                        labels={['X', 'Y', 'Z']}
+                        labelColor="#e5e7eb"
+                    />
+                </GizmoHelper>
             </Canvas>
+
+            <button
+                type="button"
+                onClick={() => setResetViewToken((n) => n + 1)}
+                className="absolute bottom-3 left-3 z-20 px-3 py-2 rounded-lg bg-black/70 border border-neutral-600 text-neutral-100 text-xs font-semibold hover:bg-black/85 transition-colors"
+                title="Resetar visualização"
+            >
+                🏠
+            </button>
 
             {camInfo && (
                 <div className="absolute bottom-3 right-3 z-20">
