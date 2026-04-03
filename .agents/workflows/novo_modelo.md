@@ -25,6 +25,7 @@ Sempre que o usuário solicitar "Crie um novo modelo", siga rigorosamente os pas
    - Use páginas análogas como `CortadorBolacha.tsx` ou `PonteiraLapisSvg.tsx` como esqueleto.
    - Atualize os endpoints de API para `/api/generate/<id_do_modelo>`.
    - Ajuste o componente de renderização 3D informando: `<Viewer3D [...] modelType="default" />` (para loadings exclusivos, adicione um novo mapping dentro da inteface do Viewer).
+   - **Preview 2D (Opcional):** Se for solicitada a funcionalidade de prévia bidimensional (tempo-real offline) sem acionar carregamentos STL do Backend, envolva sua silhueta paramétrica customizada com a casca global `<Preview2D>`. Mais detalhes arquiteturais indispensáveis encontram-se em `docs/PREVIEW_2D.md`.
     
 6. **Adicionar Gerenciamento de Cache (obrigatório):**
    Todo modelo deve usar o módulo de cache existente. **Nunca reimplemente na mão.**

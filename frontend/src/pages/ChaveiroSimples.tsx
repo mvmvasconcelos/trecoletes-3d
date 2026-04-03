@@ -1,12 +1,129 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Sliders, ChevronDown, Key } from 'lucide-react';
+import { Sliders, ChevronDown } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
 import { BambuColorPicker } from '../components/ui/BambuColorPicker';
 import { ParameterLabel } from '../components/ui/ParameterLabel';
 import Viewer3D from '../components/ui/Viewer3D';
 import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
+import { Preview2D } from '../components/ui/Preview2D';
+
+function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
+    const text = params['text_line_1'] || 'Verônica';
+    const rawFontName = params['font_name'] || 'Chewy:style=Regular';
+    const fontFamily = rawFontName.split(':')[0];
+    const textSize = Number(params['text_size_1']) || 12;
+    const margin = Number(params['outline_margin']) || 2.3;
+    const spacing = Number(params['spacing']) || 1.0;
+    const ringOuter = (Number(params['ring_outer_diameter']) || 6) / 2;
+    const ringInner = (Number(params['ring_inner_diameter']) || 3) / 2;
+    const ringOffsetX = Number(params['ring_offset_x']) || -1;
+    const ringOffsetY = Number(params['ring_offset_y']) || 6;
+    const baseColor = params['base_color'] || '#1B40D1';
+    const lettersColor = params['letters_color'] || '#FFFFFF';
+
+    const [textBBox, setTextBBox] = useState({ width: 0, x: 0, y: 0, height: 0 });
+    const textRef = useRef<SVGTextElement>(null);
+
+    useEffect(() => {
+        if (fontFamily) {
+            const linkId = `font-${fontFamily.replace(/ /g, '-')}`;
+            if (!document.getElementById(linkId)) {
+                const link = document.createElement('link');
+                link.id = linkId;
+                link.rel = 'stylesheet';
+                link.href = `https://fonts.googleapis.com/css2?family=${fontFamily.replace(/ /g, '+')}&display=swap`;
+                document.head.appendChild(link);
+            }
+        }
+    }, [fontFamily]);
+
+    useEffect(() => {
+        if (textRef.current && document.fonts) {
+            document.fonts.ready.then(() => {
+                if (textRef.current) {
+                    const bbox = textRef.current.getBBox();
+                    setTextBBox({ width: bbox.width, x: bbox.x, y: bbox.y, height: bbox.height });
+                }
+            });
+        }
+    }, [text, fontFamily, textSize, spacing]);
+
+    // Calculate exact bounds for tight zoom
+    const outlineLeftEdge = textBBox.x - margin;
+    const ringCx = outlineLeftEdge + ringOffsetX;
+    const ringCy = -ringOffsetY; // Invert Y axis for SVG (OpenSCAD +Y is UP, SVG +Y is DOWN)
+    
+    // SVG text is sized differently from OpenSCAD text.
+    // This mathematically perfect sequence creates a 2D Minkowski rounded offset:
+    // 1. Dilate fully by margin (creates blocky flat edges perfectly matching margin offset).
+    // 2. Blur the square corners, causing their alpha to drop below 0.5.
+    // 3. Threshold exactly at alpha=0.5 -> preserves flat edges identically, rounds off pointy corners!
+    const dilateRadius = margin;
+    const blurRadius = margin * 0.8;
+
+    const contentWidth = Math.max(textBBox.width, 10);
+    const contentHeight = Math.max(textBBox.height, 10);
+    
+    const leftBound = Math.min(outlineLeftEdge, ringCx - ringOuter) - 2;
+    const rightBound = Math.max(textBBox.x + contentWidth + margin, ringCx + ringOuter) + 2;
+    const topBound = Math.min(textBBox.y - margin, ringCy - ringOuter) - 2;
+    const bottomBound = Math.max(textBBox.y + contentHeight + margin, ringCy + ringOuter) + 2;
+    
+    const vBoxW = Math.max(rightBound - leftBound, 10);
+    const vBoxH = Math.max(bottomBound - topBound, 10);
+
+    return (
+        <svg viewBox={`${leftBound} ${topBound} ${vBoxW} ${vBoxH}`} className="w-full h-full" style={{ fontFamily }}>
+            <defs>
+                <filter id="minkowski-outline" x="-200%" y="-200%" width="500%" height="500%">
+                    <feMorphology in="SourceAlpha" operator="dilate" radius={dilateRadius} result="dilated" />
+                    <feGaussianBlur in="dilated" stdDeviation={blurRadius} result="blurred" />
+                    <feComponentTransfer in="blurred" result="threshold">
+                        <feFuncA type="linear" slope="50" intercept="-25" />
+                    </feComponentTransfer>
+                    <feFlood floodColor={baseColor} result="color" />
+                    <feComposite in="color" in2="threshold" operator="in" />
+                </filter>
+                <mask id="chaveiro-hole">
+                    <rect x="-5000" y="-5000" width="10000" height="10000" fill="white" />
+                    <circle cx={ringCx} cy={ringCy} r={ringInner} fill="black" />
+                </mask>
+            </defs>
+            <g>
+                <g mask="url(#chaveiro-hole)">
+                    <text 
+                        ref={textRef}
+                        x="0" 
+                        y="0" 
+                        dominantBaseline="central" 
+                        textAnchor="middle"
+                        fontSize={textSize}
+                        letterSpacing={spacing > 1.0 ? spacing : 0} 
+                        fill={baseColor}
+                        filter="url(#minkowski-outline)"
+                    >
+                        {text}
+                    </text>
+                    <circle cx={ringCx} cy={ringCy} r={ringOuter} fill={baseColor} />
+                </g>
+                <circle cx={ringCx} cy={ringCy} r={ringInner} fill="transparent" stroke="rgba(255,255,255,0.2)" strokeWidth={0.5} />
+                <text 
+                    x="0" 
+                    y="0" 
+                    dominantBaseline="central" 
+                    textAnchor="middle"
+                    fontSize={textSize}
+                    letterSpacing={spacing > 1.0 ? spacing : 0} 
+                    fill={lettersColor}
+                >
+                    {text}
+                </text>
+            </g>
+        </svg>
+    );
+}
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -353,6 +470,9 @@ export default function ChaveiroSimples() {
                             modelColor={(params['base_color'] as string) ?? '#1B40D1'}
                             modelType="default"
                         />
+                        <Preview2D>
+                            <ChaveiroPreviewRenderer params={params} />
+                        </Preview2D>
                     </div>
                 </div>
                 {tmfUrl && (
