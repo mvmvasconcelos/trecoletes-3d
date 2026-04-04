@@ -15,8 +15,8 @@
             "id": "text_line_1",
             "name": "Nome",
             "type": "text",
-            "default": "Verônica",
-            "placeholder": "Ex: Verônica"
+            "default": "Vinicius",
+            "placeholder": "Ex: Vinicius"
         },
         {
             "id": "font_name",
@@ -31,6 +31,22 @@
                 {
                     "value": "Bangers:style=Regular",
                     "label": "Bangers"
+                },
+                {
+                    "value": "Leckerli One:style=Regular",
+                    "label": "Leckerli One"
+                },
+                {
+                    "value": "Pacifico:style=Regular",
+                    "label": "Pacifico"
+                },
+                {
+                    "value": "Comic Neue:style=Regular",
+                    "label": "Comic Neue"
+                },
+                {
+                    "value": "Oswald:style=Regular",
+                    "label": "Oswald"
                 }
             ]
         }
@@ -43,11 +59,12 @@
                 {
                     "id": "text_size_1",
                     "name": "Tamanho do Texto",
+                    "help_text": "Altura do texto em milímetros",
                     "type": "range",
                     "min": 5,
                     "max": 50,
                     "step": 1,
-                    "default": 12,
+                    "default": 9,
                     "unit": "mm"
                 },
                 {
@@ -73,6 +90,7 @@
                 {
                     "id": "outline_margin",
                     "name": "Contorno Externo",
+                    "help_text": "Borda ao redor do texto. É a base do chaveiro",
                     "type": "range",
                     "min": 0,
                     "max": 10,
@@ -130,7 +148,7 @@
                     "min": -50,
                     "max": 50,
                     "step": 0.5,
-                    "default": -1.0,
+                    "default": 0,
                     "unit": "mm"
                 },
                 {
@@ -141,7 +159,7 @@
                     "min": -50,
                     "max": 50,
                     "step": 0.5,
-                    "default": 6.0,
+                    "default": 0,
                     "unit": "mm"
                 }
             ]

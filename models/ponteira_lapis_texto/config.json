@@ -40,6 +40,22 @@
                 {
                     "value": "Bangers:style=Regular",
                     "label": "Bangers"
+                },
+                {
+                    "value": "Leckerli One:style=Regular",
+                    "label": "Leckerli One"
+                },
+                {
+                    "value": "Pacifico:style=Regular",
+                    "label": "Pacifico"
+                },
+                {
+                    "value": "Comic Neue:style=Regular",
+                    "label": "Comic Neue"
+                },
+                {
+                    "value": "Oswald:style=Regular",
+                    "label": "Oswald"
                 }
             ]
         }

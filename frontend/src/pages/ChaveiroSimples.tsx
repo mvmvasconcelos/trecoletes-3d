@@ -8,6 +8,8 @@ import Viewer3D from '../components/ui/Viewer3D';
 import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 import { Preview2D } from '../components/ui/Preview2D';
+import { useGoogleFont } from '../hooks/useGoogleFont';
+import { FontPicker } from '../components/ui/FontPicker';
 
 function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
     const text = params['text_line_1'] || 'Verônica';
@@ -26,18 +28,7 @@ function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
     const [textBBox, setTextBBox] = useState({ width: 0, x: 0, y: 0, height: 0 });
     const textRef = useRef<SVGTextElement>(null);
 
-    useEffect(() => {
-        if (fontFamily) {
-            const linkId = `font-${fontFamily.replace(/ /g, '-')}`;
-            if (!document.getElementById(linkId)) {
-                const link = document.createElement('link');
-                link.id = linkId;
-                link.rel = 'stylesheet';
-                link.href = `https://fonts.googleapis.com/css2?family=${fontFamily.replace(/ /g, '+')}&display=swap`;
-                document.head.appendChild(link);
-            }
-        }
-    }, [fontFamily]);
+    useGoogleFont(fontFamily);
 
     useEffect(() => {
         if (textRef.current && document.fonts) {
@@ -327,6 +318,9 @@ export default function ChaveiroSimples() {
                     />
                 );
             case 'select':
+                if (p.id === 'font_name') {
+                    return <FontPicker key={p.id} parameter={p} value={val} onChange={setParam} />;
+                }
                 return (
                     <div key={p.id} className="space-y-1">
                         <label className="text-sm text-neutral-400">

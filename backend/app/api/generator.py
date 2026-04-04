@@ -14,7 +14,7 @@ from fastapi import APIRouter, UploadFile, Form, Request
 from fastapi.responses import JSONResponse
 from app.api._svg_normalize import normalize_svg_to_origin
 from fontTools.ttLib import TTFont
-
+from app.api.fonts import ensure_font_downloaded, FONTS_DIR
 
 def _compute_char_positions(text: str, font_path: str, size_mm: float, spacing: float = 1.0, word_spacing: float = 1.0) -> list[float]:
     """
@@ -642,19 +642,14 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     """
     args = list(scad_args)
     font_name_val = params.get("font_name", "")
-    font_family = font_name_val.split(":")[0].lower()
+    font_family = font_name_val.split(":")[0].strip()
 
-    try:
-        candidates = [
-            f for f in os.listdir(model_dir)
-            if f.lower().endswith(".ttf") and font_family in f.lower()
-        ]
-    except OSError:
-        candidates = []
+    if not font_family:
+        return args  # sem fonte, fallback para text() padrão
 
-    if not candidates:
-        return args  # sem TTF disponível, fallback para text() padrão
-    ttf_path = os.path.join(model_dir, candidates[0])
+    ttf_path = ensure_font_downloaded(font_family)
+    if not ttf_path:
+        return args  # falha no download, fallback
 
     max_line_w = 0.0  # largura máxima entre todas as linhas (sem outline_margin)
 
@@ -929,7 +924,7 @@ async def generate_model(
     for key, value in text_params:
         scad_variables_base.extend(["-D", _to_scad_assignment(key, value)])
 
-    font_path = os.path.join(MODELS_DIR, model_id)
+    font_path = f"{FONTS_DIR}:{os.path.join(MODELS_DIR, model_id)}"
 
     def render_part(part: str) -> tuple[str, str] | tuple[str, Exception]:
         """Renderiza uma parte via OpenSCAD. Retorna (part, output_path) ou (part, exceção)."""
@@ -1069,7 +1064,7 @@ async def generate_parametric_model(request: Request, model_id: str):
     job_id = hasher.hexdigest()[:16]
 
     job_dir = os.path.join(GENERATED_DIR, job_id)
-    font_path = os.path.join(MODELS_DIR, model_id)
+    font_path = f"{FONTS_DIR}:{os.path.join(MODELS_DIR, model_id)}"
 
     # ── Fluxo multipart 3MF ───────────────────────────────────────────────
     if output_format == "3mf" and parts_to_render:
@@ -1251,7 +1246,7 @@ async def generate_batch(request: Request, model_id: str):
             model_config = json.load(f)
 
     parts_to_render = model_config.get("parts", ["base", "letters"])
-    font_path = os.path.join(MODELS_DIR, model_id)
+    font_path = f"{FONTS_DIR}:{os.path.join(MODELS_DIR, model_id)}"
 
     form_data = await request.form()
 

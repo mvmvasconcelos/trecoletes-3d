@@ -8,6 +8,7 @@ import { ParameterLabel } from '../components/ui/ParameterLabel';
 import Viewer3D from '../components/ui/Viewer3D';
 import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
+import { FontPicker } from '../components/ui/FontPicker';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -210,6 +211,9 @@ export default function PonteiraLapisTexto() {
                     />
                 );
             case 'select':
+                if (p.id === 'font_name') {
+                    return <FontPicker key={p.id} parameter={p} value={val} onChange={setParam} />;
+                }
                 return (
                     <div key={p.id} className="space-y-1">
                         <label className="text-sm text-neutral-400">
