@@ -24,6 +24,8 @@ char_xs2 = [];
 // 0 = sem limite; >0 = o backend injeta scale_x para achatar o modelo
 max_width = 0;
 scale_x   = 1.0;   // injetado pelo backend quando max_width é atingido
+body_min_x = 0;
+body_max_x = 0;
 body_span_x = 30;  // largura estimada final da peça em X, injetada pelo backend
 body_span_y = 14;  // profundidade estimada final da peça em Y, injetada pelo backend
 
@@ -94,31 +96,19 @@ module tapered_hole_3d(final_d, length, tip_dia) {
 
 // ── Base: usa as mesmas posições injetadas pelo backend ───────────────────
 module base_2d() {
-    if (len(chars1) > 0) {
-        // Linha 1: per-character
-        for (i = [0 : len(chars1) - 1])
-            if (i < len(char_xs1))
-                translate([char_xs1[i], _line_y(0) - text_size_1/2, 0])
-                    text(chars1[i], size = text_size_1, font = font_name,
-                         halign = "left", valign = "baseline");
-        // Linha 2 (opcional)
-        if (len(chars2) > 0)
-            for (i = [0 : len(chars2) - 1])
-                if (i < len(char_xs2))
-                    translate([char_xs2[i], _line_y(1) - text_size_2/2, 0])
-                        text(chars2[i], size = text_size_2, font = font_name,
-                             halign = "left", valign = "baseline");
-
-        // Preencher gaps entre palavras se configurado
-        if (len(fill_gap_rects) > 0)
-            gap_fillers_2d();
-    } else {
-        // Fallback: text() convencional (quando backend não injeta posições)
-        for (i = [0 : len(_lines) - 1])
-            translate([0, _line_y(i), 0])
-                text(_lines[i], size = _sizes[i], font = font_name,
-                     halign = text_halign, valign = "center", spacing = spacing);
+    // Renderação Nativa para resolver kerning com o bônus de offset(0.01) que mescla letras sobrepostas
+    offset(delta = 0.01)
+        text(text_line_1, size = text_size_1, font = font_name, halign = "left", valign = "center", spacing = spacing);
+    
+    if (text_line_2 != "") {
+        translate([0, _line_y(1), 0])
+            offset(delta = 0.01)
+                text(text_line_2, size = text_size_2, font = font_name, halign = "left", valign = "center", spacing = spacing);
     }
+    
+    // Preencher gaps entre palavras se configurado
+    if (len(fill_gap_rects) > 0)
+        gap_fillers_2d();
 }
 
 module base_with_tunnel() {
@@ -128,14 +118,11 @@ module base_with_tunnel() {
                 base_2d();
 
         if (hole_orientation == "FRONTBACK") {
-            // Ancoramos a ponta fina na face direita da peça.
-            // O cone ocupa os primeiros 23 mm para dentro; o restante segue cilíndrico.
-            translate([body_span_x / 2 - hole_length / 2, hole_y, hole_z])
+            _actual_right = (body_max_x != 0) ? body_max_x + outline_margin : (body_span_x / 2);
+            translate([_actual_right - hole_length / 2, hole_y, hole_z])
                 rotate([0, -90, 0])
                     tapered_hole_3d(hole_diameter, hole_length, hole_tip_diameter);
         } else if (hole_orientation == "TOPBOTTOM") {
-            // Ancoramos a ponta fina na face superior/fundo da peça.
-            // O cone entra 23 mm para dentro e depois o furo permanece cilíndrico.
             translate([hole_x, body_span_y / 2 - hole_length / 2, hole_z])
                 rotate([90, 0, 0])
                     tapered_hole_3d(hole_diameter, hole_length, hole_tip_diameter);
@@ -143,33 +130,32 @@ module base_with_tunnel() {
     }
 }
 
-// ── Letras em relevo: um extrude por caractere ────────────────────────────
-module _one_char(ch_code, x, y, sz) {
-    translate([x, y - sz/2, 0])
-        linear_extrude(height = letter_height)
-            text(ch_code, size = sz, font = font_name,
-                 halign = "left", valign = "baseline");
-}
-
 module raised_letters() {
     translate([0, 0, base_height]) {
-        if (len(chars1) > 0) {
-            // Linha 1: per-character (sem even-odd)
-            for (i = [0 : len(chars1) - 1])
-                if (i < len(char_xs1))
-                    _one_char(chars1[i], char_xs1[i], _line_y(0), text_size_1);
-            // Linha 2 (opcional)
-            if (len(chars2) > 0)
-                for (i = [0 : len(chars2) - 1])
-                    if (i < len(char_xs2))
-                        _one_char(chars2[i], char_xs2[i], _line_y(1), text_size_2);
-        } else {
-            // Fallback: text() convencional
-            for (i = [0 : len(_lines) - 1])
-                translate([0, _line_y(i), 0])
-                    linear_extrude(height = letter_height)
-                        text(_lines[i], size = _sizes[i], font = font_name,
-                             halign = text_halign, valign = "center", spacing = spacing);
+        linear_extrude(height = letter_height) {
+            
+            translate([0, _line_y(0), 0]) {
+                if (fill_letter_holes) {
+                    offset(delta = -5.0, join_type = "miter") offset(delta = 5.0, join_type = "miter") offset(delta = 0.01)
+                        text(text_line_1, size = text_size_1, font = font_name, halign = "left", valign = "center", spacing = spacing);
+                } else {
+                    offset(delta = 0.01)
+                        text(text_line_1, size = text_size_1, font = font_name, halign = "left", valign = "center", spacing = spacing);
+                }
+            }
+
+            if (text_line_2 != "") {
+                translate([0, _line_y(1), 0]) {
+                    if (fill_letter_holes) {
+                        offset(delta = -5.0, join_type = "miter") offset(delta = 5.0, join_type = "miter") offset(delta = 0.01)
+                            text(text_line_2, size = text_size_2, font = font_name, halign = "left", valign = "center", spacing = spacing);
+                    } else {
+                        offset(delta = 0.01)
+                            text(text_line_2, size = text_size_2, font = font_name, halign = "left", valign = "center", spacing = spacing);
+                    }
+                }
+            }
+            
         }
     }
 }

@@ -21,16 +21,18 @@ ring_offset_y = 6.0;
 base_color    = "#1B40D1";
 letters_color = "#FFFFFF";
 
-/*[Letras Preenchidas]*/
-fill_letter_holes = false;
+/*[Preenchimento da Base]*/
+fill_base_holes = false;
 
 /*[Posicionamento por caractere — injetado pelo backend]*/
 chars1   = "";   
 char_xs1 = [];   
+body_min_x = 0; // Injetado pelo backend
+body_max_x = 0; // Injetado pelo backend
 body_span_x = 0; // Injetado pelo backend
 
 // Cálculo automático da argola: se temos a largura total, ela vai para a borda esquerda
-final_ring_x = (body_span_x > 0) ? -(body_span_x / 2) + ring_offset_x : ring_offset_x;
+final_ring_x = (body_min_x != 0 || body_max_x != 0) ? body_min_x - outline_margin + ring_offset_x : ((body_span_x > 0) ? -(body_span_x / 2) + ring_offset_x : ring_offset_x);
 final_ring_y = 0 + ring_offset_y; // Inicia em 0 conforme solicitado
 
 /*[Direção]*/
@@ -42,15 +44,17 @@ module hole() {
 }
 
 module base_2d() {
-    if (len(chars1) > 0) {
-        for (i = [0 : len(chars1) - 1])
-            if (i < len(char_xs1))
-                translate([char_xs1[i], -text_size_1/2, 0])
-                    text(chars1[i], size = text_size_1, font = font_name,
-                         halign = "left", valign = "baseline");
+    // Usar Renderização Nativa do OpenSCAD garante o kerning (espaçamento) perfeito do FreeType.
+    // O offset(delta=0.01) funde todas as letras que se tocam, anulando matematicamente o problema de 'buracos' da regra even-odd natural do OpenSCAD!
+    if (fill_base_holes) {
+        offset(delta = -5.0, join_type = "miter") 
+            offset(delta = 5.0, join_type = "miter") 
+                offset(delta = 0.01)
+                    text(text_line_1, size = text_size_1, font = font_name, halign = text_halign, valign = "center", spacing = spacing);
     } else {
-        text(text_line_1, size = text_size_1, font = font_name,
-             halign = text_halign, valign = "center", spacing = spacing);
+        offset(delta = 0.01) {
+            text(text_line_1, size = text_size_1, font = font_name, halign = text_halign, valign = "center", spacing = spacing);
+        }
     }
 }
 
@@ -72,35 +76,11 @@ module base_with_hole() {
     }
 }
 
-// Quando fill_letter_holes=true, executamos um delta>0 seguido de delta<0 para preencher O, A, P.
-module _one_char(ch_code, x, y, sz) {
-    translate([x, y - sz/2, 0]) {
-        linear_extrude(height = letter_height) {
-            if (fill_letter_holes) {
-                offset(delta = -5.0, join_type = "miter") 
-                    offset(delta = 5.0, join_type = "miter") 
-                        text(ch_code, size = sz, font = font_name,
-                             halign = "left", valign = "baseline");
-            } else {
-                text(ch_code, size = sz, font = font_name,
-                     halign = "left", valign = "baseline");
-            }
-        }
-    }
-}
-
 module raised_letters() {
     translate([0, 0, base_height]) {
-        if (len(chars1) > 0) {
-            for (i = [0 : len(chars1) - 1])
-                if (i < len(char_xs1))
-                    _one_char(chars1[i], char_xs1[i], 0, text_size_1);
-        } else {
-            // Fallback
-            translate([0, 0, 0])
-                linear_extrude(height = letter_height)
-                    text(text_line_1, size = text_size_1, font = font_name,
-                         halign = text_halign, valign = "center", spacing = spacing);
+        linear_extrude(height = letter_height) {
+            offset(delta = 0.01)
+                text(text_line_1, size = text_size_1, font = font_name, halign = text_halign, valign = "center", spacing = spacing);
         }
     }
 }

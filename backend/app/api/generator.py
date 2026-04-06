@@ -16,34 +16,81 @@ from app.api._svg_normalize import normalize_svg_to_origin
 from fontTools.ttLib import TTFont
 from app.api.fonts import ensure_font_downloaded, FONTS_DIR
 
-def _compute_char_positions(text: str, font_path: str, size_mm: float, spacing: float = 1.0, word_spacing: float = 1.0) -> list[float]:
+def _compute_char_positions(text: str, font_path: str, size_mm: float, spacing: float = 1.0, word_spacing: float = 1.0) -> dict:
     """
-    Retorna lista de posições X (mm) do início de cada caractere, centradas em 0.
-    Usa os advance widths reais da fonte para posicionamento preciso.
-    word_spacing escala apenas o avanço do caractere espaço (' '), independente de spacing.
+    Retorna posições X (mm), bounds reais de limite e largura teórica.
+    Usa BoundsPen para obter as margens físicas do glyfo se a fonte for cursiva e extrapolar as bordas virtuais.
     """
+    from fontTools.ttLib import TTFont
+    from fontTools.pens.boundsPen import BoundsPen
+    
     font = TTFont(font_path)
-    cap_h: int = font['OS/2'].sCapHeight or font['head'].unitsPerEm
-    scale = size_mm / cap_h
+    # OpenSCAD scale exact match: The OpenSCAD wiki states font size maps to ASCENT (height above baseline).
+    # This precisely matches font['hhea'].ascent in FreeType.
+    ascent: int = getattr(font.get('hhea'), 'ascent', font['head'].unitsPerEm)
+    scale = size_mm / ascent
     cmap = font.getBestCmap() or {}
     hmtx = font['hmtx'].metrics
+    try:
+        glyphSet = font.getGlyphSet()
+    except Exception:
+        glyphSet = None
 
-    advs: list[float] = []
+    advs = []
+    min_xs = []
+    max_xs = []
+
     for char in text:
         gname = cmap.get(ord(char), '.notdef')
         if gname not in hmtx:
             gname = '.notdef'
         factor = word_spacing if char == ' ' else spacing
-        advs.append(hmtx[gname][0] * scale * factor)
+        adv = hmtx[gname][0] * scale * factor
+        advs.append(adv)
+        
+        pen_bounds = None
+        if glyphSet and gname in glyphSet:
+            try:
+                pen = BoundsPen(glyphSet)
+                glyphSet[gname].draw(pen)
+                pen_bounds = pen.bounds
+            except Exception:
+                pass
+                
+        if pen_bounds:
+            min_xs.append(pen_bounds[0] * scale)
+            max_xs.append(pen_bounds[2] * scale)
+        else:
+            min_xs.append(0)
+            max_xs.append(adv)
 
     total_w = sum(advs)
-    start_x = -total_w / 2
-    positions: list[float] = []
+    # OpenSCAD text com halign="left" aninha nativamente o vetor no ponto 0.
+    # Ao abandonarmos a centralização cega de start_x = -total_w / 2,
+    # as medidas físicas (min_x, max_x) não acumulam erros de kerning e a argola segue o texto perfeitamente!
+    start_x = 0.0
+    
+    positions = []
     x = start_x
-    for adv in advs:
+    physical_min_x = 999999.0
+    physical_max_x = -999999.0
+    
+    for i, adv in enumerate(advs):
         positions.append(round(x, 4))
+        physical_min_x = min(physical_min_x, x + min_xs[i])
+        physical_max_x = max(physical_max_x, x + max_xs[i])
         x += adv
-    return positions
+        
+    if physical_min_x == 999999.0:
+        physical_min_x = start_x
+        physical_max_x = start_x + total_w
+
+    return {
+        "positions": positions,
+        "total_w": total_w,
+        "min_x": physical_min_x,
+        "max_x": physical_max_x
+    }
 
 
 # ── Estado global de jobs de batch (em memória) ──────────────────────────────
@@ -651,7 +698,9 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     if not ttf_path:
         return args  # falha no download, fallback
 
-    max_line_w = 0.0  # largura máxima entre todas as linhas (sem outline_margin)
+    max_line_w = 0.0  # largura abstrata principal
+    global_min_x = 999999.0
+    global_max_x = -999999.0
 
     for line_key, size_key, chars_param, xs_param in [
         ("text_line_1", "text_size_1", "chars1", "char_xs1"),
@@ -668,24 +717,16 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
             size_mm, spacing, word_spacing = 12.0, 1.0, 1.0
 
         try:
-            positions = _compute_char_positions(text_val, ttf_path, size_mm, spacing, word_spacing)
+            data = _compute_char_positions(text_val, ttf_path, size_mm, spacing, word_spacing)
+            positions = data["positions"]
             xs_str = "[" + ",".join(f"{x}" for x in positions) + "]"
             args.extend(["-D", f'{chars_param}="{text_val}"'])
             args.extend(["-D", f'{xs_param}={xs_str}'])
-            print(f"[CHAR_POS] {line_key}='{text_val}' xs={xs_str}", flush=True)
+            print(f"[CHAR_POS] {line_key}='{text_val}' min_x={data['min_x']:.2f}", flush=True)
 
-            # Largura total desta linha (soma dos advances)
-            font = TTFont(ttf_path)
-            cap_h: int = font['OS/2'].sCapHeight or font['head'].unitsPerEm
-            scale = size_mm / cap_h
-            cmap = font.getBestCmap() or {}
-            hmtx = font['hmtx'].metrics
-            line_w = sum(
-                hmtx.get(cmap.get(ord(ch), '.notdef'), hmtx.get('.notdef', (0,)))[0]
-                * scale * (word_spacing if ch == ' ' else spacing)
-                for ch in text_val
-            )
-            max_line_w = max(max_line_w, line_w)
+            max_line_w = max(max_line_w, data["total_w"])
+            global_min_x = min(global_min_x, data["min_x"])
+            global_max_x = max(global_max_x, data["max_x"])
         except Exception as exc:
             print(f"[CHAR_POS] Erro para '{line_key}': {exc}", flush=True)
 
@@ -696,9 +737,16 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     except ValueError:
         max_width, outline_margin = 0.0, 2.3
 
-    natural_w = max_line_w + 2 * outline_margin if max_line_w > 0 else 0.0
+    if global_min_x != 999999.0:
+        args.extend(["-D", f"body_min_x={round(global_min_x, 6)}"])
+        args.extend(["-D", f"body_max_x={round(global_max_x, 6)}"])
+
+    # Ajustado de natural_w considerando o physical_span inteiro
+    physical_span = (global_max_x - global_min_x) if global_min_x != 999999.0 else max_line_w
+    natural_w = physical_span + 2 * outline_margin if physical_span > 0 else 0.0
     final_w = natural_w
-    if max_width > 0 and max_line_w > 0:
+    
+    if max_width > 0 and physical_span > 0:
         if natural_w > max_width:
             scale_x = max_width / natural_w
             args.extend(["-D", f"scale_x={round(scale_x, 6)}"])

@@ -108,9 +108,9 @@
                     "default": 1.0
                 },
                 {
-                    "id": "fill_letter_holes",
+                    "id": "fill_base_holes",
                     "name": "Preencher Furos",
-                    "help_text": "Preenche os furos de letras O, A, P, etc",
+                    "help_text": "Preenche fendas e espaços vazios na base do chaveiro",
                     "type": "checkbox",
                     "default": false
                 }
