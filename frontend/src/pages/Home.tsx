@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Scissors, Image, Type, PenTool, Sliders, Key, FlaskConical, PenLine } from 'lucide-react';
+import { Scissors, Image, Type, PenTool, Sliders, FlaskConical, PenLine } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -35,9 +35,11 @@ export default function Home() {
         </Link>
 
         <Link to="/chaveiro-simples" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
-          <div className="w-12 h-12 rounded-lg bg-emerald-900/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
-            <Key className="w-6 h-6" />
-          </div>
+          <img
+            src="/chaveiro_simples_plate_1.png"
+            alt="Preview do Chaveiro Simples"
+            className="w-full max-w-[220px] h-28 mx-auto rounded-lg border border-neutral-800 bg-neutral-900 object-contain p-1 group-hover:scale-[1.02] transition-transform"
+          />
           <div>
             <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Chaveiro Simples</h2>
             <p className="text-neutral-500 mt-2 text-sm">Gere chaveiros com textos personalizados e borda/offest.</p>
