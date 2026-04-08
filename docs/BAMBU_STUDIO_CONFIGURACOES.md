@@ -26,7 +26,7 @@ descomprimi-lo para inspecionar todos os arquivos internos.
 2. Esse arquivo foi aberto no **Bambu Studio**, onde foram configurados:
    - Perfil de impressora (A1)
    - Perfil de impressão (0.20mm Standard)
-   - Perfis de filamento (PLA Branco Voolt + Generic PLA)
+   - Perfis de filamento (PLA - Elegoo + Generic PLA)
    - Atribuição de extrusor (slot do AMS) por peça
    - Opções de fatiamento (densidades, padrões de preenchimento, etc.)
 3. O projeto foi salvo (`Arquivo → Salvar Projeto`), gerando um novo `.3mf`.

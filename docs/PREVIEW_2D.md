@@ -56,4 +56,4 @@ E ancore o preenchimento por Filtro no `Text`:
     <feComposite in="color" in2="threshold" operator="in" />
 </filter>
 ```
-Isso resolverá de forma definitiva os contornos redondos e exatos, sem gerar "Gaps" (Furos transparentes) sobre os inter-espaços dos textos.
+Ainda há problemas na visualização 2D, ela não está perfeita e pode ser melhorada porém depende de mais testes e estudos até chegar em um resultado ideal mas está boa o suficiente.

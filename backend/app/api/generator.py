@@ -1482,10 +1482,13 @@ async def generate_batch(request: Request, model_id: str):
                         print(f"[BATCH ZIP] _pack_bambu_3mf falhou para '{name}'", flush=True)
                         continue
 
-                    # Desambigua nomes iguais: Miguel.3mf, Miguel_2.3mf ...
+                    # Desambigua nomes iguais *e* nomes que diferem só por caixa
+                    # (ex: "KID" e "KId" → conflito em Windows que é case-insensitive).
+                    # A chave do contador é sempre lowercase; o nome exibido preserva a caixa original.
                     arc_base = safe_name
-                    count = arc_name_count.get(arc_base, 0) + 1
-                    arc_name_count[arc_base] = count
+                    arc_key  = arc_base.lower()
+                    count = arc_name_count.get(arc_key, 0) + 1
+                    arc_name_count[arc_key] = count
                     arc_name = f"{arc_base}.3mf" if count == 1 else f"{arc_base}_{count}.3mf"
 
                     zf.write(mf_path, arc_name)

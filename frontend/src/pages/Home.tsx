@@ -62,7 +62,7 @@ export default function Home() {
           </div>
           <div>
             <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Tampa de Caneta</h2>
-            <p className="text-neutral-500 mt-2 text-sm">Gere tampas personalizadas com furo cônico para canetas BIC.</p>
+            <p className="text-neutral-500 mt-2 text-sm">Gere tampas personalizadas com furo cônico para canetas BIC.<br />(Em desenvolvimento)</p>
           </div>
         </Link>
         </div>
