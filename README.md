@@ -28,7 +28,7 @@ Plataforma web para geração parametrizada de modelos 3D personalizados. O usu�
 ### Clonar e iniciar
 
 ```bash
-git clone <url-do-repositorio>
+git clone https://github.com/mvmvasconcelos/trecoletes-3d
 cd Trecoletes-3D
 docker compose up --build
 ```
