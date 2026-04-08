@@ -2,35 +2,120 @@
 description: Como criar a estrutura completa para um novo modelo 3D no projeto Trecoletes-3D
 ---
 
-Sempre que o usuário solicitar "Crie um novo modelo", siga rigorosamente os passos abaixo para garantir que a implementação flua perfeitamente na nova arquitetura (React Modular no Frontend + FastAPI/OpenSCAD no Backend via Docker):
+Sempre que o usuário solicitar "Crie um novo modelo", siga rigorosamente os passos abaixo para garantir que a implementação flua perfeitamente na arquitetura (React Modular no Frontend + FastAPI/OpenSCAD no Backend via Docker):
 
 1. **Criar o Diretório do Modelo no Backend:**
-   Crie a pasta do modelo em `models/<id_do_modelo>`. (Observe que a pasta de modelos agora repousa na raiz do projeto).
-    
-2. **Criar Arquivo config.json:**
-   Crie o arquivo `models/<id_do_modelo>/config.json`.
-   Preencha com o `name`, os arquivos resultantes em `parts` (ex: "carimbo_base", "cortador") e os `parameters` necessários. O FastAPI e o React vão ler essas propriedades de forma Server-Driven.
-   - **Tooltips:** Nos parâmetros dinâmicos de interface, adicione um `"help_text": "Sua explicação"`, e a UI global adotará de imediato uma bolinha `?` com informações no hover.
-   - **Abas Fechadas:** Nas seções (caso utilize UI com sanfonas para subdividir comandos), passe `"collapsed": true` se quiser que aquela sessão inicie recolhida por padrão na visualização do usuário.
-    
-3. **Criar Arquivo model.scad:**
-   Crie o arquivo `models/<id_do_modelo>/model.scad`.
-   Elabore a geometria 3D OpenSCAD. Utilize as variáveis injetadas em caixa baixa (ex: `art_width`, `art_height`, `line_offset`). Pautar-se pelo documento `docs/CENTRALIZACAO_SVG_OPENSCAD.md` para evitar distorções no viewBox.
-    
+   Crie a pasta do modelo em `models/<id_do_modelo>/`. A pasta de modelos fica na raiz do projeto.
+
+2. **Criar Arquivo `config.json`:**
+   Crie o arquivo `models/<id_do_modelo>/config.json`. O FastAPI e o React leem esse arquivo de forma Server-Driven para montar a interface e executar a geração.
+
+   Campos obrigatórios:
+   ```json
+   {
+       "id": "meu_modelo",
+       "title": { "pt": "Meu Modelo", "en": "My Model" },
+       "output_format": "3mf",
+       "parts": ["base", "letras"]
+   }
+   ```
+
+   Campos opcionais relevantes:
+   - `"text_to_svg": true` — ativa a pipeline Server-Driven de texto. O backend injeta automaticamente `chars1`, `char_xs1`, `chars2`, `char_xs2`, `fill_gap_rects` e `scale_x` no OpenSCAD. Use em modelos com texto em relevo.
+
+   **Parâmetros principais** (campo `parameters`, fora de seções):
+   ```json
+   "parameters": [
+       { "id": "text_line_1", "name": "Texto", "type": "text", "default": "Olá", "placeholder": "Ex: Vinicius" },
+       { "id": "font_name", "name": "Fonte", "type": "select", "default": "Chewy:style=Regular", "options": [...] }
+   ]
+   ```
+
+   **Seções (acordeões)** — use `sections` para agrupar parâmetros secundários:
+   ```json
+   "sections": [
+       {
+           "name": "Ajustes Finos",
+           "collapsed": true,
+           "parameters": [
+               { "id": "base_height", "name": "Espessura da Base", "type": "range", "min": 1, "max": 10, "step": 0.1, "default": 2, "unit": "mm" }
+           ]
+       }
+   ]
+   ```
+   - `"collapsed": true` — a seção inicia recolhida.
+
+   **Tipos de parâmetro disponíveis:**
+   | tipo | uso |
+   |------|-----|
+   | `text` | campo de texto livre |
+   | `range` | slider numérico (campos: `min`, `max`, `step`, `unit`) |
+   | `select` | dropdown (campo: `options: [{value, label}]`) |
+   | `checkbox` | boolean |
+   | `color` | seletor de cor Bambu (renderiza `BambuColorPicker`, inclui escolha de extrusor) |
+   | `holes_list` | lista dinâmica de valores de tolerância (adicionar/remover itens) |
+
+   **Tooltips e descrições em parâmetros:**
+   - `"help_text": "Texto"` — exibe bolinha `?` ao lado do label com tooltip no hover (via `ParameterLabel`).
+   - `"description": "Texto"` — exibe texto adicional abaixo do label.
+
+3. **Criar o Arquivo de Modelo:**
+
+   **Opção A — OpenSCAD** (`model.scad`): para a maioria dos modelos. As variáveis dos parâmetros são injetadas em caixa baixa (ex: `art_width`, `base_height`). Consulte `docs/CENTRALIZACAO_SVG_OPENSCAD.md` para posicionamento correto do viewBox.
+
+   **Opção B — Python** (`model.py`): para modelos que usam Shapely + trimesh (sem OpenSCAD). Veja `models/teste_tolerancia_texto_cq/model.py` como referência. O backend detecta o engine pelo nome do arquivo.
+
+   Com `text_to_svg: true`, o backend resolve as geometrias de texto antes de chamar o OpenSCAD — não é necessário lidar com fontes dentro do `.scad`.
+
 4. **Acrescentar Suporte a Bambu Studio (Opcional):**
-   Se o modelo for multicores (ex: text topper), estruture a pasta `models/<id_do_modelo>/bambu_template/` e adicione o `bambu_parts_config.json` e os metadados nativos `.config`. Leia `docs/BAMBU_STUDIO_CONFIGURACOES.md` em caso de dúvidas.
+   Se o modelo for multicolor, estruture `models/<id_do_modelo>/bambu_template/` com `bambu_parts_config.json` e os metadados `.config`. Consulte `docs/BAMBU_STUDIO_CONFIGURACOES.md`.
 
 5. **Criar Página Dedicada no Frontend:**
-   Crie o componente da página em `frontend/src/pages/<NomeEmCamelCase>.tsx` (ex: `MeuNovoModelo.tsx`).
-   - Use páginas análogas como `CortadorBolacha.tsx` ou `PonteiraLapisSvg.tsx` como esqueleto.
-   - Atualize os endpoints de API para `/api/generate/<id_do_modelo>`.
-   - Ajuste o componente de renderização 3D informando: `<Viewer3D [...] modelType="default" />` (para loadings exclusivos, adicione um novo mapping dentro da inteface do Viewer).
-   - **Preview 2D (Opcional):** Se for solicitada a funcionalidade de prévia bidimensional (tempo-real offline) sem acionar carregamentos STL do Backend, envolva sua silhueta paramétrica customizada com a casca global `<Preview2D>`. Mais detalhes arquiteturais indispensáveis encontram-se em `docs/PREVIEW_2D.md`.
-    
+   Crie `frontend/src/pages/<NomeEmCamelCase>.tsx`.
+
+   **Escolha do template base:**
+   - Modelo de **texto** (com `text_to_svg: true`, endpoint paramétrico): copie `PonteiraLapisTexto.tsx` ou `TampaCaneta.tsx`.
+   - Modelo de **upload SVG** (endpoint de upload): copie `CortadorBolacha.tsx` ou `PonteiraLapisSvg.tsx`.
+
+   **Endpoints de geração:**
+   - `POST /api/generate_parametric/{id}` — para modelos paramétricos/texto (mais comum). Recebe JSON com todos os parâmetros.
+   - `POST /api/generate/{id}` — para modelos com upload de SVG. Recebe `FormData`.
+
+   **Viewer 3D:**
+   ```tsx
+   <Viewer3D url={tmfUrl} modelType="default" />
+   ```
+   Valores disponíveis para `modelType`: `'cortador' | 'ponteira' | 'ferramenta' | 'default'`.
+
+   **Componentes específicos por tipo:**
+
+   - **`FontPicker`** — para o parâmetro `font_name` (type `select` com fontes). Renderize no `case 'select'` quando `p.id === 'font_name'`:
+     ```tsx
+     import { FontPicker } from '../components/ui/FontPicker';
+     // ...
+     if (p.id === 'font_name') return <FontPicker key={p.id} parameter={p} value={val} onChange={setParam} />;
+     ```
+
+   - **`BambuColorPicker`** — para parâmetros do tipo `color`. Renderize no `case 'color'` do switch de tipos, passando cor e número do extrusor:
+     ```tsx
+     import { BambuColorPicker } from '../components/ui/BambuColorPicker';
+     // ...
+     <BambuColorPicker label={p.name} helpText={p.help_text} color={val} extruder={extVal}
+         onChangeColor={(c) => setParam(p.id, c)}
+         onChangeExtruder={(e) => setParam(extField, e)} />
+     ```
+
+   - **`SvgPreviewModal`** — para modelos com upload SVG (preview antes de gerar). Use em conjunto com o endpoint `/api/generate/{id}`. Veja `CortadorBolacha.tsx` como referência.
+
+   - **`BatchGenerationModal`** — para geração em lote. Usado nos modelos de texto (ChaveiroSimples, PonteiraLapisTexto, TampaCaneta). O botão de lote chama `POST /api/generate_batch/{id}` e faz polling em `GET /api/batch_status/{job_id}`. Consulte `docs/GERACAO_EM_LOTES.md`. Importe assim:
+     ```tsx
+     import { BatchGenerationModal } from '../components/ui/BatchGenerationModal';
+     ```
+
+   - **`Preview2D` (Opcional):** se for necessária prévia bidimensional offline sem gerar STL, envolva a silhueta paramétrica customizada com `<Preview2D>`. Detalhes em `docs/PREVIEW_2D.md`.
+
 6. **Adicionar Gerenciamento de Cache (obrigatório):**
    Todo modelo deve usar o módulo de cache existente. **Nunca reimplemente na mão.**
-
-   No arquivo `.tsx` da página:
 
    a. Importe o hook e os componentes:
       ```tsx
@@ -43,14 +128,14 @@ Sempre que o usuário solicitar "Crie um novo modelo", siga rigorosamente os pas
       const { fromCache, setFromCache, isClearingCache, clearCache } = useCacheManagement();
       ```
 
-   c. Crie o handler que reseta os URLs do modelo ao limpar cache:
+   c. Handler de limpeza de cache (reseta URLs de resultado):
       ```tsx
       const handleClearCache = () => clearCache(() => {
-          setTmfUrl(null); // reset todos os URLs de resultado
+          setTmfUrl(null);
       });
       ```
 
-   d. Capture `from_cache` na resposta do endpoint `/api/generate/<id>`:
+   d. Capture `from_cache` na resposta do endpoint de geração:
       ```tsx
       setFromCache(res.data.from_cache ?? false);
       ```
@@ -70,12 +155,12 @@ Sempre que o usuário solicitar "Crie um novo modelo", siga rigorosamente os pas
       <CacheBadge fromCache={fromCache} centered />
       ```
 
-   > Para alterar o visual do botão/badge em todos os modelos de uma vez, edite `frontend/src/components/ui/CacheControls.tsx`.
-   > Para alterar a lógica (ex: endpoint da API), edite `frontend/src/hooks/useCacheManagement.ts`.
+   > Para alterar o visual do botão/badge em todos os modelos, edite `frontend/src/components/ui/CacheControls.tsx`.
+   > Para alterar a lógica de cache, edite `frontend/src/hooks/useCacheManagement.ts`.
 
-7. **Integrar ao Roteador e Visagismo:**
-   - Adicione o mapeamento `Route` da URL no `frontend/src/App.tsx`.
-   - Construa um Card UI com ícones Lucide no grid mestre da `frontend/src/pages/Home.tsx`.
+7. **Integrar ao Roteador e à Home:**
+   - Adicione o `<Route>` correspondente em `frontend/src/App.tsx` (dentro de `<BrowserRouter>`).
+   - Construa um card com ícone Lucide no grid de modelos em `frontend/src/pages/Home.tsx`.
 
 8. **Aviso ao Usuário:**
-   Finalize comunicando que a estrutura ponta-a-ponta foi costurada, não sendo necessário restart manual do front/backend. Instigue testes diretamente em `http://localhost:5173`.
+   Finalize comunicando que a estrutura ponta-a-ponta foi criada. Nenhum restart manual é necessário. Testes diretamente em `http://localhost:5173`.

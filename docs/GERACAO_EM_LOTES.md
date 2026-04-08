@@ -4,6 +4,11 @@ O Trecoletes 3D suporta geração em lote: a partir de uma lista de nomes, o sis
 
 O fluxo é gerenciado por um componente React reutilizável (`BatchGenerationModal`) que substitui o padrão antigo de "Carregar JSON → Gerar em Lote" embutido em cada página.
 
+**Páginas que atualmente utilizam este componente:**
+- `ChaveiroSimples.tsx`
+- `PonteiraLapisTexto.tsx`
+- `TampaCaneta.tsx`
+
 ---
 
 ## 1. Componente `BatchGenerationModal`
