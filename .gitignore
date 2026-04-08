@@ -4,7 +4,7 @@ __pycache__
 .venv
 
 # Generated 3D output at root level (debug/test artifacts)
-*.stl
+# *.stl - Excluded to allow A1_build_plate.stl in frontend/src/components/ui
 *.3mf
 temp_*.scad
 temp_*.svg
