@@ -1391,8 +1391,15 @@ async def generate_batch(request: Request, model_id: str):
             stl_paths = {}
 
             # Monta os args SCAD uma única vez para todas as partes
-            scad_args = ["-D", _to_scad_assignment("text_line_1", name),
-                         "-D", 'text_line_2=""']
+            # split_name_on_space: divide no primeiro espaço (ex: "João Batista" → linha1 + linha2)
+            if model_config.get("split_name_on_space"):
+                name_parts = name.split(" ", 1)
+                line1 = name_parts[0]
+                line2 = name_parts[1] if len(name_parts) > 1 else ""
+            else:
+                line1, line2 = name, ""
+            scad_args = ["-D", _to_scad_assignment("text_line_1", line1),
+                         "-D", _to_scad_assignment("text_line_2", line2)]
             for k, v in base_params.items():
                 scad_args.extend(["-D", _to_scad_assignment(k, v)])
 
@@ -1400,7 +1407,7 @@ async def generate_batch(request: Request, model_id: str):
             if model_config.get("text_to_svg"):
                 scad_args = _inject_char_positions(
                     scad_args,
-                    {"text_line_1": name, "text_line_2": "", **base_params},
+                    {"text_line_1": line1, "text_line_2": line2, **base_params},
                     font_path
                 )
 

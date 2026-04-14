@@ -1,0 +1,35 @@
+{
+    "id": "chaveiro_sindicato",
+    "title": {
+        "pt": "Chaveiro Sindicato",
+        "en": "Union Keychain"
+    },
+    "output_format": "3mf",
+    "parts": [
+        "corpo",
+        "nome"
+    ],
+    "split_name_on_space": true,
+    "parameters": [
+        {
+            "id": "text_line_1",
+            "name": "Nome",
+            "type": "text",
+            "default": "Catiele Inês",
+            "placeholder": "Ex: João Batista",
+            "help_text": "Se o nome tiver espaço, será dividido em duas linhas automaticamente"
+        },
+        {
+            "id": "text_size_1",
+            "name": "Tamanho do Nome",
+            "type": "range",
+            "min": 4,
+            "max": 18,
+            "step": 0.5,
+            "default": 10,
+            "unit": "mm",
+            "help_text": "Altura do texto em milímetros"
+        }
+    ],
+    "sections": []
+}
