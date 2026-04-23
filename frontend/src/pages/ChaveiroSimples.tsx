@@ -14,9 +14,12 @@ import { BatchGenerationModal, type BatchNameEntry } from '../components/ui/Batc
 
 function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
     const text = params['text_line_1'] || 'Verônica';
+    const text2 = params['text_line_2'] || '';
     const rawFontName = params['font_name'] || 'Chewy:style=Regular';
     const fontFamily = rawFontName.split(':')[0];
     const textSize = Number(params['text_size_1']) || 12;
+    const textSize2 = Number(params['text_size_2']) || 8;
+    const lineSpacing = Number(params['line_spacing']) || 1.0;
     const margin = Number(params['outline_margin']) || 2.3;
     const spacing = Number(params['spacing']) || 1.0;
     const ringOuter = (Number(params['ring_outer_diameter']) || 6) / 2;
@@ -26,8 +29,15 @@ function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
     const baseColor = params['base_color'] || '#1B40D1';
     const lettersColor = params['letters_color'] || '#FFFFFF';
 
+    // Posição Y de cada linha (espelhando lógica do SCAD — SVG tem Y invertido)
+    const hasLine2 = text2.trim() !== '';
+    const lineY1 = hasLine2 ? -(textSize2 * lineSpacing * 0.6) : 0;
+    const lineY2 = hasLine2 ? (textSize * lineSpacing * 0.6) : 0;
+
     const [textBBox, setTextBBox] = useState({ width: 0, x: 0, y: 0, height: 0 });
+    const [text2BBox, setText2BBox] = useState({ width: 0, x: 0, y: 0, height: 0 });
     const textRef = useRef<SVGTextElement>(null);
+    const text2Ref = useRef<SVGTextElement>(null);
 
     useGoogleFont(fontFamily);
 
@@ -35,50 +45,53 @@ function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
         let isActive = true;
         let timeoutId: any;
         const measure = () => {
-            if (!isActive || !textRef.current) return;
-            const bbox = textRef.current.getBBox();
-            setTextBBox({ width: bbox.width, x: bbox.x, y: bbox.y, height: bbox.height });
+            if (!isActive) return;
+            if (textRef.current) {
+                const bbox = textRef.current.getBBox();
+                setTextBBox({ width: bbox.width, x: bbox.x, y: bbox.y, height: bbox.height });
+            }
+            if (text2Ref.current) {
+                const bbox = text2Ref.current.getBBox();
+                setText2BBox({ width: bbox.width, x: bbox.x, y: bbox.y, height: bbox.height });
+            }
         };
 
-        // Measure once natively
         measure();
 
-        // Espera de forma estrita o carregamento do WebFont solicitado (útil como a tag `<link>` é assíncrona)
         if (document.fonts && fontFamily) {
             document.fonts.load(`12px "${fontFamily.split(':')[0]}"`).then(() => {
                 measure();
-                timeoutId = setTimeout(measure, 150); // Último recalculo vital
+                timeoutId = setTimeout(measure, 150);
             });
         }
 
         const observer = new ResizeObserver(measure);
         if (textRef.current) observer.observe(textRef.current);
+        if (text2Ref.current) observer.observe(text2Ref.current);
 
         return () => {
             isActive = false;
             clearTimeout(timeoutId);
             observer.disconnect();
         };
-    }, [text, fontFamily, textSize, spacing]);
+    }, [text, text2, fontFamily, textSize, textSize2, spacing, lineSpacing]);
 
-    // Calculate exact bounds for tight zoom
-    const outlineLeftEdge = textBBox.x - margin;
+    // Bounds combinando as duas linhas
+    const allBBoxes = [textBBox, ...(hasLine2 ? [text2BBox] : [])];
+    const minX = Math.min(...allBBoxes.map(b => b.x));
+    const minY = Math.min(...allBBoxes.map(b => b.y));
+    const maxX = Math.max(...allBBoxes.map(b => b.x + b.width));
+    const maxY = Math.max(...allBBoxes.map(b => b.y + b.height));
+
+    const outlineLeftEdge = (minX || textBBox.x) - margin;
     const ringCx = outlineLeftEdge + ringOffsetX;
-    
-    // Alinha horizontal real e vertical real
-    const textCy = textBBox.y + textBBox.height / 2;
-    const ringCy = textCy - ringOffsetY; // SVG tem Y invertido, logo subimos se positivo
-    
-    // O SVG suporta nativamente a matemática geométrica de offset de Minkowski!
-    // Basta renderizar o texto com um stroke redondo de espessura = 2 * margin.
+    const contentCy = (minY + maxY) / 2;
+    const ringCy = contentCy - ringOffsetY;
 
-    const contentWidth = Math.max(textBBox.width, 10);
-    const contentHeight = Math.max(textBBox.height, 10);
-    
     const leftBound = Math.min(outlineLeftEdge, ringCx - ringOuter) - 2;
-    const rightBound = Math.max(textBBox.x + contentWidth + margin, ringCx + ringOuter) + 2;
-    const topBound = Math.min(textBBox.y - margin, ringCy - ringOuter) - 2;
-    const bottomBound = Math.max(textBBox.y + contentHeight + margin, ringCy + ringOuter) + 2;
+    const rightBound = Math.max(maxX + margin, ringCx + ringOuter) + 2;
+    const topBound = Math.min(minY - margin, ringCy - ringOuter) - 2;
+    const bottomBound = Math.max(maxY + margin, ringCy + ringOuter) + 2;
     
     const vBoxW = Math.max(rightBound - leftBound, 10);
     const vBoxH = Math.max(bottomBound - topBound, 10);
@@ -86,7 +99,6 @@ function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
     return (
         <svg viewBox={`${leftBound} ${topBound} ${vBoxW} ${vBoxH}`} className="w-full h-full" style={{ fontFamily }}>
             <defs>
-
                 <mask id="chaveiro-hole">
                     <rect x="-5000" y="-5000" width="10000" height="10000" fill="white" />
                     <circle cx={ringCx} cy={ringCy} r={ringInner} fill="black" />
@@ -94,10 +106,10 @@ function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
             </defs>
             <g>
                 <g mask="url(#chaveiro-hole)">
-                    {/* Base outline: Usando stroke robusto que imita perfeitamente offset(r) do OpenSCAD */}
+                    {/* Base outline: stroke imita offset(r) do OpenSCAD */}
                     <text 
                         x="0" 
-                        y="0" 
+                        y={lineY1}
                         dominantBaseline="central" 
                         textAnchor="middle"
                         fontSize={textSize}
@@ -110,14 +122,31 @@ function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
                     >
                         {text}
                     </text>
+                    {hasLine2 && (
+                        <text 
+                            x="0" 
+                            y={lineY2}
+                            dominantBaseline="central" 
+                            textAnchor="middle"
+                            fontSize={textSize2}
+                            letterSpacing={spacing > 1.0 ? spacing : 0} 
+                            fill={baseColor}
+                            stroke={baseColor}
+                            strokeWidth={margin * 2}
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                        >
+                            {text2}
+                        </text>
+                    )}
                     <circle cx={ringCx} cy={ringCy} r={ringOuter} fill={baseColor} />
                 </g>
                 <g>
-                    {/* Letras em relevo (Renderizadas isoladamente por cima) */}
+                    {/* Letras em relevo */}
                     <text 
                         ref={textRef}
                         x="0" 
-                        y="0" 
+                        y={lineY1}
                         dominantBaseline="central" 
                         textAnchor="middle"
                         fontSize={textSize}
@@ -126,6 +155,20 @@ function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
                     >
                         {text}
                     </text>
+                    {hasLine2 && (
+                        <text 
+                            ref={text2Ref}
+                            x="0" 
+                            y={lineY2}
+                            dominantBaseline="central" 
+                            textAnchor="middle"
+                            fontSize={textSize2}
+                            letterSpacing={spacing > 1.0 ? spacing : 0} 
+                            fill={lettersColor}
+                        >
+                            {text2}
+                        </text>
+                    )}
                 </g>
                 <circle cx={ringCx} cy={ringCy} r={ringInner} fill="transparent" stroke="rgba(255,255,255,0.2)" strokeWidth={0.5} />
             </g>

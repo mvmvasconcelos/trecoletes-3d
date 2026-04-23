@@ -701,6 +701,7 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     max_line_w = 0.0  # largura abstrata principal
     global_min_x = 999999.0
     global_max_x = -999999.0
+    line_actual_w: dict = {}  # total_w real por linha (escala correta de _compute_char_positions)
 
     for line_key, size_key, chars_param, xs_param in [
         ("text_line_1", "text_size_1", "chars1", "char_xs1"),
@@ -718,15 +719,21 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
 
         try:
             data = _compute_char_positions(text_val, ttf_path, size_mm, spacing, word_spacing)
-            positions = data["positions"]
-            xs_str = "[" + ",".join(f"{x}" for x in positions) + "]"
+            # Centraliza cada linha individualmente em x=0 para que linhas de larguras
+            # diferentes fiquem visualmente centralizadas uma sobre a outra.
+            center_offset = -(data["total_w"]) / 2
+            centered_positions = [round(p + center_offset, 4) for p in data["positions"]]
+            xs_str = "[" + ",".join(f"{x}" for x in centered_positions) + "]"
             args.extend(["-D", f'{chars_param}="{text_val}"'])
             args.extend(["-D", f'{xs_param}={xs_str}'])
-            print(f"[CHAR_POS] {line_key}='{text_val}' min_x={data['min_x']:.2f}", flush=True)
+            adj_min_x = data["min_x"] + center_offset
+            adj_max_x = data["max_x"] + center_offset
+            print(f"[CHAR_POS] {line_key}='{text_val}' min_x={adj_min_x:.2f} max_x={adj_max_x:.2f}", flush=True)
 
             max_line_w = max(max_line_w, data["total_w"])
-            global_min_x = min(global_min_x, data["min_x"])
-            global_max_x = max(global_max_x, data["max_x"])
+            global_min_x = min(global_min_x, adj_min_x)
+            global_max_x = max(global_max_x, adj_max_x)
+            line_actual_w[line_key] = data["total_w"]
         except Exception as exc:
             print(f"[CHAR_POS] Erro para '{line_key}': {exc}", flush=True)
 
@@ -796,21 +803,12 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
                 word_spacing_val = float(params.get("word_spacing", 1.0))
                 outline_margin_val = float(params.get("outline_margin", 2.3))
 
-                font = TTFont(ttf_path)
-                cap_h = font['OS/2'].sCapHeight or font['head'].unitsPerEm
-                cmap = font.getBestCmap() or {}
-                hmtx = font['hmtx'].metrics
-
-                def _line_total_w(text: str, size_mm: float) -> float:
-                    sc = size_mm / cap_h
-                    return sum(
-                        hmtx.get(cmap.get(ord(ch), '.notdef'), hmtx.get('.notdef', (0,)))[0]
-                        * sc * (word_spacing_val if ch == ' ' else spacing_val)
-                        for ch in text
-                    )
-
-                width_1 = _line_total_w(text_1, size1)
-                width_2 = _line_total_w(text_2, size2)
+                # Usa os total_w reais já calculados por _compute_char_positions (escala correta)
+                # em vez de _line_total_w que usa cap_h (escala diferente).
+                width_1 = line_actual_w.get("text_line_1", 0.0)
+                width_2 = line_actual_w.get("text_line_2", 0.0)
+                if not width_1 or not width_2:
+                    raise ValueError("Widths não disponíveis")
 
                 # Espelha _line_y() do SCAD:
                 #   _line_y(0) = sizes[1] * line_spacing * 0.6  ← centro Y da linha 1 (cima)
@@ -835,7 +833,7 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
                 if vertical_gap > -(outline_margin_val * 0.5):
                     bridge_w = min(width_1, width_2)
                     bridge_h = max(vertical_gap + 0.2, 0.4)
-                    x_center = 0.0   # ambas as linhas são centralizadas em x=0
+                    x_center = 0.0   # ambas as linhas estão centralizadas em x=0
                     y_center = (bottom_line1 + top_line2) / 2
 
                     rects_str = f"[[{round(x_center,4)},{round(y_center,4)},{round(bridge_w,4)},{round(bridge_h,4)}]]"
