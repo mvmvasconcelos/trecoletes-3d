@@ -1087,6 +1087,16 @@ async def generate_parametric_model(request: Request, model_id: str):
         if isinstance(v, str)
     )
 
+    # Lê uploads de SVG para modelos que declaram svg_uploads no config.json.
+    # Os bytes são lidos antes do hash para incluí-los no cálculo do cache.
+    svg_upload_fields: list = model_config.get("svg_uploads", [])
+    svg_bytes_map: dict = {}  # field_name -> bytes normalizados
+    for _svg_field in svg_upload_fields:
+        _item = form_data.get(_svg_field)
+        if _item is not None and not isinstance(_item, str):
+            _raw = await _item.read()
+            svg_bytes_map[_svg_field] = normalize_svg_to_origin(_raw)
+
     # Hash determinístico para cache
     # Inclui assinatura dos arquivos do modelo para invalidar cache
     # automaticamente quando model.scad/config.json forem alterados.
@@ -1107,6 +1117,10 @@ async def generate_parametric_model(request: Request, model_id: str):
             pass
     for k, v in text_params:
         hasher.update(f"{k}={v}".encode())
+    # Inclui bytes dos SVGs no hash para invalidar cache quando a arte mudar
+    for _svg_field in sorted(svg_bytes_map.keys()):
+        hasher.update(f"file:{_svg_field}=".encode())
+        hasher.update(svg_bytes_map[_svg_field])
     job_id = hasher.hexdigest()[:16]
 
     job_dir = os.path.join(GENERATED_DIR, job_id)
@@ -1126,9 +1140,20 @@ async def generate_parametric_model(request: Request, model_id: str):
         _cleanup_old_jobs()
         os.makedirs(job_dir, exist_ok=True)
 
+        # Salva os SVGs no diretório do job e injeta os caminhos como args SCAD
+        for _svg_field, _svg_bytes in svg_bytes_map.items():
+            _svg_path = os.path.join(job_dir, f"{_svg_field}.svg")
+            with open(_svg_path, "wb") as _f:
+                _f.write(_svg_bytes)
+            print(f"[SVG UPLOAD] Salvo: {_svg_path}", flush=True)
+
         scad_args_base = []
         for key, value in text_params:
             scad_args_base.extend(["-D", _to_scad_assignment(key, value)])
+        # Injeta caminhos dos SVGs (devem sobrescrever os defaults do SCAD)
+        for _svg_field, _svg_bytes in svg_bytes_map.items():
+            _svg_path = os.path.join(job_dir, f"{_svg_field}.svg")
+            scad_args_base.extend(["-D", f'{_svg_field}="{_svg_path}"'])
 
         # Injeta posições de caracteres (quando text_to_svg=true no config.json)
         if model_config.get("text_to_svg"):

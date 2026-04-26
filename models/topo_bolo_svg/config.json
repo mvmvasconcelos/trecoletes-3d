@@ -1,0 +1,129 @@
+{
+    "id": "topo_bolo_svg",
+    "title": {
+        "pt": "Topo de Bolo SVG",
+        "en": "SVG Cake Topper"
+    },
+    "output_format": "3mf",
+    "parts": [
+        "base",
+        "svg"
+    ],
+    "svg_uploads": ["svg_linhas_path"],
+    "parameters": [],
+    "sections": [
+        {
+            "name": "Aparência",
+            "collapsed": false,
+            "parameters": [
+                {
+                    "id": "outline_thickness",
+                    "name": "Espessura do contorno",
+                    "help_text": "Quão largo é o contorno ao redor da arte (em mm)",
+                    "type": "range",
+                    "min": 1.0,
+                    "max": 10.0,
+                    "step": 0.5,
+                    "default": 2.5,
+                    "unit": "mm"
+                }
+            ]
+        },
+        {
+            "name": "Alturas",
+            "collapsed": true,
+            "parameters": [
+                {
+                    "id": "base_height",
+                    "name": "Altura do contorno e hastes",
+                    "type": "range",
+                    "min": 0.4,
+                    "max": 5.0,
+                    "step": 0.2,
+                    "default": 0.8,
+                    "unit": "mm"
+                },
+                {
+                    "id": "letter_height",
+                    "name": "Altura do relevo da arte",
+                    "type": "range",
+                    "min": 0.2,
+                    "max": 3.0,
+                    "step": 0.2,
+                    "default": 0.8,
+                    "unit": "mm"
+                }
+            ]
+        },
+        {
+            "name": "Hastes",
+            "collapsed": true,
+            "parameters": [
+                {
+                    "id": "post_count",
+                    "name": "Número de hastes",
+                    "help_text": "1 haste fica centralizada sob a arte; 2 hastes ficam simétricas",
+                    "type": "radio",
+                    "default": "2",
+                    "options": [
+                        { "value": "1", "label": "1 haste" },
+                        { "value": "2", "label": "2 hastes" }
+                    ]
+                },
+                {
+                    "id": "post_spacing",
+                    "name": "Distância entre as hastes",
+                    "help_text": "Distância do centro de uma haste ao centro da outra",
+                    "type": "range",
+                    "min": 20,
+                    "max": 150,
+                    "step": 5,
+                    "default": 75,
+                    "unit": "mm"
+                },
+                {
+                    "id": "post_width",
+                    "name": "Largura das hastes",
+                    "name_singular": "Largura da haste",
+                    "help_text": "Espessura de cada haste em milímetros",
+                    "type": "range",
+                    "min": 2,
+                    "max": 8,
+                    "step": 0.5,
+                    "default": 4,
+                    "unit": "mm"
+                },
+                {
+                    "id": "post_length",
+                    "name": "Comprimento das hastes",
+                    "name_singular": "Comprimento da haste",
+                    "help_text": "Quanto a haste fica abaixo da arte para fixar no bolo",
+                    "type": "range",
+                    "min": 0,
+                    "max": 200,
+                    "step": 5,
+                    "default": 90,
+                    "unit": "mm"
+                }
+            ]
+        },
+        {
+            "name": "Cores",
+            "collapsed": false,
+            "parameters": [
+                {
+                    "id": "base_color",
+                    "name": "Cor do Contorno e Hastes",
+                    "type": "color",
+                    "default": "#FFFFFF"
+                },
+                {
+                    "id": "letters_color",
+                    "name": "Cor da Arte",
+                    "type": "color",
+                    "default": "#FF0000"
+                }
+            ]
+        }
+    ]
+}

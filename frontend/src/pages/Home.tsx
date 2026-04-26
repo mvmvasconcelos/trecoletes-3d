@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Scissors, Image, Type, PenTool, Sliders, FlaskConical, PenLine, KeyRound } from 'lucide-react';
+import { Scissors, Image, Type, PenTool, Sliders, FlaskConical, PenLine, KeyRound, Cake } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -56,6 +56,16 @@ export default function Home() {
           </div>
         </Link>
 
+        <Link to="/chaveiro-simples-svg" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
+          <div className="w-12 h-12 rounded-lg bg-emerald-900/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
+            <Image className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Chaveiro com SVG</h2>
+            <p className="text-neutral-500 mt-2 text-sm">Gere chaveiros com texto e uma arte SVG ao lado direito.</p>
+          </div>
+        </Link>
+
         <Link to="/ponteira-texto" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
           <div className="w-12 h-12 rounded-lg bg-emerald-900/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
             <Type className="w-6 h-6" />
@@ -73,6 +83,26 @@ export default function Home() {
           <div>
             <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Tampa de Caneta</h2>
             <p className="text-neutral-500 mt-2 text-sm">Gere tampas personalizadas com furo cônico para canetas BIC.<br />(Em desenvolvimento)</p>
+          </div>
+        </Link>
+
+        <Link to="/topo-bolo" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
+          <div className="w-12 h-12 rounded-lg bg-emerald-900/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
+            <Cake className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Topo de Bolo</h2>
+            <p className="text-neutral-500 mt-2 text-sm">Gere topos de bolo personalizados com texto em relevo e hastes para fixar.</p>
+          </div>
+        </Link>
+
+        <Link to="/topo-bolo-svg" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
+          <div className="w-12 h-12 rounded-lg bg-emerald-900/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
+            <Image className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Topo de Bolo SVG</h2>
+            <p className="text-neutral-500 mt-2 text-sm">Gere topos de bolo a partir de artes em SVG, com relevo e hastes para fixar.</p>
           </div>
         </Link>
         </div>

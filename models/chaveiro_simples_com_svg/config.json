@@ -1,0 +1,221 @@
+{
+    "id": "chaveiro_simples_com_svg",
+    "title": {
+        "pt": "Chaveiro com SVG",
+        "en": "Keychain with SVG"
+    },
+    "output_format": "3mf",
+    "parts": [
+        "base",
+        "letters"
+    ],
+    "text_to_svg": true,
+    "svg_uploads": ["svg_linhas_path"],
+    "parameters": [
+        {
+            "id": "text_line_1",
+            "name": "Nome",
+            "type": "text",
+            "default": "Vinicius",
+            "placeholder": "Ex: Vinicius"
+        },
+        {
+            "id": "font_name",
+            "name": "Fonte",
+            "type": "select",
+            "default": "Chewy:style=Regular",
+            "options": [
+                {
+                    "value": "Chewy:style=Regular",
+                    "label": "Chewy"
+                },
+                {
+                    "value": "Bangers:style=Regular",
+                    "label": "Bangers"
+                },
+                {
+                    "value": "Leckerli One:style=Regular",
+                    "label": "Leckerli One"
+                },
+                {
+                    "value": "Pacifico:style=Regular",
+                    "label": "Pacifico"
+                },
+                {
+                    "value": "Comic Neue:style=Regular",
+                    "label": "Comic Neue"
+                },
+                {
+                    "value": "Oswald:style=Regular",
+                    "label": "Oswald"
+                }
+            ]
+        }
+    ],
+    "sections": [
+        {
+            "name": "Arte SVG",
+            "collapsed": false,
+            "parameters": [
+                {
+                    "id": "art_height",
+                    "name": "Altura da Arte",
+                    "help_text": "Altura da arte SVG em milímetros (largura é calculada automaticamente)",
+                    "type": "range",
+                    "min": 3,
+                    "max": 50,
+                    "step": 0.5,
+                    "default": 12,
+                    "unit": "mm"
+                },
+                {
+                    "id": "svg_gap",
+                    "name": "Espaço Texto ↔ Arte",
+                    "help_text": "Distância entre o fim do texto e o início da arte",
+                    "type": "range",
+                    "min": 0,
+                    "max": 20,
+                    "step": 0.5,
+                    "default": 2,
+                    "unit": "mm"
+                },
+                {
+                    "id": "svg_offset_x",
+                    "name": "Ajuste Horizontal da Arte",
+                    "help_text": "Deslocamento extra em X (positivo = mais à direita)",
+                    "type": "range",
+                    "min": -20,
+                    "max": 20,
+                    "step": 0.5,
+                    "default": 0,
+                    "unit": "mm"
+                },
+                {
+                    "id": "svg_offset_y",
+                    "name": "Ajuste Vertical da Arte",
+                    "help_text": "Deslocamento em Y (positivo = para cima)",
+                    "type": "range",
+                    "min": -20,
+                    "max": 20,
+                    "step": 0.5,
+                    "default": 0,
+                    "unit": "mm"
+                }
+            ]
+        },
+        {
+            "name": "Linha 2 (Opcional)",
+            "collapsed": true,
+            "parameters": [
+                {
+                    "id": "text_line_2",
+                    "name": "Texto da Linha 2",
+                    "type": "text",
+                    "placeholder": "Ex: Turma 2025",
+                    "default": ""
+                },
+                {
+                    "id": "text_size_2",
+                    "name": "Tamanho da Linha 2",
+                    "type": "range",
+                    "min": 5,
+                    "max": 50,
+                    "step": 1,
+                    "default": 8,
+                    "unit": "mm"
+                },
+                {
+                    "id": "line_spacing",
+                    "name": "Espaçamento entre linhas",
+                    "type": "range",
+                    "min": 0.5,
+                    "max": 3.0,
+                    "step": 0.1,
+                    "default": 1.0
+                }
+            ]
+        },
+        {
+            "name": "Dimensões e Contorno",
+            "collapsed": true,
+            "parameters": [
+                {
+                    "id": "text_size_1",
+                    "name": "Tamanho do Texto",
+                    "help_text": "Altura do texto em milímetros",
+                    "type": "range",
+                    "min": 5,
+                    "max": 50,
+                    "step": 1,
+                    "default": 9,
+                    "unit": "mm"
+                },
+                {
+                    "id": "base_height",
+                    "name": "Espessura da Base",
+                    "type": "range",
+                    "min": 1,
+                    "max": 10,
+                    "step": 0.1,
+                    "default": 2,
+                    "unit": "mm"
+                },
+                {
+                    "id": "letter_height",
+                    "name": "Espessura do Relevo",
+                    "type": "range",
+                    "min": 0.1,
+                    "max": 10,
+                    "step": 0.1,
+                    "default": 2,
+                    "unit": "mm"
+                },
+                {
+                    "id": "outline_margin",
+                    "name": "Contorno Externo",
+                    "help_text": "Borda ao redor do texto e da arte. É a base do chaveiro",
+                    "type": "range",
+                    "min": 0,
+                    "max": 10,
+                    "step": 0.1,
+                    "default": 2.3,
+                    "unit": "mm"
+                },
+                {
+                    "id": "spacing",
+                    "name": "Espaçamento das letras",
+                    "type": "range",
+                    "min": 0.5,
+                    "max": 2.0,
+                    "step": 0.05,
+                    "default": 1.0
+                },
+                {
+                    "id": "fill_base_holes",
+                    "name": "Preencher Furos",
+                    "help_text": "Preenche fendas e espaços vazios na base do chaveiro",
+                    "type": "checkbox",
+                    "default": false
+                }
+            ]
+        },
+        {
+            "name": "Cores",
+            "collapsed": true,
+            "parameters": [
+                {
+                    "id": "base_color",
+                    "name": "Cor da Base",
+                    "type": "color",
+                    "default": "#1B40D1"
+                },
+                {
+                    "id": "letters_color",
+                    "name": "Cor do Texto e Arte",
+                    "type": "color",
+                    "default": "#FFFFFF"
+                }
+            ]
+        }
+    ]
+}
