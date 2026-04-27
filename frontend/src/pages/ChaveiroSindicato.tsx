@@ -7,6 +7,7 @@ import Viewer3D from '../components/ui/Viewer3D';
 import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 import { BatchGenerationModal, type BatchNameEntry } from '../components/ui/BatchGenerationModal';
+import { ThinWallWarnings } from '../components/ui/ThinWallWarnings';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -30,6 +31,8 @@ export default function ChaveiroSindicato() {
     const [nomeUrl, setNomeUrl] = useState<string | null>(null);
     const [tmfUrl, setTmfUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [warnings, setWarnings] = useState<string[]>([]);
+    const [thinWallParts, setThinWallParts] = useState<string[]>([]);
 
     const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
     const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
@@ -64,7 +67,7 @@ export default function ChaveiroSindicato() {
 
     const handleGenerate = async () => {
         setIsGenerating(true);
-        setError(null); setCorpoUrl(null); setNomeUrl(null); setTmfUrl(null); setFromCache(null);
+        setError(null); setWarnings([]); setCorpoUrl(null); setNomeUrl(null); setTmfUrl(null); setFromCache(null);
         try {
             const form = new FormData();
             // Divide o nome no primeiro espaço para gerar duas linhas
@@ -83,6 +86,8 @@ export default function ChaveiroSindicato() {
                 if (res.data.files.nome) setNomeUrl(`${API_BASE}${res.data.files.nome}`);
                 if (res.data.files['3mf']) setTmfUrl(`${API_BASE}${res.data.files['3mf']}`);
                 setFromCache(res.data.from_cache ?? false);
+                setWarnings(res.data.warnings ?? []);
+                setThinWallParts(res.data.thin_wall_parts ?? []);
             }
         } catch (err: any) {
             setError(err?.response?.data?.error ?? 'Erro desconhecido');
@@ -190,6 +195,7 @@ export default function ChaveiroSindicato() {
                     {error && (
                         <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-sm text-red-300">{error}</div>
                     )}
+                    <ThinWallWarnings warnings={warnings} />
                 </div>
                 <div className="p-4 border-t border-neutral-800 bg-neutral-950 space-y-3">
                     <div className="flex gap-2">
@@ -224,6 +230,7 @@ export default function ChaveiroSindicato() {
                             artColor="#FFFFFF"
                             modelColor="#1B40D1"
                             modelType="default"
+                            highlightArte={thinWallParts.length > 0}
                         />
                     </div>
                 </div>

@@ -11,6 +11,8 @@
     ],
     "text_to_svg": true,
     "svg_uploads": ["svg_linhas_path"],
+    "min_feature_size_mm": 0.8,
+    "thin_wall_check": true,
     "parameters": [
         {
             "id": "text_line_1",

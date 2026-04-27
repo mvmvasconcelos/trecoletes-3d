@@ -11,6 +11,7 @@ import { Preview2D } from '../components/ui/Preview2D';
 import { useGoogleFont } from '../hooks/useGoogleFont';
 import { FontPicker } from '../components/ui/FontPicker';
 import { BatchGenerationModal, type BatchNameEntry } from '../components/ui/BatchGenerationModal';
+import { ThinWallWarnings } from '../components/ui/ThinWallWarnings';
 
 function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
     const text = params['text_line_1'] || 'Verônica';
@@ -198,6 +199,8 @@ export default function ChaveiroSimples() {
     const [lettersUrl, setLettersUrl] = useState<string | null>(null);
     const [tmfUrl, setTmfUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [warnings, setWarnings] = useState<string[]>([]);
+    const [thinWallParts, setThinWallParts] = useState<string[]>([]);
     
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
@@ -241,7 +244,7 @@ export default function ChaveiroSimples() {
 
     const handleGenerate = async () => {
         setIsGenerating(true);
-        setError(null); setBaseUrl(null); setLettersUrl(null); setTmfUrl(null); setFromCache(null);
+        setError(null); setWarnings([]); setBaseUrl(null); setLettersUrl(null); setTmfUrl(null); setFromCache(null);
         try {
             const form = new FormData();
             Object.entries(params).forEach(([k, v]) => form.append(k, String(v ?? '')));
@@ -251,6 +254,8 @@ export default function ChaveiroSimples() {
                 if (res.data.files.letters) setLettersUrl(`${API_BASE}${res.data.files.letters}`);
                 if (res.data.files['3mf']) setTmfUrl(`${API_BASE}${res.data.files['3mf']}`);
                 setFromCache(res.data.from_cache ?? false);
+                setWarnings(res.data.warnings ?? []);
+                setThinWallParts(res.data.thin_wall_parts ?? []);
             }
         } catch (err: any) {
             setError(err?.response?.data?.error ?? 'Erro desconhecido');
@@ -431,6 +436,7 @@ export default function ChaveiroSimples() {
                     {error && (
                         <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-sm text-red-300">{error}</div>
                     )}
+                    <ThinWallWarnings warnings={warnings} />
                 </div>
                 <div className="p-4 border-t border-neutral-800 bg-neutral-950 space-y-3">
                     <div className="flex gap-2">
@@ -466,6 +472,7 @@ export default function ChaveiroSimples() {
                             artColor={(params['letters_color'] as string) ?? '#FFFFFF'}
                             modelColor={(params['base_color'] as string) ?? '#1B40D1'}
                             modelType="default"
+                            highlightArte={thinWallParts.length > 0}
                         />
                         <Preview2D>
                             <ChaveiroPreviewRenderer params={params} />

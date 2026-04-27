@@ -10,6 +10,8 @@
         "nome"
     ],
     "split_name_on_space": true,
+    "min_feature_size_mm": 0.8,
+    "thin_wall_check": true,
     "parameters": [
         {
             "id": "text_line_1",

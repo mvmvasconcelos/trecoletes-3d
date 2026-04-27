@@ -9,6 +9,7 @@ import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 import { SvgPreviewModal } from '../components/ui/SvgPreviewModal';
 import { processSvgFile } from '../svgProcessor';
+import { ThinWallWarnings } from '../components/ui/ThinWallWarnings';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -33,6 +34,8 @@ export default function GeradorTopoBoloSvg() {
     const [svgUrl, setSvgUrl] = useState<string | null>(null);
     const [tmfUrl, setTmfUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [warnings, setWarnings] = useState<string[]>([]);
+    const [thinWallParts, setThinWallParts] = useState<string[]>([]);
 
     // SVG upload
     const [svgFile, setSvgFile] = useState<File | null>(null);
@@ -142,7 +145,7 @@ export default function GeradorTopoBoloSvg() {
     const handleGenerate = async () => {
         if (!svgPreview) return;
         setIsGenerating(true);
-        setError(null); setBaseUrl(null); setSvgUrl(null); setTmfUrl(null); setFromCache(null);
+        setError(null); setWarnings([]); setBaseUrl(null); setSvgUrl(null); setTmfUrl(null); setFromCache(null);
         try {
             const form = new FormData();
             form.append(
@@ -165,6 +168,8 @@ export default function GeradorTopoBoloSvg() {
                 if (res.data.files.svg) setSvgUrl(`${API_BASE}${res.data.files.svg}`);
                 if (res.data.files['3mf']) setTmfUrl(`${API_BASE}${res.data.files['3mf']}`);
                 setFromCache(res.data.from_cache ?? false);
+                setWarnings(res.data.warnings ?? []);
+                setThinWallParts(res.data.thin_wall_parts ?? []);
             }
         } catch (err: any) {
             setError(err?.response?.data?.error ?? 'Erro desconhecido');
@@ -382,6 +387,7 @@ export default function GeradorTopoBoloSvg() {
                     {error && (
                         <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-sm text-red-300">{error}</div>
                     )}
+                    <ThinWallWarnings warnings={warnings} />
                 </div>
 
                 <div className="p-4 border-t border-neutral-800 bg-neutral-950">
@@ -409,6 +415,7 @@ export default function GeradorTopoBoloSvg() {
                             artColor={(params['letters_color'] as string) ?? '#FF0000'}
                             modelColor={(params['base_color'] as string) ?? '#FFFFFF'}
                             modelType="default"
+                            highlightArte={thinWallParts.length > 0}
                         />
                     </div>
                 </div>
