@@ -5,6 +5,8 @@ __pycache__
 
 # Generated 3D output at root level (debug/test artifacts)
 *.stl
+# Exception: A1 build plate is required for 3D viewer component
+!frontend/src/components/ui/A1_build_plate.stl
 *.3mf
 temp_*.scad
 temp_*.svg

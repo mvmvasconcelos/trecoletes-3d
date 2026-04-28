@@ -159,12 +159,8 @@ case 'checkbox':
 
 ### Modelos Já Implementados
 
-✅ `ponteira_lapis_texto` - Totalmente funcional
-
-### Modelos para Implementar (futuros)
-
-- `ponteira_lapis_svg` (se tiver 2 linhas)
-- Qualquer modelo com múltiplas linhas de texto
+- `ponteira_lapis_texto` — totalmente funcional
+- `tampa_caneta` — totalmente funcional
 
 ## Exemplos de Uso
 
@@ -260,7 +256,7 @@ User seleciona "Preencher espaços entre linhas" ✓
 ### Gap ainda aparece mesmo com checkbox ativado
 
 **Verificação:**
-1. Checar logs: `docker-compose logs backend | grep FILL_GAPS`
+1. Checar logs: `docker compose logs backend | grep FILL_GAPS`
 2. Procurar mensagem `[FILL_GAPS] Bridge injected`
 3. Se não aparecer:
    - Confirmar que ambas linhas têm texto
@@ -278,4 +274,4 @@ User seleciona "Preencher espaços entre linhas" ✓
 
 - **Arquivo de implementação**: `backend/app/api/generator.py` (linhas 710-799)
 - **Modelo de exemplo**: `models/ponteira_lapis_texto/`
-- **Discussão técnica**: Ver conversation summary na sessão do Copilot
+- **Discussão técnica**: Pseudocódigo neste documento é simplificado; implementação real em `_inject_char_positions()` no generator.py

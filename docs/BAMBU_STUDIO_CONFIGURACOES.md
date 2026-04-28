@@ -26,7 +26,7 @@ descomprimi-lo para inspecionar todos os arquivos internos.
 2. Esse arquivo foi aberto no **Bambu Studio**, onde foram configurados:
    - Perfil de impressora (A1)
    - Perfil de impressão (0.20mm Standard)
-   - Perfis de filamento (PLA Branco Voolt + Generic PLA)
+   - Perfis de filamento (PLA - Elegoo + Generic PLA)
    - Atribuição de extrusor (slot do AMS) por peça
    - Opções de fatiamento (densidades, padrões de preenchimento, etc.)
 3. O projeto foi salvo (`Arquivo → Salvar Projeto`), gerando um novo `.3mf`.
@@ -46,9 +46,22 @@ Comparando os dois arquivos ZIP:
 
 ---
 
+## Modelos com Suporte a Bambu Studio
+
+Atualmente os seguintes modelos possuem `bambu_template/` configurado:
+
+| Pasta do modelo | Partes |
+|---|---|
+| `models/chaveiro_simples/` | `base` (extrusor 1), `letters` (extrusor 2) |
+| `models/cortador_bolacha/` | `carimbo_base` (3), `carimbo_arte` (3), `cortador` (3) |
+| `models/ponteira_lapis_texto/` | `base` (extrusor 3), `letters` (extrusor 1) |
+| `models/tampa_caneta/` | `base` (extrusor 3), `letters` (extrusor 1) |
+
+---
+
 ## Estrutura de Arquivos do Template
 
-Para o modelo `cortador_cookie`, os arquivos de template ficam em:
+Usando `cortador_bolacha` como exemplo:
 
 ```
 models/cortador_bolacha/bambu_template/
@@ -104,17 +117,17 @@ impressora, filamento, perfil de impressão ou qualquer outra configuração de 
 5. **Descomprima o `.3mf` salvo** — basta renomear para `.zip` e extrair, ou usar
    qualquer ferramenta de compressão (7-Zip, WinRAR, etc.).
 
-6. **Copie os arquivos atualizados** para o template do modelo:
+6. **Copie os arquivos atualizados** para o template do modelo desejado:
 
    | Arquivo extraído do .3mf | Destino no projeto |
    |---|---|
-   | `Metadata/project_settings.config` | `models/cortador_bolacha/bambu_template/static/Metadata/project_settings.config` |
-   | `Metadata/filament_sequence.json` | `models/cortador_bolacha/bambu_template/static/Metadata/filament_sequence.json` |
-   | `Metadata/slice_info.config` | `models/cortador_bolacha/bambu_template/static/Metadata/slice_info.config` |
+   | `Metadata/project_settings.config` | `models/<modelo>/bambu_template/static/Metadata/project_settings.config` |
+   | `Metadata/filament_sequence.json` | `models/<modelo>/bambu_template/static/Metadata/filament_sequence.json` |
+   | `Metadata/slice_info.config` | `models/<modelo>/bambu_template/static/Metadata/slice_info.config` |
 
 7. **Reinicie o backend** para garantir que o próximo job use os novos arquivos:
    ```bash
-   docker-compose restart backend
+   docker compose restart backend
    ```
 
 > **Nota:** Não é necessário copiar os arquivos `Metadata/plate_*.png` nem
@@ -125,25 +138,20 @@ impressora, filamento, perfil de impressão ou qualquer outra configuração de 
 
 ## Como Mudar o Extrusor por Peça (Sem Bambu Studio)
 
-Edite o arquivo `bambu_parts_config.json`:
+Edite o arquivo `bambu_parts_config.json` do modelo:
 
 ```json
 {
   "parts": [
     {
-      "scad_name": "carimbo_base",
-      "display_name": "Base do Carimbo",
+      "scad_name": "base",
+      "display_name": "Base",
       "extruder": 3
     },
     {
-      "scad_name": "carimbo_arte",
-      "display_name": "Arte do Carimbo",
-      "extruder": 3
-    },
-    {
-      "scad_name": "cortador",
-      "display_name": "Cortador",
-      "extruder": 3
+      "scad_name": "letters",
+      "display_name": "Letras",
+      "extruder": 1
     }
   ]
 }
@@ -153,19 +161,18 @@ Edite o arquivo `bambu_parts_config.json`:
 - `display_name`: nome que aparece no Bambu Studio ao abrir o arquivo
 - `extruder`: número do slot do AMS (1–4) ou extrusor único (1)
 
-A mudança entra em vigor imediatamente no próximo job. **Não é necessário reiniciar
+A mudança entra em vigor imediatamente no próximo job — **não é necessário reiniciar
 o Docker** para alterações neste arquivo.
 
 ---
 
 ## Como Adicionar Suporte a Outro Modelo
 
-Se futuramente criar um novo modelo (ex: `name_topper`) e quiser que ele também
-gere `.3mf` com configurações Bambu Studio:
+Se criar um novo modelo e quiser que ele gere `.3mf` com configurações Bambu Studio:
 
 1. Crie a estrutura de diretórios:
    ```
-   models/name_topper/bambu_template/
+   models/<novo_modelo>/bambu_template/
    └── static/
        ├── [Content_Types].xml
        ├── _rels/.rels
@@ -176,8 +183,8 @@ gere `.3mf` com configurações Bambu Studio:
            └── slice_info.config
    ```
 
-2. Copie os arquivos estáticos de `cortador_cookie/bambu_template/static/` como ponto
-   de partida e adapte o `project_settings.config` se necessário.
+2. Copie os arquivos estáticos de `models/cortador_bolacha/bambu_template/static/` como
+   ponto de partida e adapte o `project_settings.config` se necessário.
 
 3. Crie o `bambu_parts_config.json` com as partes do novo modelo.
 

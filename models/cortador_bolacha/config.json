@@ -5,6 +5,7 @@
         "en": "Cookie Cutter"
     },
     "output_format": "stl",
+    "min_feature_size_mm": 0.8,
     "parameters": [
         {
             "id": "line_offset",

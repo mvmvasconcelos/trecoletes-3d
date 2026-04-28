@@ -1,31 +1,54 @@
 # Como Criar um Novo Modelo no Trecoletes 3D
 
-Com a nova arquitetura do projeto devidamente refatorada e os serviços isolados, adicionar um novo modelo gerador é um processo padronizado que envolve o **Backend** (geração 3D) e o **Frontend** (interface com o usuário).
+Adicionar um novo modelo envolve duas partes: o **backend** (geração 3D) e o **frontend** (interface do usuário).
 
-Siga este passo a passo para integrar um novo modelo com perfeição.
+---
 
-## 1. Criando o Backend (Motor 3D)
+## 1. Backend
 
-O backend do Trecoletes 3D descobre os modelos automaticamente baseando-se nas pastas presentes no diretório raiz `/models/`.
+O backend descobre os modelos automaticamente pelas pastas presentes em `/models/`.
 
 ### 1.1 Crie o diretório do modelo
-Crie uma nova pasta com o nome do seu modelo (sempre em minúsculas e com *underscores*).
-Exemplo: `/models/meu_novo_modelo`
 
-### 1.2 Crie o arquivo `model.scad`
-Dentro do diretório, crie o código fonte OpenSCAD que irá modelar o objeto.
-- Utilize as variáveis injetadas pelo backend para manipular dimensões e customizações (ex: `art_width`, `art_height`).
-- Certifique-se de usar a centralização recomendada em `CENTRALIZACAO_SVG_OPENSCAD.md`.
-- Se o modelo conter múltiplas partes para impressão multicolorida, certifique-se de declarar as partes separadamente no código.
+```
+models/meu_novo_modelo/
+```
 
-### 1.3 Crie o arquivo `config.json`
-Este é o coração da flexibilidade do projeto! O `config.json` dita como o Frontend deve desenhar a interface e quais peças o Backend exportará.
+Use sempre letras minúsculas e `underscores`.
+
+### 1.2 Crie o `model.scad` (ou `model.py`)
+
+Implemente a geometria. O arquivo receberá parâmetros via flags `-D key=value` do OpenSCAD.
+
+- Para modelos com texto, o backend injeta `chars1`, `char_xs1`, `chars2`, `char_xs2`, `fill_gap_rects` automaticamente (ver `GAP_ENTRE_LINHAS.md`).
+- Para modelos com SVG, leia `CENTRALIZACAO_SVG_OPENSCAD.md` para o padrão correto de `resize + translate`.
+- Se o modelo tiver múltiplas cores/extrusores, declare cada peça como um dispatcher por `part`:
+  ```openscad
+  if (part == "base")    { base_3d(); }
+  if (part == "letters") { letters_3d(); }
+  ```
+
+### 1.3 Crie o `config.json`
+
+É a definição da interface do modelo. Estrutura completa:
 
 ```json
 {
-  "name": "Meu Novo Modelo",
-  "parts": ["carimbo_base", "cortador"],
+  "id": "meu_novo_modelo",
+  "title": {
+    "pt": "Meu Novo Modelo",
+    "en": "My New Model"
+  },
+  "output_format": "3mf",
+  "parts": ["base", "letters"],
+  "text_to_svg": true,
   "parameters": [
+    {
+      "id": "text_line_1",
+      "name": "Texto",
+      "type": "text",
+      "default": "Exemplo"
+    },
     {
       "id": "base_height",
       "name": "Altura da Base",
@@ -39,64 +62,122 @@ Este é o coração da flexibilidade do projeto! O `config.json` dita como o Fro
   ]
 }
 ```
-*Dica: Você pode estruturar os parâmetros em `sections` para gerar "accordions" expansíveis na interface UI.*
 
-### 1.4 Adicione o Metadado Bambu Studio (Opcional)
-Se desejar que o sistema gere arquivos `.3mf` nativos com perfil de configuração pronto para impressão:
-- Crie o diretório `bambu_template/` dentro do diretório do seu modelo.
-- Adicione o arquivo de configuração `bambu_parts_config.json` para ditar quais extrusores cuidarão de quais arquivos STLs gerados.
-- Cole a pasta `static/` obtida pela engenharia reversa de um ZIP do Bambu Studio (veja `BAMBU_STUDIO_CONFIGURACOES.md`).
+Campos obrigatórios: `id`, `title`, `output_format`, `parts`, `parameters`.
+Campo `text_to_svg: true` ativa a injeção automática de posições de glifos pelo backend.
+
+### 1.4 Detecção de paredes finas (recomendado)
+
+O backend possui três mecanismos de detecção de paredes finas que retornam alertas no campo `warnings` da resposta. Para ativá-los, adicione os campos abaixo no `config.json`:
+
+| Campo | Tipo | Quando usar |
+|---|---|---|
+| `min_feature_size_mm` | `number` | Sempre que o modelo tiver texto ou arte SVG. Valor recomendado: `0.8` (2 perímetros com bico 0.4 mm). |
+| `thin_wall_check` | `boolean` | Modelos com texto (`text_to_svg: true`) ou partes SVG. Ativa o ray casting pós-geração na parte `letters`, `svg` ou `nome`. |
+| `min_safe_mm` | `number` (por parâmetro) | Parâmetros de espessura cujo valor mínimo permitido pela UI é menor que o mínimo seguro de impressão. |
+
+**Exemplo completo de config.json com detecção ativada:**
+
+```json
+{
+  "id": "meu_novo_modelo",
+  "title": { "pt": "Meu Novo Modelo", "en": "My New Model" },
+  "output_format": "3mf",
+  "parts": ["base", "letters"],
+  "text_to_svg": true,
+  "min_feature_size_mm": 0.8,
+  "thin_wall_check": true,
+  "parameters": [
+    {
+      "id": "text_size_1",
+      "name": "Tamanho do Texto",
+      "type": "range",
+      "min": 5,
+      "max": 50,
+      "step": 1,
+      "default": 10,
+      "unit": "mm"
+    },
+    {
+      "id": "letter_height",
+      "name": "Altura do Relevo",
+      "type": "range",
+      "min": 0.2,
+      "max": 5.0,
+      "step": 0.1,
+      "default": 1.2,
+      "unit": "mm",
+      "min_safe_mm": 0.4
+    }
+  ]
+}
+```
+
+**Como os três mecanismos funcionam:**
+
+- **Opção 3 — Estimativa de espessura do traço** (`text_to_svg: true` + `min_feature_size_mm`): antes de gerar, o backend estima a espessura mínima do traço como `text_size × 0.12` (conservador para fontes cursivas/display). Se essa estimativa ficar abaixo de `min_feature_size_mm`, um aviso é adicionado indicando o tamanho mínimo seguro. Executa também em cache hits (sem custo extra).
+
+- **Opção 4 — Limiar por parâmetro** (`min_safe_mm` no parâmetro + `min_feature_size_mm`): quando um parâmetro de espessura possui `min_safe_mm` declarado e o usuário envia um valor abaixo desse limiar, o backend inclui um aviso descritivo. Útil para `letter_height`, `base_height` e similares onde o slider UI permite valores abaixo do mínimo de impressão.
+
+- **Opção 1 — Ray casting pós-geração** (`thin_wall_check: true`): após renderizar o STL, lança 300 raios nas faces verticais da parte `letters`/`svg`/`nome` e mede a espessura real por travessia de raio. Se mais de 15% das amostras tiver espessura < `min_feature_size_mm`, um aviso é emitido. Detecta problemas que não são previsíveis por parâmetros (ex.: traços finos em SVG importado).
+
+> **Nota:** todos os avisos são **não-bloqueantes** — o arquivo é gerado normalmente e os alertas aparecem no campo `warnings: []` da resposta JSON. O frontend pode exibir esses avisos ao usuário antes de fazer o download.
+
+### 1.5 Adicione o template Bambu Studio (opcional)
+
+Se o modelo gerar `.3mf` com configurações de impressão prontas, adicione `bambu_template/`. Veja `BAMBU_STUDIO_CONFIGURACOES.md` para o processo completo.
 
 ---
 
-## 2. Configurando o Frontend (Interface Web)
+## 2. Frontend
 
-Agora que o Backend está configurado, o modelo automaticamente possui *endpoints* válidos:
-- GET `/api/models/meu_novo_modelo/config` (Fornece a UI)
-- POST `/api/generate/meu_novo_modelo` (Gera as peças)
+Com o backend configurado, os endpoints já existem automaticamente:
 
-Para renderizar esses botões na tela, precisaremos atrelar uma rota no React.
+| Tipo de modelo | Endpoint de geração |
+|---|---|
+| Paramétrico (texto, dimensões) | `POST /api/generate_parametric/meu_novo_modelo` |
+| Upload de SVG | `POST /api/generate/meu_novo_modelo` |
+| Config da UI | `GET /api/models/meu_novo_modelo/config` |
 
-### 2.1 Crie a Página do Gerador
-Duplique um arquivo de gerador existente na pasta `/frontend/src/pages/` (por exemplo, `CortadorBolacha.tsx`).
-- Renomeie para algo conciso como `MeuNovoModelo.tsx`.
-- Modifique a classe do componente (`export default function MeuNovoModelo() { ... }`).
-- Mude todas as menções de `cortador_bolacha` e strings antigas para mapear ao seu recém criado endpoint `meu_novo_modelo`.
-- Verifique a injeção apropriada dos `parts` resultantes do Backend (carimbo, corte, texto, etc) dentro das propriedades do `Viewer3D`. O `<Viewer3D>` suporta tipos de renderização como `modelType="cortador"`, `"ponteira"`, ou `"ferramenta"`, que alteram dinamicamente a string exibida de "Carregando...". Se seu modelo for de outra categoria, modifique os mapeamentos lógicos no `Viewer3D.tsx`.
+### 2.1 Crie a página do gerador
 
-### 2.2 Adicione a Página ao Roteador Principal
-Vá até `frontend/src/App.tsx` e inclua sua nova página nas rotas:
+Duplique uma página existente em `frontend/src/pages/` que se assemelhe ao novo modelo:
+- Modelos com texto → copiar `PonteiraLapisTexto.tsx` ou `TampaCaneta.tsx`
+- Modelos com SVG → copiar `PonteiraLapisSvg.tsx` ou `CortadorBolacha.tsx`
+
+Renomeie para `MeuNovoModelo.tsx` e troque todas as referências ao `model_id` antigo pelo novo.
+
+O componente `<Viewer3D>` aceita o prop `modelType` para ajustar as mensagens de loading:
+- `'cortador'` — para cortadores de bolacha
+- `'ponteira'` — para ponteiras de lápis
+- `'ferramenta'` — para ferramentas de teste
+- `'default'` — padrão genérico
+
+### 2.2 Adicione a rota em `App.tsx`
 
 ```tsx
 import MeuNovoModelo from './pages/MeuNovoModelo';
 
-function App() {
-  return (
-    <Router>
-      <Routes>
-        ...
-        <Route path="/meu-novo-modelo" element={<MeuNovoModelo />} />
-      </Routes>
-    </Router>
-  );
-}
+// Dentro de <Routes>:
+<Route path="/meu-novo-modelo" element={<MeuNovoModelo />} />
 ```
 
-### 2.3 Exiba o Link na Home (`Vitrine`)
-Por último, abra o arquivo `frontend/src/pages/Home.tsx` e adicione o cartão descritivo (`card`) para que ele seja esteticamente aparente para o usuário na página principal:
+### 2.3 Adicione o card em `Home.tsx`
+
+Na seção "Modelos" (cor `emerald`) ou "Testes & Ferramentas" (cor `sky`):
 
 ```tsx
-<Link to="/meu-novo-modelo" className="group p-6 bg-neutral-900 border border-neutral-800 rounded-2xl hover:border-violet-500 transition-all cursor-pointer shadow-lg hover:shadow-violet-900/20">
-  <div className="flex items-start gap-4">
-    <div className="w-12 h-12 rounded-lg bg-violet-900/30 flex items-center justify-center text-violet-500 group-hover:scale-110 transition-transform">
-      <Star className="w-6 h-6" /> {/* Ícone da Biblioteca Lucide */}
-    </div>
-    <div>
-      <h2 className="text-xl font-bold text-white mb-2 group-hover:text-violet-400 transition-colors">Meu Novo Modelo</h2>
-      <p className="text-sm text-neutral-400 leading-relaxed">Descrição atrativa sobre este sensacional gerador que você acaba de conceber.</p>
-    </div>
+import { Star } from 'lucide-react'; // escolha o ícone adequado
+
+<Link to="/meu-novo-modelo" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
+  <div className="w-12 h-12 rounded-lg bg-emerald-900/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
+    <Star className="w-6 h-6" />
+  </div>
+  <div>
+    <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Meu Novo Modelo</h2>
+    <p className="text-neutral-500 mt-2 text-sm">Descrição curta do que o modelo gera.</p>
   </div>
 </Link>
 ```
 
-Comemore! 🎉 Ao navegar em seu site, o novo modelo foi efetivamente implementado seguindo o padrão modular e reescalável do Trecoletes 3D.
+Para a seção "Testes & Ferramentas", substitua `emerald` por `sky` nas classes.

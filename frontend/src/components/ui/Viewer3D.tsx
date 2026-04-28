@@ -132,19 +132,33 @@ function ViewResetter({ resetToken, initialCamera }: { resetToken: number; initi
 // ------------------------------------------------------------------
 // STL meshes
 // ------------------------------------------------------------------
-function StlMesh({ url, color }: { url: string; color: string }) {
+function StlMesh({ url, color, highlighted = false }: { url: string; color: string; highlighted?: boolean }) {
     const geom = useLoader(STLLoader, url);
     return (
-        <mesh geometry={geom} receiveShadow>
-            <meshStandardMaterial
-                color={color}
-                roughness={0.4}
-                metalness={0.1}
-                polygonOffset
-                polygonOffsetFactor={-1}
-                polygonOffsetUnits={-1}
-            />
-        </mesh>
+        <group>
+            <mesh geometry={geom} receiveShadow>
+                <meshStandardMaterial
+                    color={highlighted ? '#b45309' : color}
+                    roughness={0.4}
+                    metalness={0.1}
+                    emissive={highlighted ? '#f59e0b' : '#000000'}
+                    emissiveIntensity={highlighted ? 0.45 : 0}
+                    polygonOffset
+                    polygonOffsetFactor={-1}
+                    polygonOffsetUnits={-1}
+                />
+            </mesh>
+            {highlighted && (
+                <mesh geometry={geom}>
+                    <meshBasicMaterial
+                        color="#fbbf24"
+                        wireframe
+                        transparent
+                        opacity={0.35}
+                    />
+                </mesh>
+            )}
+        </group>
     );
 }
 
@@ -323,9 +337,11 @@ export interface Viewer3DProps {
     modelType?: 'cortador' | 'ponteira' | 'ferramenta' | 'default';
     artOffset?: [number, number, number];
     showBuildPlate?: boolean;
+    highlightArte?: boolean;
+    highlightBase?: boolean;
 }
 
-export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, isGenerating, artColor, modelColor, modelType = 'default', artOffset, showBuildPlate = true }: Viewer3DProps) {
+export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, isGenerating, artColor, modelColor, modelType = 'default', artOffset, showBuildPlate = true, highlightArte = false, highlightBase = false }: Viewer3DProps) {
     const MODEL_Z_LIFT = 0.8;
     const INITIAL_CAMERA = useMemo<[number, number, number]>(() => [0, -300, 210], []);
     const modelRef = useRef<THREE.Group>(null);
@@ -501,10 +517,10 @@ export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, is
                                         setShowDimensions(true);
                                     }}
                                 >
-                                    {carimbBaseUrl && <StlMesh key={carimbBaseUrl} url={carimbBaseUrl} color={modelColor} />}
+                                    {carimbBaseUrl && <StlMesh key={carimbBaseUrl} url={carimbBaseUrl} color={modelColor} highlighted={highlightBase} />}
                                     {carimbArteUrl && (
                                         <group position={artOffset ?? [0, 0, 0]}>
-                                            <StlMesh key={carimbArteUrl} url={carimbArteUrl} color={artColor} />
+                                            <StlMesh key={carimbArteUrl} url={carimbArteUrl} color={artColor} highlighted={highlightArte} />
                                         </group>
                                     )}
                                     {cortadorUrl && <StlMesh key={cortadorUrl} url={cortadorUrl} color={modelColor} />}

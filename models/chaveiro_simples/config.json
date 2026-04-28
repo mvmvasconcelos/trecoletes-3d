@@ -10,6 +10,8 @@
         "letters"
     ],
     "text_to_svg": true,
+    "min_feature_size_mm": 0.8,
+    "thin_wall_check": true,
     "parameters": [
         {
             "id": "text_line_1",
@@ -52,6 +54,38 @@
         }
     ],
     "sections": [
+        {
+            "name": "Linha 2 (Opcional)",
+            "collapsed": true,
+            "parameters": [
+                {
+                    "id": "text_line_2",
+                    "name": "Texto da Linha 2",
+                    "type": "text",
+                    "placeholder": "Ex: Turma 2025",
+                    "default": ""
+                },
+                {
+                    "id": "text_size_2",
+                    "name": "Tamanho da Linha 2",
+                    "type": "range",
+                    "min": 5,
+                    "max": 50,
+                    "step": 1,
+                    "default": 8,
+                    "unit": "mm"
+                },
+                {
+                    "id": "line_spacing",
+                    "name": "Espaçamento entre linhas",
+                    "type": "range",
+                    "min": 0.5,
+                    "max": 3.0,
+                    "step": 0.1,
+                    "default": 1.0
+                }
+            ]
+        },
         {
             "name": "Dimensões e Contorno",
             "collapsed": true,

@@ -10,7 +10,7 @@ interface Preview2DProps {
 }
 
 export function Preview2D({ 
-  title = "Preview 2D", 
+  title = "Preview 2D - versão ALPHA", 
   children, 
   width = 300, 
   height = 200,

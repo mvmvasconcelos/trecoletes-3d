@@ -66,10 +66,11 @@ A largura é fixada pelo maior offset (maior tolerância). Todas as cavidades fi
 text_width = tamanho × n_chars × 0.9
 ```
 
-O fator `0.9` foi medido empiricamente para `Liberation Sans:style=Regular`:
+O fator `0.9` foi medido empiricamente para `Liberation Sans:style=Regular` (a fonte padrão desta view):
 - "TESTE" (5 chars, tamanho=10) → largura real medida via STL: **41.68mm**
 - Fator real: 41.68 / 50 = **0.834** → `0.9` dá margem de segurança para chars mais largos (M, W)
 - `n_chars` é calculado pelo frontend (`texto.trim().length`) e injetado via `-D n_chars=N`
+- A fonte `fonts-liberation` está listada no `backend/Dockerfile` e está disponível em `/usr/share/fonts/`
 
 > ⚠️ **Se trocar de fonte**: medir a largura real novamente via STL export e recalcular o fator.
 > O processo está documentado em [FONTES_NO_OPENSCAD.md](./FONTES_NO_OPENSCAD.md).

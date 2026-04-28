@@ -28,6 +28,12 @@ char_xs2 = [];
 max_width = 0;
 scale_x   = 1.0;   // injetado pelo backend quando max_width é atingido
 
+/*[Centralização — injetado pelo backend]*/
+// Limites físicos do texto; usados para centralizar a geometria em x=0
+body_min_x = 0;  // injetado pelo backend
+body_max_x = 0;  // injetado pelo backend
+_center_x  = (body_min_x + body_max_x) / 2;
+
 /*[Furação]*/
 hole_type        = "CIRCLE";          // "CIRCLE" | "HEXAGON"
 hole_orientation = "TOPBOTTOM";       // "TOPBOTTOM" | "FRONTBACK" | "NONE"
@@ -162,7 +168,10 @@ part = "all";
 
 // scale_x < 1 quando o backend calculou que o modelo ultrapassa max_width;
 // resultado: largura reduzida mantendo altura (Z) intacta.
-scale([scale_x, 1, 1]) {
+// translate([-_center_x, 0, 0]) é aplicado ANTES do scale para que a
+// centralização não seja distorcida pelo achatamento em X.
+scale([scale_x, 1, 1])
+translate([-_center_x, 0, 0]) {
     if (part == "all") {
         color(base_color)    base_with_tunnel();
         color(letters_color) raised_letters();

@@ -1,4 +1,5 @@
 import hashlib
+import math
 import os
 import re
 import shutil
@@ -8,6 +9,7 @@ import json
 import uuid
 import zipfile
 import threading
+import numpy as np
 import trimesh
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import APIRouter, UploadFile, Form, Request
@@ -701,6 +703,7 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     max_line_w = 0.0  # largura abstrata principal
     global_min_x = 999999.0
     global_max_x = -999999.0
+    line_actual_w: dict = {}  # total_w real por linha (escala correta de _compute_char_positions)
 
     for line_key, size_key, chars_param, xs_param in [
         ("text_line_1", "text_size_1", "chars1", "char_xs1"),
@@ -718,15 +721,21 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
 
         try:
             data = _compute_char_positions(text_val, ttf_path, size_mm, spacing, word_spacing)
-            positions = data["positions"]
-            xs_str = "[" + ",".join(f"{x}" for x in positions) + "]"
+            # Centraliza cada linha individualmente em x=0 para que linhas de larguras
+            # diferentes fiquem visualmente centralizadas uma sobre a outra.
+            center_offset = -(data["total_w"]) / 2
+            centered_positions = [round(p + center_offset, 4) for p in data["positions"]]
+            xs_str = "[" + ",".join(f"{x}" for x in centered_positions) + "]"
             args.extend(["-D", f'{chars_param}="{text_val}"'])
             args.extend(["-D", f'{xs_param}={xs_str}'])
-            print(f"[CHAR_POS] {line_key}='{text_val}' min_x={data['min_x']:.2f}", flush=True)
+            adj_min_x = data["min_x"] + center_offset
+            adj_max_x = data["max_x"] + center_offset
+            print(f"[CHAR_POS] {line_key}='{text_val}' min_x={adj_min_x:.2f} max_x={adj_max_x:.2f}", flush=True)
 
             max_line_w = max(max_line_w, data["total_w"])
-            global_min_x = min(global_min_x, data["min_x"])
-            global_max_x = max(global_max_x, data["max_x"])
+            global_min_x = min(global_min_x, adj_min_x)
+            global_max_x = max(global_max_x, adj_max_x)
+            line_actual_w[line_key] = data["total_w"]
         except Exception as exc:
             print(f"[CHAR_POS] Erro para '{line_key}': {exc}", flush=True)
 
@@ -796,21 +805,12 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
                 word_spacing_val = float(params.get("word_spacing", 1.0))
                 outline_margin_val = float(params.get("outline_margin", 2.3))
 
-                font = TTFont(ttf_path)
-                cap_h = font['OS/2'].sCapHeight or font['head'].unitsPerEm
-                cmap = font.getBestCmap() or {}
-                hmtx = font['hmtx'].metrics
-
-                def _line_total_w(text: str, size_mm: float) -> float:
-                    sc = size_mm / cap_h
-                    return sum(
-                        hmtx.get(cmap.get(ord(ch), '.notdef'), hmtx.get('.notdef', (0,)))[0]
-                        * sc * (word_spacing_val if ch == ' ' else spacing_val)
-                        for ch in text
-                    )
-
-                width_1 = _line_total_w(text_1, size1)
-                width_2 = _line_total_w(text_2, size2)
+                # Usa os total_w reais já calculados por _compute_char_positions (escala correta)
+                # em vez de _line_total_w que usa cap_h (escala diferente).
+                width_1 = line_actual_w.get("text_line_1", 0.0)
+                width_2 = line_actual_w.get("text_line_2", 0.0)
+                if not width_1 or not width_2:
+                    raise ValueError("Widths não disponíveis")
 
                 # Espelha _line_y() do SCAD:
                 #   _line_y(0) = sizes[1] * line_spacing * 0.6  ← centro Y da linha 1 (cima)
@@ -835,7 +835,7 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
                 if vertical_gap > -(outline_margin_val * 0.5):
                     bridge_w = min(width_1, width_2)
                     bridge_h = max(vertical_gap + 0.2, 0.4)
-                    x_center = 0.0   # ambas as linhas são centralizadas em x=0
+                    x_center = 0.0   # ambas as linhas estão centralizadas em x=0
                     y_center = (bottom_line1 + top_line2) / 2
 
                     rects_str = f"[[{round(x_center,4)},{round(y_center,4)},{round(bridge_w,4)},{round(bridge_h,4)}]]"
@@ -856,6 +856,121 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     print(f"[FILL_GAPS_FINAL] Returning args with {len(args)} elements", flush=True)
     sys.stdout.flush()
     return args
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Detecção de paredes finas
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _warn_thin_text_sizes(params: dict, min_feature_mm: float) -> list:
+    """
+    Opção 3: estima a espessura mínima do traço para cada linha de texto e
+    avisa se essa estimativa ficar abaixo de min_feature_mm.
+    Usa stem_ratio=0.12 (conservador para fontes cursivas/display).
+    Para fontes com peso regular, traços típicos são ~12-15% do tamanho.
+    """
+    warnings = []
+    STEM_RATIO = 0.12
+    for key in ("text_size_1", "text_size_2"):
+        raw = params.get(key)
+        if not raw:
+            continue
+        try:
+            size = float(raw)
+        except (ValueError, TypeError):
+            continue
+        estimated_stroke = size * STEM_RATIO
+        if estimated_stroke < min_feature_mm:
+            min_safe = math.ceil(min_feature_mm / STEM_RATIO)
+            warnings.append(
+                f"Texto '{key}={size:.1f}mm': espessura estimada do traço "
+                f"~{estimated_stroke:.2f}mm < mínimo recomendado {min_feature_mm}mm. "
+                f"Partes da letra podem não ser fatiadas pelo fatiador. "
+                f"Tente aumentar o tamanho para ≥{min_safe}mm."
+            )
+    return warnings
+
+
+def _warn_thin_params(params: dict, model_config: dict) -> list:
+    """
+    Opção 4: verifica parâmetros que possuem 'min_safe_mm' declarado no
+    config.json do modelo e avisa se o valor fornecido estiver abaixo desse limiar.
+    """
+    warnings = []
+    all_params = list(model_config.get("parameters", []))
+    for section in model_config.get("sections", []):
+        all_params.extend(section.get("parameters", []))
+    for p in all_params:
+        min_safe = p.get("min_safe_mm")
+        if min_safe is None:
+            continue
+        pid = p["id"]
+        raw = params.get(pid)
+        if raw is None:
+            continue
+        try:
+            val = float(raw)
+        except (ValueError, TypeError):
+            continue
+        if val < float(min_safe):
+            warnings.append(
+                f"'{p.get('name', pid)}' ({val}mm) está abaixo de {min_safe}mm: "
+                f"essa espessura pode não ser impressa corretamente com bico 0.4mm."
+            )
+    return warnings
+
+
+def _check_thin_walls_mesh(mesh, min_thickness_mm: float = 0.8, n_samples: int = 1500) -> tuple:
+    """
+    Opção 1: detecta paredes finas via ray casting nas faces verticais da malha.
+    Lança raios para dentro da superfície ao longo das normais invertidas e mede
+    a espessura no ponto de saída oposto.
+    Retorna (fração_fina, espessura_mínima_mm):
+      - fração_fina [0.0, 1.0]: fração de amostras com espessura < min_thickness_mm
+      - espessura_mínima_mm: menor espessura medida (float('inf') se nenhum hit)
+    Threshold de alerta: fração > 0.06 (6%) OU espessura_mínima < min_thickness_mm * 0.6
+    """
+    try:
+        # Apenas faces "verticais": |normal.z| < 0.3 → paredes laterais das letras
+        vert_mask = np.abs(mesh.face_normals[:, 2]) < 0.3
+        if not np.any(vert_mask):
+            return 0.0, float('inf')
+        vert_indices = np.where(vert_mask)[0]
+        n = min(n_samples, len(vert_indices))
+        if n == 0:
+            return 0.0, float('inf')
+
+        rng = np.random.default_rng(42)  # seed fixo → resultado determinístico
+        sampled = rng.choice(vert_indices, n, replace=False)
+
+        normals = mesh.face_normals[sampled]                        # (n, 3)
+        centers = mesh.vertices[mesh.faces[sampled]].mean(axis=1)  # (n, 3)
+        origins = centers - normals * 0.01    # pequeno offset para dentro
+        directions = -normals                  # direção: atravessa a parede
+
+        locs, ray_ids, _ = mesh.ray.intersects_location(
+            ray_origins=origins,
+            ray_directions=directions,
+            multiple_hits=False,
+        )
+        if len(locs) == 0:
+            return 0.0, float('inf')
+
+        thin_hits: set = set()
+        min_thickness = float('inf')
+        for i in range(len(ray_ids)):
+            ri = int(ray_ids[i])
+            dist = float(np.linalg.norm(locs[i] - origins[ri]))
+            if 0.02 < dist:
+                if dist < min_thickness:
+                    min_thickness = dist
+                if dist < min_thickness_mm:
+                    thin_hits.add(ri)
+
+        return len(thin_hits) / n, min_thickness
+    except Exception as exc:
+        print(f"[THIN_WALL] Erro no ray casting: {exc}", flush=True)
+        return 0.0, float('inf')
 
 
 @router.post("/clear_cache")
@@ -960,9 +1075,14 @@ async def generate_model(
     with open(linhas_path, "wb") as f:
         f.write(linhas_bytes)
 
+    # Normaliza a silhueta da mesma forma que as linhas: garante que o conteúdo
+    # começa em (0,0) e o viewBox equivale exatamente ao tamanho do conteúdo.
+    # Isso é necessário para que resize([art_width, art_height]) no SCAD
+    # funcione corretamente ao importar svg_silhueta_path.
+    silhueta_bytes = normalize_svg_to_origin(silhueta_bytes_raw)
     silhueta_path = os.path.join(job_dir, "silhueta.svg")
     with open(silhueta_path, "wb") as f:
-        f.write(silhueta_bytes_raw)
+        f.write(silhueta_bytes)
 
     # Monta os argumentos -D base para o OpenSCAD (sem a parte — injetada por worker)
     scad_variables_base = [
@@ -1089,6 +1209,16 @@ async def generate_parametric_model(request: Request, model_id: str):
         if isinstance(v, str)
     )
 
+    # Lê uploads de SVG para modelos que declaram svg_uploads no config.json.
+    # Os bytes são lidos antes do hash para incluí-los no cálculo do cache.
+    svg_upload_fields: list = model_config.get("svg_uploads", [])
+    svg_bytes_map: dict = {}  # field_name -> bytes normalizados
+    for _svg_field in svg_upload_fields:
+        _item = form_data.get(_svg_field)
+        if _item is not None and not isinstance(_item, str):
+            _raw = await _item.read()
+            svg_bytes_map[_svg_field] = normalize_svg_to_origin(_raw)
+
     # Hash determinístico para cache
     # Inclui assinatura dos arquivos do modelo para invalidar cache
     # automaticamente quando model.scad/config.json forem alterados.
@@ -1109,7 +1239,24 @@ async def generate_parametric_model(request: Request, model_id: str):
             pass
     for k, v in text_params:
         hasher.update(f"{k}={v}".encode())
+    # Inclui bytes dos SVGs no hash para invalidar cache quando a arte mudar
+    for _svg_field in sorted(svg_bytes_map.keys()):
+        hasher.update(f"file:{_svg_field}=".encode())
+        hasher.update(svg_bytes_map[_svg_field])
     job_id = hasher.hexdigest()[:16]
+
+    # ── Detecção de paredes finas (Opções 3 e 4) ─────────────────────────────
+    # Executado sempre, inclusive em cache hits, pois é rápido (sem I/O de disco).
+    _params_dict = dict(text_params)
+    _min_feature_mm = float(model_config.get("min_feature_size_mm", 0.0))
+    gen_warnings: list = []
+    gen_thin_parts: list = []
+    if _min_feature_mm > 0:
+        gen_warnings += _warn_thin_params(_params_dict, model_config)
+        if model_config.get("text_to_svg"):
+            gen_warnings += _warn_thin_text_sizes(_params_dict, _min_feature_mm)
+    if gen_warnings:
+        print(f"[THIN_WALL] {len(gen_warnings)} aviso(s) de parede fina detectado(s)", flush=True)
 
     job_dir = os.path.join(GENERATED_DIR, job_id)
     font_path = f"{FONTS_DIR}:{os.path.join(MODELS_DIR, model_id)}"
@@ -1123,14 +1270,48 @@ async def generate_parametric_model(request: Request, model_id: str):
             print(f"[CACHE HIT parametric 3mf] job_id={job_id}", flush=True)
             cached_urls = {p: f"/static/generated/{job_id}/{model_id}_{p}.stl" for p in parts_to_render}
             cached_urls["3mf"] = f"/static/generated/{job_id}/{mf_filename}"
-            return {"success": True, "job_id": job_id, "files": cached_urls, "from_cache": True}
+            # Ray casting também no cache hit
+            if model_config.get("thin_wall_check") and _min_feature_mm > 0:
+                for _check_part in ("letters", "svg", "nome"):
+                    _stl_p = os.path.join(job_dir, f"{model_id}_{_check_part}.stl")
+                    if not os.path.exists(_stl_p):
+                        continue
+                    try:
+                        _loaded = trimesh.load(_stl_p)
+                        _mesh = (trimesh.util.concatenate(list(_loaded.geometry.values()))
+                                 if isinstance(_loaded, trimesh.Scene) else _loaded)
+                        _frac, _min_thick = _check_thin_walls_mesh(_mesh, _min_feature_mm)
+                        _critical_thin = _min_thick < _min_feature_mm * 0.6
+                        if _frac > 0.06 or _critical_thin:
+                            gen_thin_parts.append(_check_part)
+                            _min_str = f"{_min_thick:.2f}mm" if _min_thick != float('inf') else "?"
+                            gen_warnings.append(
+                                f"Parte '{_check_part}': {_frac * 100:.0f}% das faces laterais "
+                                f"têm espessura < {_min_feature_mm}mm "
+                                f"(mínimo detectado: {_min_str}). "
+                                f"Alguns traços podem não ser fatiados."
+                            )
+                    except Exception as _exc:
+                        print(f"[THIN_WALL cache] Erro ao verificar '{_check_part}': {_exc}", flush=True)
+            return {"success": True, "job_id": job_id, "files": cached_urls, "from_cache": True, "warnings": gen_warnings, "thin_wall_parts": gen_thin_parts}
 
         _cleanup_old_jobs()
         os.makedirs(job_dir, exist_ok=True)
 
+        # Salva os SVGs no diretório do job e injeta os caminhos como args SCAD
+        for _svg_field, _svg_bytes in svg_bytes_map.items():
+            _svg_path = os.path.join(job_dir, f"{_svg_field}.svg")
+            with open(_svg_path, "wb") as _f:
+                _f.write(_svg_bytes)
+            print(f"[SVG UPLOAD] Salvo: {_svg_path}", flush=True)
+
         scad_args_base = []
         for key, value in text_params:
             scad_args_base.extend(["-D", _to_scad_assignment(key, value)])
+        # Injeta caminhos dos SVGs (devem sobrescrever os defaults do SCAD)
+        for _svg_field, _svg_bytes in svg_bytes_map.items():
+            _svg_path = os.path.join(job_dir, f"{_svg_field}.svg")
+            scad_args_base.extend(["-D", f'{_svg_field}="{_svg_path}"'])
 
         # Injeta posições de caracteres (quando text_to_svg=true no config.json)
         if model_config.get("text_to_svg"):
@@ -1178,6 +1359,32 @@ async def generate_parametric_model(request: Request, model_id: str):
             print(f"[PARAMETRIC 3MF ERROR] {errors}", flush=True)
             return JSONResponse(status_code=500, content={"error": "OpenSCAD falhou", "details": errors})
 
+        # ── Opção 1: ray casting nas malhas geradas ───────────────────────────────
+        # Verifica paredes laterais das peças de texto/SVG após renderização.
+        if model_config.get("thin_wall_check") and _min_feature_mm > 0:
+            for _check_part in ("letters", "svg", "nome"):
+                _stl_p = os.path.join(job_dir, f"{model_id}_{_check_part}.stl")
+                if not os.path.exists(_stl_p):
+                    continue
+                try:
+                    _loaded = trimesh.load(_stl_p)
+                    _mesh = (trimesh.util.concatenate(list(_loaded.geometry.values()))
+                             if isinstance(_loaded, trimesh.Scene) else _loaded)
+                    _frac, _min_thick = _check_thin_walls_mesh(_mesh, _min_feature_mm)
+                    print(f"[THIN_WALL] Parte '{_check_part}': fração fina={_frac:.2f}, min_thick={_min_thick:.2f}mm", flush=True)
+                    _critical_thin = _min_thick < _min_feature_mm * 0.6
+                    if _frac > 0.06 or _critical_thin:
+                        gen_thin_parts.append(_check_part)
+                        _min_str = f"{_min_thick:.2f}mm" if _min_thick != float('inf') else "?"
+                        gen_warnings.append(
+                            f"Parte '{_check_part}': {_frac * 100:.0f}% das faces laterais "
+                            f"têm espessura < {_min_feature_mm}mm "
+                            f"(mínimo detectado: {_min_str}). "
+                            f"Alguns traços podem não ser fatiados."
+                        )
+                except Exception as _exc:
+                    print(f"[THIN_WALL] Erro ao verificar '{_check_part}': {_exc}", flush=True)
+
         ov = {}
         for k, v in text_params:
             if k == "extrusor_base":
@@ -1206,7 +1413,7 @@ async def generate_parametric_model(request: Request, model_id: str):
             except Exception as e:
                 print(f"[PARAMETRIC FALLBACK] Erro ao exportar 3MF via trimesh: {repr(e)}")
 
-        return {"success": True, "job_id": job_id, "files": generated_urls, "from_cache": False}
+        return {"success": True, "job_id": job_id, "files": generated_urls, "from_cache": False, "warnings": gen_warnings, "thin_wall_parts": gen_thin_parts}
 
     # ── Fluxo STL único (original) ────────────────────────────────────────
     output_filename = f"{model_id}.stl"
@@ -1219,6 +1426,7 @@ async def generate_parametric_model(request: Request, model_id: str):
             "job_id": job_id,
             "files": {"model": f"/static/generated/{job_id}/{output_filename}"},
             "from_cache": True,
+            "warnings": gen_warnings,
         }
 
     _cleanup_old_jobs()
@@ -1257,6 +1465,7 @@ async def generate_parametric_model(request: Request, model_id: str):
         "job_id": job_id,
         "files": {"model": f"/static/generated/{job_id}/{output_filename}"},
         "from_cache": False,
+        "warnings": gen_warnings,
     }
 
 
@@ -1391,8 +1600,15 @@ async def generate_batch(request: Request, model_id: str):
             stl_paths = {}
 
             # Monta os args SCAD uma única vez para todas as partes
-            scad_args = ["-D", _to_scad_assignment("text_line_1", name),
-                         "-D", 'text_line_2=""']
+            # split_name_on_space: divide no primeiro espaço (ex: "João Batista" → linha1 + linha2)
+            if model_config.get("split_name_on_space"):
+                name_parts = name.split(" ", 1)
+                line1 = name_parts[0]
+                line2 = name_parts[1] if len(name_parts) > 1 else ""
+            else:
+                line1, line2 = name, ""
+            scad_args = ["-D", _to_scad_assignment("text_line_1", line1),
+                         "-D", _to_scad_assignment("text_line_2", line2)]
             for k, v in base_params.items():
                 scad_args.extend(["-D", _to_scad_assignment(k, v)])
 
@@ -1400,7 +1616,7 @@ async def generate_batch(request: Request, model_id: str):
             if model_config.get("text_to_svg"):
                 scad_args = _inject_char_positions(
                     scad_args,
-                    {"text_line_1": name, "text_line_2": "", **base_params},
+                    {"text_line_1": line1, "text_line_2": line2, **base_params},
                     font_path
                 )
 
@@ -1482,10 +1698,13 @@ async def generate_batch(request: Request, model_id: str):
                         print(f"[BATCH ZIP] _pack_bambu_3mf falhou para '{name}'", flush=True)
                         continue
 
-                    # Desambigua nomes iguais: Miguel.3mf, Miguel_2.3mf ...
+                    # Desambigua nomes iguais *e* nomes que diferem só por caixa
+                    # (ex: "KID" e "KId" → conflito em Windows que é case-insensitive).
+                    # A chave do contador é sempre lowercase; o nome exibido preserva a caixa original.
                     arc_base = safe_name
-                    count = arc_name_count.get(arc_base, 0) + 1
-                    arc_name_count[arc_base] = count
+                    arc_key  = arc_base.lower()
+                    count = arc_name_count.get(arc_key, 0) + 1
+                    arc_name_count[arc_key] = count
                     arc_name = f"{arc_base}.3mf" if count == 1 else f"{arc_base}_{count}.3mf"
 
                     zf.write(mf_path, arc_name)

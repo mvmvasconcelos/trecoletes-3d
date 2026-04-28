@@ -66,17 +66,17 @@ module art_svg() {
 
 
 // ============================================================
-// silhoueta_shape: gera a silhueta orgânica a partir da arte
-// Usa fechamento morfológico (expande→preenche buracos→encolhe) para que o
-// resultado seja uma forma sólida sem vazados, mesmo para formatos de linhas de traço simples.
-// O fill_r precisa ser > do que a metade do maior buraco presente no desenho da arte.
+// silhoueta_shape: usa a silhueta pré-computada pelo frontend (svg_silhueta_path).
+// A silhueta já é o contorno externo unificado da arte, sem buracos internos.
+// Isso é muito mais rápido do que recalcular via offset(r=fill_r) sobre art_svg()
+// (que levava >200s em SVGs complexos com muitos paths).
 // ============================================================
-fill_r = 20; // [mm] raio grande o suficiente para emendar e preencher qualquer buraco na arte
-
 module silhoueta_shape(extra_r = 0) {
-    offset(r = silhouette_exp + extra_r - fill_r) {
-        offset(r = fill_r) {
-            art_svg();
+    offset(r = silhouette_exp + extra_r, $fn = 128) {
+        translate([-art_width / 2, -art_height / 2]) {
+            resize([art_width, art_height], auto=[false, false]) {
+                import(svg_silhueta_path);
+            }
         }
     }
 }

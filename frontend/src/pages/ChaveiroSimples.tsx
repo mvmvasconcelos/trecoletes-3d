@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Sliders, ChevronDown } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
@@ -10,12 +10,17 @@ import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 import { Preview2D } from '../components/ui/Preview2D';
 import { useGoogleFont } from '../hooks/useGoogleFont';
 import { FontPicker } from '../components/ui/FontPicker';
+import { BatchGenerationModal, type BatchNameEntry } from '../components/ui/BatchGenerationModal';
+import { ThinWallWarnings } from '../components/ui/ThinWallWarnings';
 
 function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
     const text = params['text_line_1'] || 'Verônica';
+    const text2 = params['text_line_2'] || '';
     const rawFontName = params['font_name'] || 'Chewy:style=Regular';
     const fontFamily = rawFontName.split(':')[0];
     const textSize = Number(params['text_size_1']) || 12;
+    const textSize2 = Number(params['text_size_2']) || 8;
+    const lineSpacing = Number(params['line_spacing']) || 1.0;
     const margin = Number(params['outline_margin']) || 2.3;
     const spacing = Number(params['spacing']) || 1.0;
     const ringOuter = (Number(params['ring_outer_diameter']) || 6) / 2;
@@ -25,8 +30,15 @@ function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
     const baseColor = params['base_color'] || '#1B40D1';
     const lettersColor = params['letters_color'] || '#FFFFFF';
 
+    // Posição Y de cada linha (espelhando lógica do SCAD — SVG tem Y invertido)
+    const hasLine2 = text2.trim() !== '';
+    const lineY1 = hasLine2 ? -(textSize2 * lineSpacing * 0.6) : 0;
+    const lineY2 = hasLine2 ? (textSize * lineSpacing * 0.6) : 0;
+
     const [textBBox, setTextBBox] = useState({ width: 0, x: 0, y: 0, height: 0 });
+    const [text2BBox, setText2BBox] = useState({ width: 0, x: 0, y: 0, height: 0 });
     const textRef = useRef<SVGTextElement>(null);
+    const text2Ref = useRef<SVGTextElement>(null);
 
     useGoogleFont(fontFamily);
 
@@ -34,50 +46,53 @@ function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
         let isActive = true;
         let timeoutId: any;
         const measure = () => {
-            if (!isActive || !textRef.current) return;
-            const bbox = textRef.current.getBBox();
-            setTextBBox({ width: bbox.width, x: bbox.x, y: bbox.y, height: bbox.height });
+            if (!isActive) return;
+            if (textRef.current) {
+                const bbox = textRef.current.getBBox();
+                setTextBBox({ width: bbox.width, x: bbox.x, y: bbox.y, height: bbox.height });
+            }
+            if (text2Ref.current) {
+                const bbox = text2Ref.current.getBBox();
+                setText2BBox({ width: bbox.width, x: bbox.x, y: bbox.y, height: bbox.height });
+            }
         };
 
-        // Measure once natively
         measure();
 
-        // Espera de forma estrita o carregamento do WebFont solicitado (útil como a tag `<link>` é assíncrona)
         if (document.fonts && fontFamily) {
             document.fonts.load(`12px "${fontFamily.split(':')[0]}"`).then(() => {
                 measure();
-                timeoutId = setTimeout(measure, 150); // Último recalculo vital
+                timeoutId = setTimeout(measure, 150);
             });
         }
 
         const observer = new ResizeObserver(measure);
         if (textRef.current) observer.observe(textRef.current);
+        if (text2Ref.current) observer.observe(text2Ref.current);
 
         return () => {
             isActive = false;
             clearTimeout(timeoutId);
             observer.disconnect();
         };
-    }, [text, fontFamily, textSize, spacing]);
+    }, [text, text2, fontFamily, textSize, textSize2, spacing, lineSpacing]);
 
-    // Calculate exact bounds for tight zoom
-    const outlineLeftEdge = textBBox.x - margin;
+    // Bounds combinando as duas linhas
+    const allBBoxes = [textBBox, ...(hasLine2 ? [text2BBox] : [])];
+    const minX = Math.min(...allBBoxes.map(b => b.x));
+    const minY = Math.min(...allBBoxes.map(b => b.y));
+    const maxX = Math.max(...allBBoxes.map(b => b.x + b.width));
+    const maxY = Math.max(...allBBoxes.map(b => b.y + b.height));
+
+    const outlineLeftEdge = (minX || textBBox.x) - margin;
     const ringCx = outlineLeftEdge + ringOffsetX;
-    
-    // Alinha horizontal real e vertical real
-    const textCy = textBBox.y + textBBox.height / 2;
-    const ringCy = textCy - ringOffsetY; // SVG tem Y invertido, logo subimos se positivo
-    
-    // O SVG suporta nativamente a matemática geométrica de offset de Minkowski!
-    // Basta renderizar o texto com um stroke redondo de espessura = 2 * margin.
+    const contentCy = (minY + maxY) / 2;
+    const ringCy = contentCy - ringOffsetY;
 
-    const contentWidth = Math.max(textBBox.width, 10);
-    const contentHeight = Math.max(textBBox.height, 10);
-    
     const leftBound = Math.min(outlineLeftEdge, ringCx - ringOuter) - 2;
-    const rightBound = Math.max(textBBox.x + contentWidth + margin, ringCx + ringOuter) + 2;
-    const topBound = Math.min(textBBox.y - margin, ringCy - ringOuter) - 2;
-    const bottomBound = Math.max(textBBox.y + contentHeight + margin, ringCy + ringOuter) + 2;
+    const rightBound = Math.max(maxX + margin, ringCx + ringOuter) + 2;
+    const topBound = Math.min(minY - margin, ringCy - ringOuter) - 2;
+    const bottomBound = Math.max(maxY + margin, ringCy + ringOuter) + 2;
     
     const vBoxW = Math.max(rightBound - leftBound, 10);
     const vBoxH = Math.max(bottomBound - topBound, 10);
@@ -85,7 +100,6 @@ function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
     return (
         <svg viewBox={`${leftBound} ${topBound} ${vBoxW} ${vBoxH}`} className="w-full h-full" style={{ fontFamily }}>
             <defs>
-
                 <mask id="chaveiro-hole">
                     <rect x="-5000" y="-5000" width="10000" height="10000" fill="white" />
                     <circle cx={ringCx} cy={ringCy} r={ringInner} fill="black" />
@@ -93,10 +107,10 @@ function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
             </defs>
             <g>
                 <g mask="url(#chaveiro-hole)">
-                    {/* Base outline: Usando stroke robusto que imita perfeitamente offset(r) do OpenSCAD */}
+                    {/* Base outline: stroke imita offset(r) do OpenSCAD */}
                     <text 
                         x="0" 
-                        y="0" 
+                        y={lineY1}
                         dominantBaseline="central" 
                         textAnchor="middle"
                         fontSize={textSize}
@@ -109,14 +123,31 @@ function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
                     >
                         {text}
                     </text>
+                    {hasLine2 && (
+                        <text 
+                            x="0" 
+                            y={lineY2}
+                            dominantBaseline="central" 
+                            textAnchor="middle"
+                            fontSize={textSize2}
+                            letterSpacing={spacing > 1.0 ? spacing : 0} 
+                            fill={baseColor}
+                            stroke={baseColor}
+                            strokeWidth={margin * 2}
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                        >
+                            {text2}
+                        </text>
+                    )}
                     <circle cx={ringCx} cy={ringCy} r={ringOuter} fill={baseColor} />
                 </g>
                 <g>
-                    {/* Letras em relevo (Renderizadas isoladamente por cima) */}
+                    {/* Letras em relevo */}
                     <text 
                         ref={textRef}
                         x="0" 
-                        y="0" 
+                        y={lineY1}
                         dominantBaseline="central" 
                         textAnchor="middle"
                         fontSize={textSize}
@@ -125,6 +156,20 @@ function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
                     >
                         {text}
                     </text>
+                    {hasLine2 && (
+                        <text 
+                            ref={text2Ref}
+                            x="0" 
+                            y={lineY2}
+                            dominantBaseline="central" 
+                            textAnchor="middle"
+                            fontSize={textSize2}
+                            letterSpacing={spacing > 1.0 ? spacing : 0} 
+                            fill={lettersColor}
+                        >
+                            {text2}
+                        </text>
+                    )}
                 </g>
                 <circle cx={ringCx} cy={ringCy} r={ringInner} fill="transparent" stroke="rgba(255,255,255,0.2)" strokeWidth={0.5} />
             </g>
@@ -154,22 +199,21 @@ export default function ChaveiroSimples() {
     const [lettersUrl, setLettersUrl] = useState<string | null>(null);
     const [tmfUrl, setTmfUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [warnings, setWarnings] = useState<string[]>([]);
+    const [thinWallParts, setThinWallParts] = useState<string[]>([]);
     
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
-    const [batchNames, setBatchNames] = useState<{nome: string}[] | null>(null);
-    const [batchId, setBatchId] = useState<string | null>(null);
+    const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
     const [batchProgress, setBatchProgress] = useState<{done: number, total: number} | null>(null);
     const [batchTmfUrl, setBatchTmfUrl] = useState<string | null>(null);
-    const [batchFromCache, setBatchFromCache] = useState<boolean | null>(null);
-    const batchFileRef = useRef<HTMLInputElement>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const { fromCache, setFromCache, isClearingCache, clearCache } = useCacheManagement();
 
     const handleClearCache = () => clearCache(() => {
         setTmfUrl(null); setBaseUrl(null); setLettersUrl(null);
-        setBatchTmfUrl(null); setBatchFromCache(null); setBatchProgress(null); setBatchId(null);
+        setBatchTmfUrl(null); setBatchProgress(null);
     });
 
     useEffect(() => {
@@ -200,7 +244,7 @@ export default function ChaveiroSimples() {
 
     const handleGenerate = async () => {
         setIsGenerating(true);
-        setError(null); setBaseUrl(null); setLettersUrl(null); setTmfUrl(null); setFromCache(null);
+        setError(null); setWarnings([]); setBaseUrl(null); setLettersUrl(null); setTmfUrl(null); setFromCache(null);
         try {
             const form = new FormData();
             Object.entries(params).forEach(([k, v]) => form.append(k, String(v ?? '')));
@@ -210,6 +254,8 @@ export default function ChaveiroSimples() {
                 if (res.data.files.letters) setLettersUrl(`${API_BASE}${res.data.files.letters}`);
                 if (res.data.files['3mf']) setTmfUrl(`${API_BASE}${res.data.files['3mf']}`);
                 setFromCache(res.data.from_cache ?? false);
+                setWarnings(res.data.warnings ?? []);
+                setThinWallParts(res.data.thin_wall_parts ?? []);
             }
         } catch (err: any) {
             setError(err?.response?.data?.error ?? 'Erro desconhecido');
@@ -222,46 +268,23 @@ export default function ChaveiroSimples() {
         return () => { if (pollRef.current) clearInterval(pollRef.current); };
     }, []);
 
-    const handleBatchUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = ev => {
-            try {
-                const data = JSON.parse(ev.target?.result as string);
-                if (Array.isArray(data) && data.length > 0 && data.every((item: any) => typeof item.nome === 'string')) {
-                    setBatchNames(data);
-                    setBatchId(null); setBatchProgress(null); setBatchTmfUrl(null); setError(null);
-                } else {
-                    setError('JSON inválido. Esperado: [{"nome":"NOME"},...]');
-                }
-            } catch {
-                setError('Não foi possível ler o JSON.');
-            }
-        };
-        reader.readAsText(file);
-        e.target.value = '';
-    };
-
-    const handleBatchGenerate = async () => {
-        if (!batchNames || batchNames.length === 0) return;
+    const handleBatchGenerate = async (rows: BatchNameEntry[]) => {
+        if (rows.length === 0) return;
         if (pollRef.current) clearInterval(pollRef.current);
-        setBatchId(null); setBatchProgress({ done: 0, total: batchNames.length }); setBatchTmfUrl(null); setBatchFromCache(null); setError(null);
+        setBatchProgress({ done: 0, total: rows.length }); setBatchTmfUrl(null); setError(null);
         try {
             const form = new FormData();
-            form.append('names', JSON.stringify(batchNames));
+            form.append('names', JSON.stringify(rows));
             Object.entries(params)
                 .filter(([k]) => k !== 'text_line_1')
                 .forEach(([k, v]) => form.append(k, String(v ?? '')));
             const res = await axios.post(`${API_BASE}/api/generate_batch/chaveiro_simples`, form);
             const id: string = res.data.batch_id;
-            setBatchId(id);
             setBatchProgress({ done: res.data.done ?? 0, total: res.data.total });
 
             if (res.data.status === 'done') {
                 setBatchProgress({ done: res.data.total, total: res.data.total });
                 setBatchTmfUrl(`${API_BASE}${res.data.file}`);
-                setBatchFromCache(res.data.from_cache ?? false);
                 return;
             }
 
@@ -274,7 +297,6 @@ export default function ChaveiroSimples() {
                         clearInterval(pollRef.current!);
                         pollRef.current = null;
                         setBatchTmfUrl(`${API_BASE}${job.file}`);
-                        setBatchFromCache(false);
                     } else if (job.status === 'error') {
                         clearInterval(pollRef.current!);
                         pollRef.current = null;
@@ -414,6 +436,7 @@ export default function ChaveiroSimples() {
                     {error && (
                         <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-sm text-red-300">{error}</div>
                     )}
+                    <ThinWallWarnings warnings={warnings} />
                 </div>
                 <div className="p-4 border-t border-neutral-800 bg-neutral-950 space-y-3">
                     <div className="flex gap-2">
@@ -427,44 +450,14 @@ export default function ChaveiroSimples() {
                     </div>
 
                     <div className="border-t border-neutral-800 pt-3 space-y-2">
-                        <input ref={batchFileRef} type="file" accept=".json" className="hidden" onChange={handleBatchUpload} />
-                        <div className="flex gap-2">
-                            <button
-                                type="button" onClick={() => batchFileRef.current?.click()} disabled={!config}
-                                className="flex-1 py-2 text-xs bg-neutral-800 hover:bg-neutral-700 disabled:opacity-40 text-neutral-300 font-medium rounded border border-neutral-700 transition-all"
-                            >
-                                {batchNames ? `📋 ${batchNames.length} nomes` : '📂 Carregar JSON'}
-                            </button>
-                            {batchNames && !batchProgress && (
-                                <button
-                                    type="button" onClick={handleBatchGenerate} disabled={!config}
-                                    className="flex-1 py-2 text-xs bg-emerald-800 hover:bg-emerald-700 disabled:opacity-40 text-white font-semibold rounded border border-emerald-700 transition-all"
-                                >
-                                    Gerar em Lote
-                                </button>
-                            )}
-                        </div>
-                        {batchProgress && (
-                            <div className="space-y-1">
-                                <div className="w-full bg-neutral-800 rounded-full h-2 overflow-hidden">
-                                    <div className="bg-emerald-500 h-2 rounded-full transition-all duration-500" style={{ width: `${batchProgress.total > 0 ? (batchProgress.done / batchProgress.total) * 100 : 0}%` }} />
-                                </div>
-                                <p className="text-xs text-neutral-400 text-center">
-                                    {batchTmfUrl ? 'Lote concluído!' : `${batchProgress.done} de ${batchProgress.total} renderizados...`}
-                                </p>
-                            </div>
-                        )}
-                        {batchTmfUrl && (
-                            <div className="space-y-1.5">
-                                <CacheBadge fromCache={batchFromCache} centered />
-                                <button
-                                    type="button" onClick={() => downloadBlob(batchTmfUrl!, 'chaveiro_simples_lote.zip')}
-                                    className="w-full py-2 flex items-center justify-center gap-2 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded transition-all"
-                                >
-                                    Baixar Lote (ZIP)
-                                </button>
-                            </div>
-                        )}
+                        <button
+                            type="button"
+                            onClick={() => setIsBatchModalOpen(true)}
+                            disabled={!config}
+                            className="w-full py-2.5 text-sm bg-neutral-800 hover:bg-neutral-700 disabled:opacity-40 text-neutral-200 font-semibold rounded border border-neutral-700 transition-all"
+                        >
+                            Gerar em Lotes
+                        </button>
                     </div>
                 </div>
             </aside>
@@ -479,6 +472,7 @@ export default function ChaveiroSimples() {
                             artColor={(params['letters_color'] as string) ?? '#FFFFFF'}
                             modelColor={(params['base_color'] as string) ?? '#1B40D1'}
                             modelType="default"
+                            highlightArte={thinWallParts.length > 0}
                         />
                         <Preview2D>
                             <ChaveiroPreviewRenderer params={params} />
@@ -497,6 +491,22 @@ export default function ChaveiroSimples() {
                     </div>
                 )}
             </section>
+            <BatchGenerationModal
+                isOpen={isBatchModalOpen}
+                onClose={() => setIsBatchModalOpen(false)}
+                onGenerate={handleBatchGenerate}
+                onDownload={() => {
+                    if (batchTmfUrl) {
+                        downloadBlob(batchTmfUrl, 'chaveiro_simples_lote.zip');
+                    }
+                }}
+                defaultExtrusorBase={Number(params['extrusor_base']) || 1}
+                defaultExtrusorLetras={Number(params['extrusor_letras']) || 2}
+                isGenerating={batchProgress !== null && !batchTmfUrl}
+                progress={batchProgress}
+                downloadUrl={batchTmfUrl}
+                error={error}
+            />
         </Layout>
     );
 }

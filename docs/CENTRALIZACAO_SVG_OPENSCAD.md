@@ -17,26 +17,31 @@ O problema desse trecho ocorre porque a função `resize()` do OpenSCAD não lê
 
 ## Solução Definitiva
 
-Para garantir alinhamento perfeito nos novos modelos, nosso backend já normaliza todos os SVGs antes de passar para o OpenSCAD (garantindo que o início deles seja artificialmente amarrado ao `(0,0)`). 
+Para garantir alinhamento perfeito nos novos modelos, o backend normaliza todos os SVGs antes de passá-los para o OpenSCAD via a função `normalize_svg_to_origin()` em `backend/app/api/_svg_normalize.py`. Essa função ajusta o `viewBox` para `"0 0 W H"` e envolve o conteúdo em um `<g transform="translate(-minX -minY)">`, garantindo que o conteúdo inicie exatamente em `(0, 0)`.
 
-Portanto, em **qualquer novo script `model.scad`**, você deve sempre pedir que o front end repasse as dimensões explícitas `art_width` e `art_height`, e deve usar a seguinte estrutura:
+Portanto, em **qualquer novo `model.scad`** que importe SVGs, sempre receba `art_width` e `art_height` como parâmetros e use a seguinte estrutura:
 
 ```openscad
-// Variáveis injetadas pelo Backend
+// Variáveis injetadas pelo backend (ou definidas pelo usuário no frontend)
 art_width  = 50; 
 art_height = 50; 
 
-// CERTO (Escala forçada e centralização explícita)
+// CERTO: escala forçada + centralização explícita
 module art_svg() {
     translate([-art_width / 2, -art_height / 2, 0]) {
-        resize([art_width, art_height, 0], auto=[false, false, false]) {
+        resize([art_width, art_height, 0], auto=[false, false, false])
             import(file="linhas.svg");
-        }
     }
 }
 ```
 
 ### Por que isso funciona?
-Ao invés de deixar o OpenSCAD deduzir a proporção com `auto=[true, true...]`, nós informamos ele **exatamente** em qual tamanho queremos encaixar as geometrias usando `auto=[false, false, false]`. Isso garante que a caixa delimitadora (`bounding box`) do SVG assumirá fielmente a dimensão `[0, 0]` a `[art_width, art_height]`. 
 
-Em seguida, o `translate` pela metade dessas medidas move perfeitamente o seu ponto `(0,0,0)` para o centro do desenho. Furos e elementos que buscam o centro vão atingir exatamente o "olho" da figura.
+Ao invés de deixar o OpenSCAD deduzir a proporção com `auto=true`, informamos **exatamente** o tamanho desejado com `auto=[false, false, false]`. Isso garante que a bounding box do SVG assumirá fielmente as dimensões `[0, 0]` a `[art_width, art_height]`.
+
+Em seguida, o `translate` pela metade dessas medidas posiciona o centro do desenho em `(0, 0, 0)`. Furos, argolas e elementos que buscam o centro vão atingir exatamente a posição correta.
+
+### Modelos que aplicam este padrão
+
+- `models/ponteira_lapis_svg/model.scad` — módulo `art_svg()`
+- `models/cortador_bolacha/model.scad` — módulo `art_svg()`

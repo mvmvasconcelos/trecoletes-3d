@@ -1,14 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { Type, Sliders, ChevronDown, ChevronRight, Home } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Sliders, ChevronDown } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
+import { BatchGenerationModal, type BatchNameEntry } from '../components/ui/BatchGenerationModal';
 import { BambuColorPicker } from '../components/ui/BambuColorPicker';
 import { ParameterLabel } from '../components/ui/ParameterLabel';
 import Viewer3D from '../components/ui/Viewer3D';
 import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 import { FontPicker } from '../components/ui/FontPicker';
+import { ThinWallWarnings } from '../components/ui/ThinWallWarnings';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -32,21 +33,20 @@ export default function PonteiraLapisTexto() {
     const [lettersUrl, setLettersUrl] = useState<string | null>(null);
     const [tmfUrl, setTmfUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [warnings, setWarnings] = useState<string[]>([]);
+    const [thinWallParts, setThinWallParts] = useState<string[]>([]);
     
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
-    const [batchNames, setBatchNames] = useState<{nome: string}[] | null>(null);
-    const [batchId, setBatchId] = useState<string | null>(null);
+    const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
     const [batchProgress, setBatchProgress] = useState<{done: number, total: number} | null>(null);
     const [batchTmfUrl, setBatchTmfUrl] = useState<string | null>(null);
-    const [batchFromCache, setBatchFromCache] = useState<boolean | null>(null);
-    const batchFileRef = useRef<HTMLInputElement>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const { fromCache, setFromCache, isClearingCache, clearCache } = useCacheManagement();
 
     const handleClearCache = () => clearCache(() => {
         setTmfUrl(null); setBaseUrl(null); setLettersUrl(null);
-        setBatchTmfUrl(null); setBatchFromCache(null); setBatchProgress(null); setBatchId(null);
+        setBatchTmfUrl(null); setBatchProgress(null);
     });
 
     useEffect(() => {
@@ -77,7 +77,7 @@ export default function PonteiraLapisTexto() {
 
     const handleGenerate = async () => {
         setIsGenerating(true);
-        setError(null); setBaseUrl(null); setLettersUrl(null); setTmfUrl(null); setFromCache(null);
+        setError(null); setWarnings([]); setBaseUrl(null); setLettersUrl(null); setTmfUrl(null); setFromCache(null);
         try {
             const form = new FormData();
             Object.entries(params).forEach(([k, v]) => form.append(k, String(v ?? '')));
@@ -87,6 +87,8 @@ export default function PonteiraLapisTexto() {
                 if (res.data.files.letters) setLettersUrl(`${API_BASE}${res.data.files.letters}`);
                 if (res.data.files['3mf']) setTmfUrl(`${API_BASE}${res.data.files['3mf']}`);
                 setFromCache(res.data.from_cache ?? false);
+                setWarnings(res.data.warnings ?? []);
+                setThinWallParts(res.data.thin_wall_parts ?? []);
             }
         } catch (err: any) {
             setError(err?.response?.data?.error ?? 'Erro desconhecido');
@@ -99,46 +101,23 @@ export default function PonteiraLapisTexto() {
         return () => { if (pollRef.current) clearInterval(pollRef.current); };
     }, []);
 
-    const handleBatchUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = ev => {
-            try {
-                const data = JSON.parse(ev.target?.result as string);
-                if (Array.isArray(data) && data.length > 0 && data.every((item: any) => typeof item.nome === 'string')) {
-                    setBatchNames(data);
-                    setBatchId(null); setBatchProgress(null); setBatchTmfUrl(null); setError(null);
-                } else {
-                    setError('JSON inválido. Esperado: [{"nome":"ALICE"},...]');
-                }
-            } catch {
-                setError('Não foi possível ler o JSON.');
-            }
-        };
-        reader.readAsText(file);
-        e.target.value = '';
-    };
-
-    const handleBatchGenerate = async () => {
-        if (!batchNames || batchNames.length === 0) return;
+    const handleBatchGenerate = async (rows: BatchNameEntry[]) => {
+        if (rows.length === 0) return;
         if (pollRef.current) clearInterval(pollRef.current);
-        setBatchId(null); setBatchProgress({ done: 0, total: batchNames.length }); setBatchTmfUrl(null); setBatchFromCache(null); setError(null);
+        setBatchProgress({ done: 0, total: rows.length }); setBatchTmfUrl(null); setError(null);
         try {
             const form = new FormData();
-            form.append('names', JSON.stringify(batchNames));
+            form.append('names', JSON.stringify(rows));
             Object.entries(params)
                 .filter(([k]) => k !== 'text_line_1')
                 .forEach(([k, v]) => form.append(k, String(v ?? '')));
             const res = await axios.post(`${API_BASE}/api/generate_batch/ponteira_lapis_texto`, form);
             const id: string = res.data.batch_id;
-            setBatchId(id);
             setBatchProgress({ done: res.data.done ?? 0, total: res.data.total });
 
             if (res.data.status === 'done') {
                 setBatchProgress({ done: res.data.total, total: res.data.total });
                 setBatchTmfUrl(`${API_BASE}${res.data.file}`);
-                setBatchFromCache(res.data.from_cache ?? false);
                 return;
             }
 
@@ -151,7 +130,6 @@ export default function PonteiraLapisTexto() {
                         clearInterval(pollRef.current!);
                         pollRef.current = null;
                         setBatchTmfUrl(`${API_BASE}${job.file}`);
-                        setBatchFromCache(false);
                     } else if (job.status === 'error') {
                         clearInterval(pollRef.current!);
                         pollRef.current = null;
@@ -291,6 +269,7 @@ export default function PonteiraLapisTexto() {
                     {error && (
                         <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-sm text-red-300">{error}</div>
                     )}
+                    <ThinWallWarnings warnings={warnings} />
                 </div>
                 <div className="p-4 border-t border-neutral-800 bg-neutral-950 space-y-3">
                     <div className="flex gap-2">
@@ -304,44 +283,14 @@ export default function PonteiraLapisTexto() {
                     </div>
 
                     <div className="border-t border-neutral-800 pt-3 space-y-2">
-                        <input ref={batchFileRef} type="file" accept=".json" className="hidden" onChange={handleBatchUpload} />
-                        <div className="flex gap-2">
-                            <button
-                                type="button" onClick={() => batchFileRef.current?.click()} disabled={!config}
-                                className="flex-1 py-2 text-xs bg-neutral-800 hover:bg-neutral-700 disabled:opacity-40 text-neutral-300 font-medium rounded border border-neutral-700 transition-all"
-                            >
-                                {batchNames ? `📋 ${batchNames.length} nomes` : '📂 Carregar JSON'}
-                            </button>
-                            {batchNames && !batchProgress && (
-                                <button
-                                    type="button" onClick={handleBatchGenerate} disabled={!config}
-                                    className="flex-1 py-2 text-xs bg-violet-800 hover:bg-violet-700 disabled:opacity-40 text-white font-semibold rounded border border-violet-700 transition-all"
-                                >
-                                    Gerar em Lote
-                                </button>
-                            )}
-                        </div>
-                        {batchProgress && (
-                            <div className="space-y-1">
-                                <div className="w-full bg-neutral-800 rounded-full h-2 overflow-hidden">
-                                    <div className="bg-violet-500 h-2 rounded-full transition-all duration-500" style={{ width: `${batchProgress.total > 0 ? (batchProgress.done / batchProgress.total) * 100 : 0}%` }} />
-                                </div>
-                                <p className="text-xs text-neutral-400 text-center">
-                                    {batchTmfUrl ? 'Lote concluído!' : `${batchProgress.done} de ${batchProgress.total} renderizados...`}
-                                </p>
-                            </div>
-                        )}
-                        {batchTmfUrl && (
-                            <div className="space-y-1.5">
-                                <CacheBadge fromCache={batchFromCache} centered />
-                                <button
-                                    type="button" onClick={() => downloadBlob(batchTmfUrl!, 'ponteira_texto_lote.zip')}
-                                    className="w-full py-2 flex items-center justify-center gap-2 text-xs bg-emerald-700 hover:bg-emerald-600 text-white font-semibold rounded transition-all"
-                                >
-                                    Baixar Lote (ZIP)
-                                </button>
-                            </div>
-                        )}
+                        <button
+                            type="button"
+                            onClick={() => setIsBatchModalOpen(true)}
+                            disabled={!config}
+                            className="w-full py-2.5 text-sm bg-neutral-800 hover:bg-neutral-700 disabled:opacity-40 text-neutral-200 font-semibold rounded border border-neutral-700 transition-all"
+                        >
+                            Gerar em Lotes
+                        </button>
                     </div>
                 </div>
             </aside>
@@ -356,6 +305,7 @@ export default function PonteiraLapisTexto() {
                             artColor={(params['letters_color'] as string) ?? '#FFFFFF'}
                             modelColor={(params['base_color'] as string) ?? '#1B40D1'}
                             modelType="ponteira"
+                            highlightArte={thinWallParts.length > 0}
                         />
                     </div>
                 </div>
@@ -371,6 +321,20 @@ export default function PonteiraLapisTexto() {
                     </div>
                 )}
             </section>
+            <BatchGenerationModal
+                isOpen={isBatchModalOpen}
+                onClose={() => setIsBatchModalOpen(false)}
+                onGenerate={handleBatchGenerate}
+                onDownload={() => {
+                    if (batchTmfUrl) downloadBlob(batchTmfUrl, 'ponteira_texto_lote.zip');
+                }}
+                defaultExtrusorBase={Number(params['extrusor_base']) || 1}
+                defaultExtrusorLetras={Number(params['extrusor_letras']) || 4}
+                isGenerating={batchProgress !== null && !batchTmfUrl}
+                progress={batchProgress}
+                downloadUrl={batchTmfUrl}
+                error={error}
+            />
         </Layout>
     );
 }
