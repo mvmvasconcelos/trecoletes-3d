@@ -1,0 +1,9 @@
+{
+  "parts": [
+    {
+      "scad_name": "cortador",
+      "display_name": "Cortador",
+      "extruder": 1
+    }
+  ]
+}
