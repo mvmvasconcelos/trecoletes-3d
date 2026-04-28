@@ -122,19 +122,19 @@ module carimbo() {
         linear_extrude(height = base_height) {
             main_outline(extra_r = -folga);
         }
-        // Furo para o pegador (8mm diametro x 1mm profundidade, rente à mesa z=0)
+        // Furo para o pegador (8mm diametro x 0.4mm profundidade, rente à mesa z=0)
         translate([0, 0, -0.1])
-        cylinder(d = 8, h = 1.1, $fn = 64);
+        cylinder(d = 8, h = 0.5, $fn = 64);
         
         // Marca d'água Principal
         translate([0, -11, -0.1])
-        linear_extrude(height = 1.1) {
-            text("ADOIS", font="TAN \\- NIMBUS:style=Regular", size=10, halign="center", valign="center");
+        linear_extrude(height = 0.5) {
+            text("ADOIS", font="TAN \\- NIMBUS:style=Regular", size=6, halign="center", valign="center");
         }
         
         // Marca d'água Secundária
         translate([0, -22, -0.1])
-        linear_extrude(height = 1.1) {
+        linear_extrude(height = 0.5) {
             text("STUDIO", font="Eastman Condensed Alt Trial:style=Regular", size=4.5, halign="center", valign="center");
         }
     }
@@ -232,19 +232,19 @@ if (part == "all") {
             linear_extrude(height = base_height) {
                 main_outline(extra_r = -folga);
             }
-            // Furo para o pegador (8mm diametro x 1mm profundidade, rente à mesa z=0)
+            // Furo para o pegador (8mm diametro x 0.4mm profundidade, rente à mesa z=0)
             translate([0, 0, -0.1])
-            cylinder(d = 8, h = 1.1, $fn = 64);
+            cylinder(d = 8, h = 0.5, $fn = 64);
             
             // Marca d'água Principal
             translate([0, -11, -0.1])
-            linear_extrude(height = 1.1) {
-                text("ADOIS", font="TAN \\- NIMBUS:style=Regular", size=10, halign="center", valign="center");
+            linear_extrude(height = 0.5) {
+                text("ADOIS", font="TAN \\- NIMBUS:style=Regular", size=6, halign="center", valign="center");
             }
             
             // Marca d'água Secundária
             //translate([0, -22, -0.1])
-            //linear_extrude(height = 1.1) {
+            //linear_extrude(height = 0.5) {
               //  text("STUDIO", font="Eastman Condensed Alt Trial:style=Regular", size=4.5, halign="center", valign="center");
             //}
         }

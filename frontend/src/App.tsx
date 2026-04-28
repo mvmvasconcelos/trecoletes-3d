@@ -10,6 +10,7 @@ import TesteToleranciaTexto from './pages/TesteToleranciaTexto';
 import TesteToleranciaTextoCQ from './pages/TesteToleranciaTextoCQ';
 import TesteTampaCaneta from './pages/TesteTampaCaneta';
 import TampaCaneta from './pages/TampaCaneta';
+import CarimboEvaSvg from './pages/CarimboEvaSvg';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="/ponteira-texto" element={<PonteiraLapisTexto />} />
         <Route path="/chaveiro-simples" element={<ChaveiroSimples />} />
         <Route path="/tampa-caneta" element={<TampaCaneta />} />
+        <Route path="/carimbo-eva-svg" element={<CarimboEvaSvg />} />
         <Route path="/teste-tampa-caneta" element={<TesteTampaCaneta />} />
         <Route path="/teste-tolerancia-texto" element={<TesteToleranciaTexto />} />
         <Route path="/teste-tolerancia-cq" element={<TesteToleranciaTextoCQ />} />
