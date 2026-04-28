@@ -15,7 +15,7 @@
         {
             "id": "line_offset",
             "name": "Engrossar Linhas",
-            "description": "Expande o traçado da arte (em px).",
+            "help_text": "Expande o traçado da arte (em px).",
             "type": "range",
             "default": 0.5,
             "min": 0,
@@ -26,10 +26,10 @@
         },
         {
             "id": "form_margin",
-            "name": "Margem do Furo (Forma)",
-            "description": "Folga entre a silhueta do segurador e a borda do furo na forma.",
+            "name": "Margem da Arte",
+            "help_text": "Espaçamento entre a silhueta da arte e a borda do furo na forma (eixo XY).",
             "type": "range",
-            "default": 0.4,
+            "default": 1.0,
             "min": 0.0,
             "max": 3.0,
             "step": 0.2,
@@ -38,7 +38,14 @@
         {
             "id": "art_relief_positive",
             "name": "Relevo Positivo",
-            "description": "Ativado: arte em relevo saliente. Desativado: arte em cavidade afundada.",
+            "help_text": "Ativado: arte em relevo saliente. Desativado: arte em cavidade afundada.",
+            "type": "boolean",
+            "default": true
+        },
+        {
+            "id": "use_alignment_pins",
+            "name": "Pinos de Alinhamento",
+            "help_text": "Adiciona meias-esferas no molde e furos correspondentes na forma para guiar o encaixe.",
             "type": "boolean",
             "default": true
         }

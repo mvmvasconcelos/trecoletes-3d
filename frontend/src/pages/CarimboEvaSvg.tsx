@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
-import { Upload, Sliders, Circle, Square } from 'lucide-react';
+import { Upload, Sliders, Circle, Square, Download, Leaf } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
 import { SvgPreviewModal } from '../components/ui/SvgPreviewModal';
 import Viewer3D from '../components/ui/Viewer3D';
@@ -22,17 +22,19 @@ async function downloadBlob(url: string, filename: string) {
     URL.revokeObjectURL(blobUrl);
 }
 
-type MoldShape = 'circle' | 'rectangle';
+type MoldShape = 'circle' | 'rectangle' | 'organic';
 
 export default function CarimboEvaSvg() {
     const [isGenerating, setIsGenerating] = useState(false);
+    const [seguradorUrl, setSeguradorUrl] = useState<string | null>(null);
     const [moldeBaseUrl, setMoldeBaseUrl] = useState<string | null>(null);
     const [moldeArteUrl, setMoldeArteUrl] = useState<string | null>(null);
+    const [formaUrl, setFormaUrl] = useState<string | null>(null);
     const [tmfUrl, setTmfUrl] = useState<string | null>(null);
     const { fromCache, setFromCache, isClearingCache, clearCache } = useCacheManagement();
 
     const handleClearCache = () => clearCache(() => {
-        setMoldeBaseUrl(null); setMoldeArteUrl(null); setTmfUrl(null);
+        setSeguradorUrl(null); setMoldeBaseUrl(null); setMoldeArteUrl(null); setFormaUrl(null); setTmfUrl(null);
     });
 
     const [artColor, setArtColor] = useState('#f5f0e8');
@@ -57,8 +59,6 @@ export default function CarimboEvaSvg() {
 
     // Dimensões e formato do molde/forma
     const [moldShape, setMoldShape] = useState<MoldShape>('rectangle');
-    const [moldWidth, setMoldWidth] = useState(80);
-    const [moldHeight, setMoldHeight] = useState(80);
 
     const [svgPreview, setSvgPreview] = useState<{ originalSvg: string; thickenedSvg: string; silhouetteSvg: string; } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -126,9 +126,7 @@ export default function CarimboEvaSvg() {
                     const newArtH = Math.round((70 / ratio) * 10) / 10;
                     setArtWidth(newArtW);
                     setArtHeight(newArtH);
-                    // Dimensões do molde = arte + 10mm
-                    setMoldWidth(Math.round((newArtW + 10) * 10) / 10);
-                    setMoldHeight(Math.round((newArtH + 10) * 10) / 10);
+                    // moldWidth/moldHeight são calculados automaticamente
                 }
 
                 setIsModalOpen(true);
@@ -149,7 +147,7 @@ export default function CarimboEvaSvg() {
     const handleGenerateClick = async () => {
         if (!svgPreview) return;
         setIsGenerating(true);
-        setMoldeBaseUrl(null); setMoldeArteUrl(null); setTmfUrl(null); setFromCache(null);
+        setSeguradorUrl(null); setMoldeBaseUrl(null); setMoldeArteUrl(null); setFormaUrl(null); setTmfUrl(null); setFromCache(null);
         try {
             const formData = new FormData();
             formData.append('linhas_svg', new Blob([svgPreview.thickenedSvg], { type: 'image/svg+xml' }), 'linhas.svg');
@@ -159,6 +157,7 @@ export default function CarimboEvaSvg() {
             formData.append('mold_shape', moldShape);
             formData.append('mold_width', moldWidth.toString());
             formData.append('mold_height', moldHeight.toString());
+            formData.append('mold_border', moldBorder.toString());
 
             if (modelConfig && modelConfig.parameters) {
                 modelConfig.parameters.forEach((param: any) => {
@@ -170,8 +169,10 @@ export default function CarimboEvaSvg() {
 
             const res = await axios.post(`${API_BASE}/api/generate/carimbo_eva_svg`, formData);
             if (res.data?.files) {
+                if (res.data.files.segurador) setSeguradorUrl(`${API_BASE}${res.data.files.segurador}`);
                 if (res.data.files.molde_base) setMoldeBaseUrl(`${API_BASE}${res.data.files.molde_base}`);
                 if (res.data.files.molde_arte) setMoldeArteUrl(`${API_BASE}${res.data.files.molde_arte}`);
+                if (res.data.files.forma) setFormaUrl(`${API_BASE}${res.data.files.forma}`);
                 if (res.data.files['3mf']) setTmfUrl(`${API_BASE}${res.data.files['3mf']}`);
                 setFromCache(res.data.from_cache ?? false);
             }
@@ -183,8 +184,36 @@ export default function CarimboEvaSvg() {
         }
     };
 
-    const minMoldW = artWidth + 4;
-    const minMoldH = artHeight + 4;
+    // Pinos fixos: 2mm da borda do pino ao molde, 2mm da borda do pino à silhueta, diâmetro 5mm
+    const PIN_DIAMETER = 5;
+    const PIN_BORDER_GAP = 2;  // mm entre borda do pino e borda do molde
+    const PIN_ART_GAP = 2;     // mm entre borda do pino e silhueta (furo da forma)
+    const PIN_INSET = PIN_DIAMETER / 2 + PIN_BORDER_GAP;  // 4.5mm — centro do pino até borda
+    const formMargin = dynamicParams['form_margin'] ?? 1.0;
+    // mold_border calculado automaticamente: espaço mínimo para acomodar os pinos
+    const moldBorder = Math.round((formMargin + PIN_DIAMETER / 2 + PIN_ART_GAP + PIN_INSET) * 10) / 10;
+
+    // Posição do centro do pino nos cardinais (círculo/orgânico)
+    const pinX = artWidth  / 2 + formMargin + PIN_DIAMETER / 2 + PIN_ART_GAP;
+    const pinY = artHeight / 2 + formMargin + PIN_DIAMETER / 2 + PIN_ART_GAP;
+
+    let moldWidth: number;
+    let moldHeight: number;
+    if (moldShape === 'circle') {
+        // Cardinais: raio = maior eixo do pino + PIN_INSET
+        const r = Math.max(pinX, pinY) + PIN_INSET;
+        const d = Math.round(r * 2 * 10) / 10;
+        moldWidth = d;
+        moldHeight = d;
+    } else if (moldShape === 'organic') {
+        // Estimativa do bounding box: arte + 2×mold_border
+        moldWidth  = Math.round((artWidth  + 2 * moldBorder) * 10) / 10;
+        moldHeight = Math.round((artHeight + 2 * moldBorder) * 10) / 10;
+    } else {
+        // Retângulo: cantos, mold_dim = 2 × (pinCenter + PIN_INSET)
+        moldWidth  = Math.round((pinX + PIN_INSET) * 2 * 10) / 10;
+        moldHeight = Math.round((pinY + PIN_INSET) * 2 * 10) / 10;
+    }
 
     return (
         <Layout title="Carimbo EVA SVG">
@@ -293,40 +322,36 @@ export default function CarimboEvaSvg() {
                                     <Circle className="w-4 h-4" />
                                     Círculo
                                 </button>
+                                <button
+                                    onClick={() => setMoldShape('organic')}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border font-medium text-sm transition-all ${moldShape === 'organic' ? 'bg-emerald-700 border-emerald-500 text-white' : 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-500'}`}
+                                >
+                                    <Leaf className="w-4 h-4" />
+                                    Orgânico
+                                </button>
                             </div>
                         </div>
 
-                        {/* Dimensões do Molde */}
-                        <div className="space-y-2">
-                            <label className="text-sm text-neutral-300 font-medium">
-                                {moldShape === 'circle' ? 'Dimensões da Elipse' : 'Dimensões do Retângulo'}
-                            </label>
-                            <div className="flex items-center gap-2">
-                                <div className="flex-1 space-y-1">
-                                    <span className="text-xs text-neutral-500">
-                                        {moldShape === 'circle' ? 'Eixo V (mm)' : 'Altura (mm)'}
+                        {/* Dimensões do molde (calculadas automaticamente) */}
+                        <div className="space-y-1">
+                            <span className="text-sm text-neutral-300 font-medium">Tamanho do Molde / Forma</span>
+                            <div className="flex items-center gap-2 bg-neutral-800/60 border border-neutral-700 rounded px-3 py-2">
+                                {moldShape === 'circle' ? (
+                                    <span className="text-xs text-neutral-500 flex-1">
+                                        Ø <span className="text-emerald-400 font-mono">{moldWidth} mm</span>
                                     </span>
-                                    <input
-                                        type="number" step="0.5"
-                                        min={minMoldH}
-                                        value={moldHeight}
-                                        onChange={e => setMoldHeight(Math.max(minMoldH, parseFloat(e.target.value) || minMoldH))}
-                                        className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                                    />
-                                </div>
-                                <div className="flex-1 space-y-1">
-                                    <span className="text-xs text-neutral-500">
-                                        {moldShape === 'circle' ? 'Eixo H (mm)' : 'Largura (mm)'}
-                                    </span>
-                                    <input
-                                        type="number" step="0.5"
-                                        min={minMoldW}
-                                        value={moldWidth}
-                                        onChange={e => setMoldWidth(Math.max(minMoldW, parseFloat(e.target.value) || minMoldW))}
-                                        className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                                    />
-                                </div>
+                                ) : (
+                                    <>
+                                        <span className="text-xs text-neutral-500 flex-1">
+                                            Altura: <span className="text-emerald-400 font-mono">{moldHeight} mm</span>
+                                        </span>
+                                        <span className="text-xs text-neutral-500 flex-1">
+                                            Largura: <span className="text-emerald-400 font-mono">{moldWidth} mm</span>
+                                        </span>
+                                    </>
+                                )}
                             </div>
+                            <p className="text-xs text-neutral-600">Calculado automaticamente para acomodar os pinos de alinhamento.</p>
                         </div>
 
                         {/* Parâmetros dinâmicos do config.json */}
@@ -409,17 +434,23 @@ export default function CarimboEvaSvg() {
                             artColor={artColor}
                             modelColor={modelColor}
                             modelType="default"
+                            extraMeshes={[
+                                ...(formaUrl ? [{ url: formaUrl, color: '#7dd3fc', offset: [0, 0, 2] as [number, number, number] }] : []),
+                                ...(seguradorUrl ? [{ url: seguradorUrl, color: modelColor, offset: [0, moldHeight + 15, 0] as [number, number, number] }] : []),
+                            ]}
                         />
                     </div>
                 </div>
                 {tmfUrl && (
-                    <div className="flex-shrink-0 flex flex-col items-center gap-1">
-                        <CacheBadge fromCache={fromCache} />
+                    <div className="flex-shrink-0 space-y-2">
+                        <div className="flex items-center justify-between">
+                            <CacheBadge fromCache={fromCache} />
+                        </div>
                         <button
                             onClick={() => downloadBlob(tmfUrl!, 'carimbo_eva_svg_all.3mf')}
-                            className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-lg text-sm transition-colors"
+                            className="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-lg text-sm transition-colors"
                         >
-                            Baixar 3MF (todas as peças)
+                            <Download className="w-4 h-4" /> Baixar 3MF (todas as peças)
                         </button>
                     </div>
                 )}

@@ -339,9 +339,10 @@ export interface Viewer3DProps {
     showBuildPlate?: boolean;
     highlightArte?: boolean;
     highlightBase?: boolean;
+    extraMeshes?: { url: string; color: string; offset?: [number, number, number] }[];
 }
 
-export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, isGenerating, artColor, modelColor, modelType = 'default', artOffset, showBuildPlate = true, highlightArte = false, highlightBase = false }: Viewer3DProps) {
+export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, isGenerating, artColor, modelColor, modelType = 'default', artOffset, showBuildPlate = true, highlightArte = false, highlightBase = false, extraMeshes = [] }: Viewer3DProps) {
     const MODEL_Z_LIFT = 0.8;
     const INITIAL_CAMERA = useMemo<[number, number, number]>(() => [0, -300, 210], []);
     const modelRef = useRef<THREE.Group>(null);
@@ -353,7 +354,7 @@ export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, is
     const [elapsed, setElapsed] = useState(0);
     const [msgIndex, setMsgIndex] = useState(0);
     const fmt = (n: number) => n.toFixed(1);
-    const hasModel = carimbBaseUrl || carimbArteUrl || cortadorUrl;
+    const hasModel = carimbBaseUrl || carimbArteUrl || cortadorUrl || (extraMeshes && extraMeshes.length > 0);
 
     const updateModelBounds = useCallback(() => {
         if (!modelRef.current) return;
@@ -377,7 +378,7 @@ export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, is
         }
         const t = setTimeout(updateModelBounds, 0);
         return () => clearTimeout(t);
-    }, [hasModel, carimbBaseUrl, carimbArteUrl, cortadorUrl, artOffset, updateModelBounds]);
+    }, [hasModel, carimbBaseUrl, carimbArteUrl, cortadorUrl, artOffset, extraMeshes, updateModelBounds]);
 
     const MESSAGES_BY_TYPE = {
         cortador: [
@@ -524,6 +525,11 @@ export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, is
                                         </group>
                                     )}
                                     {cortadorUrl && <StlMesh key={cortadorUrl} url={cortadorUrl} color={modelColor} />}
+                                    {extraMeshes.map((m) => (
+                                        <group key={m.url} position={m.offset ?? [0, 0, 0]}>
+                                            <StlMesh url={m.url} color={m.color} />
+                                        </group>
+                                    ))}
                                 </group>
                             ) : (
                                 <PlaceholderModel />

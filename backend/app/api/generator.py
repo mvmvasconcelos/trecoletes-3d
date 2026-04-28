@@ -1044,7 +1044,13 @@ async def generate_model(
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
             model_config = json.load(f)
-    parts_to_render = model_config.get("parts", ["carimbo_base", "carimbo_arte", "cortador"])
+    parts_to_render = list(model_config.get("parts", ["carimbo_base", "carimbo_arte", "cortador"]))
+
+    # Para carimbo_eva_svg: se art_relief_positive=False, molde_arte é um placeholder vazio —
+    # remove-o da lista para não incluir geometria vazia no 3MF.
+    art_relief_raw = dict(text_params).get("art_relief_positive", "true")
+    if art_relief_raw.lower() in ("false", "0") and "molde_arte" in parts_to_render:
+        parts_to_render.remove("molde_arte")
 
     job_dir = os.path.join(GENERATED_DIR, job_id)
     mf_filename = f"{model_id}_all.3mf"
