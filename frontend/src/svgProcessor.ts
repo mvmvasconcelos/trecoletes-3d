@@ -10,14 +10,19 @@ export interface ProcessedSVG {
     height: number;          // Actual content height
 }
 
-/**
- * Initializes paper.js in a headless/hidden canvas just for calculations.
- */
-function initPaper(): paper.Project {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1000;
-    canvas.height = 1000;
-    paper.setup(canvas);
+// Singleton: reutiliza um único projeto Paper.js em vez de criar um canvas novo
+// a cada chamada. Criar múltiplos paper.setup() acumula projetos na memória e
+// torna o unite() progressivamente mais lento.
+let _paperCanvas: HTMLCanvasElement | null = null;
+
+function getPaperProject(): paper.Project {
+    if (!_paperCanvas) {
+        _paperCanvas = document.createElement('canvas');
+        _paperCanvas.width = 1000;
+        _paperCanvas.height = 1000;
+        paper.setup(_paperCanvas);
+    }
+    paper.project.clear();
     return paper.project;
 }
 
@@ -53,7 +58,7 @@ export async function processSvgFile(
 ): Promise<ProcessedSVG | null> {
     return new Promise((resolve, reject) => {
         try {
-            const project = initPaper();
+            const project = getPaperProject();
 
             // Import the original SVG
             project.importSVG(svgString, {
@@ -142,18 +147,32 @@ export async function processSvgFile(
                     // We unite all paths into a single solid block, remove internal holes, and then expand it by silhouetteOffset.
                     let unified: paper.PathItem | null = null;
 
-                    // First pass: unite everything to get a single exterior.
-                    allPaths.forEach(path => {
-                        // temporarily make everything filled to unite them solid
-                        path.fillColor = new paper.Color('black');
-                        if (!unified) {
-                            unified = path.clone() as paper.PathItem;
-                        } else {
-                            const newUnion = unified.unite(path);
-                            unified.remove();
-                            unified = newUnion as paper.PathItem;
+                    // Safety: if too many paths, fall back to bounding-box hull
+                    // to avoid an O(n²) unite chain that would block the browser.
+                    const USE_BBOX_THRESHOLD = 40;
+                    if (allPaths.length > USE_BBOX_THRESHOLD) {
+                        // Compute total bounds then create a rectangular hull
+                        let totalBounds: paper.Rectangle | null = null;
+                        allPaths.forEach(path => {
+                            totalBounds = totalBounds ? totalBounds.unite(path.bounds) : path.bounds;
+                        });
+                        if (totalBounds) {
+                            unified = new paper.Path.Rectangle(totalBounds) as paper.PathItem;
                         }
-                    });
+                    } else {
+                        // First pass: unite everything to get a single exterior.
+                        allPaths.forEach(path => {
+                            // temporarily make everything filled to unite them solid
+                            path.fillColor = new paper.Color('black');
+                            if (!unified) {
+                                unified = path.clone() as paper.PathItem;
+                            } else {
+                                const newUnion = unified.unite(path);
+                                unified.remove();
+                                unified = newUnion as paper.PathItem;
+                            }
+                        });
+                    }
 
                     if (!unified) {
                         reject(new Error("Failed to unite paths."));
@@ -184,16 +203,20 @@ export async function processSvgFile(
                         }
                     }
 
-                    // Expand the robust hull for the cutter silhouette
-                    // Simple paper.js hack for offset: give it a thick stroke, and export!
+                    // Export the hull as a pure-fill shape (no stroke) wrapped in a proper <svg>.
+                    // Importante: usar os bounds REAIS do unified (não cb), pois o simplify/unite
+                    // pode deslocar o bounding box. Traduzimos o unified para (0,0) antes de exportar
+                    // para que o SCAD resize() fique alinhado com o linhas.svg.
                     unified.fillColor = new paper.Color('black');
-                    unified.strokeColor = new paper.Color('black');
-                    unified.strokeWidth = silhouetteOffset * 2; // Expand in all directions
-                    unified.strokeJoin = 'round';
+                    unified.strokeColor = null;
 
-                    const silhouetteSvgRaw = unified.exportSVG(exportOptions) as string;
-                    const silhouetteSvg = injectPaddedViewBox(silhouetteSvgRaw, cb.width, cb.height);
+                    const unifiedBounds = unified.bounds;
+                    unified.translate(new paper.Point(-unifiedBounds.left, -unifiedBounds.top));
 
+                    const silhouettePathStr = unified.exportSVG({ asString: true }) as string;
+                    const silhouetteSvg = `<svg viewBox="0 0 ${unifiedBounds.width} ${unifiedBounds.height}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">${silhouettePathStr}</svg>`;
+
+                    // Limpa o projeto para a próxima chamada (feito também em getPaperProject)
                     project.clear();
 
                     resolve({

@@ -1075,9 +1075,14 @@ async def generate_model(
     with open(linhas_path, "wb") as f:
         f.write(linhas_bytes)
 
+    # Normaliza a silhueta da mesma forma que as linhas: garante que o conteúdo
+    # começa em (0,0) e o viewBox equivale exatamente ao tamanho do conteúdo.
+    # Isso é necessário para que resize([art_width, art_height]) no SCAD
+    # funcione corretamente ao importar svg_silhueta_path.
+    silhueta_bytes = normalize_svg_to_origin(silhueta_bytes_raw)
     silhueta_path = os.path.join(job_dir, "silhueta.svg")
     with open(silhueta_path, "wb") as f:
-        f.write(silhueta_bytes_raw)
+        f.write(silhueta_bytes)
 
     # Monta os argumentos -D base para o OpenSCAD (sem a parte — injetada por worker)
     scad_variables_base = [

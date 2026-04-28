@@ -1,8 +1,8 @@
 FROM python:3.11-slim
 
-# Install OpenSCAD
+# Install OpenSCAD + libspatialindex (required by rtree for trimesh ray casting)
 RUN apt-get update && \
-    apt-get install -y openscad libgl1 libglu1-mesa fonts-liberation && \
+    apt-get install -y openscad libgl1 libglu1-mesa fonts-liberation libspatialindex-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
