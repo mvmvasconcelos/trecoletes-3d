@@ -16,6 +16,7 @@ import ChaveiroSindicato from './pages/ChaveiroSindicato';
 import ChaveiroSimplesSvg from './pages/ChaveiroSimplesSvg';
 import GeradorTopoBolo from './pages/GeradorTopoBolo';
 import GeradorTopoBoloSvg from './pages/GeradorTopoBoloSvg';
+import MexedorDrinksSvg from './pages/MexedorDrinksSvg';
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
         <Route path="/teste-tolerancia-cq" element={<TesteToleranciaTextoCQ />} />
         <Route path="/topo-bolo" element={<GeradorTopoBolo />} />
         <Route path="/topo-bolo-svg" element={<GeradorTopoBoloSvg />} />
+        <Route path="/mexedor-drinks-svg" element={<MexedorDrinksSvg />} />
         <Route path="/ferramentas" element={<Ferramentas />} />
       </Routes>
     </BrowserRouter>

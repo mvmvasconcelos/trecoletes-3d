@@ -1,0 +1,161 @@
+{
+    "id": "mexedor_drinks_svg",
+    "title": {
+        "pt": "Mexedor de Drinks",
+        "en": "Drink Stirrer"
+    },
+    "output_format": "3mf",
+    "parts": [
+        "base",
+        "svg"
+    ],
+    "svg_uploads": ["svg_linhas_path"],
+    "min_feature_size_mm": 0.8,
+    "thin_wall_check": true,
+    "parameters": [],
+    "sections": [
+        {
+            "name": "Aparência",
+            "collapsed": false,
+            "parameters": [
+                {
+                    "id": "base_shape",
+                    "name": "Formato do Fundo",
+                    "help_text": "Orgânico: segue o contorno da arte. Círculo: fundo circular. Quadrado: fundo retangular.",
+                    "type": "radio",
+                    "default": "organic",
+                    "options": [
+                        { "value": "organic", "label": "Orgânico" },
+                        { "value": "circle", "label": "Círculo" },
+                        { "value": "square", "label": "Quadrado" }
+                    ]
+                },
+                {
+                    "id": "outline_thickness",
+                    "name": "Espessura do contorno",
+                    "help_text": "Quão largo é o contorno ao redor da arte (em mm)",
+                    "type": "range",
+                    "min": 1.0,
+                    "max": 10.0,
+                    "step": 0.5,
+                    "default": 2.5,
+                    "unit": "mm"
+                }
+            ]
+        },
+        {
+            "name": "Alturas",
+            "collapsed": true,
+            "parameters": [
+                {
+                    "id": "base_height",
+                    "name": "Altura do contorno e haste",
+                    "type": "range",
+                    "min": 0.4,
+                    "max": 5.0,
+                    "step": 0.2,
+                    "default": 0.8,
+                    "unit": "mm",
+                    "min_safe_mm": 0.4
+                },
+                {
+                    "id": "letter_height",
+                    "name": "Altura do relevo da arte",
+                    "type": "range",
+                    "min": 0.2,
+                    "max": 3.0,
+                    "step": 0.2,
+                    "default": 0.8,
+                    "unit": "mm",
+                    "min_safe_mm": 0.4
+                }
+            ]
+        },
+        {
+            "name": "Haste",
+            "collapsed": true,
+            "parameters": [
+                {
+                    "id": "post_x_offset",
+                    "name": "Deslocamento horizontal da haste",
+                    "help_text": "Move a haste para a esquerda (negativo) ou direita (positivo)",
+                    "type": "range",
+                    "min": -150,
+                    "max": 150,
+                    "step": 1,
+                    "default": 0,
+                    "unit": "mm"
+                },
+                {
+                    "id": "post_y_offset",
+                    "name": "Deslocamento vertical da haste",
+                    "help_text": "Move o ponto de conexão da haste para cima (positivo) ou para baixo (negativo)",
+                    "type": "range",
+                    "min": -100,
+                    "max": 100,
+                    "step": 1,
+                    "default": 0,
+                    "unit": "mm"
+                },
+                {
+                    "id": "post_width",
+                    "name": "Largura da haste",
+                    "help_text": "Espessura da haste em milímetros",
+                    "type": "range",
+                    "min": 2,
+                    "max": 8,
+                    "step": 0.5,
+                    "default": 4,
+                    "unit": "mm"
+                },
+                {
+                    "id": "post_length",
+                    "name": "Comprimento da haste",
+                    "help_text": "Quanto a haste fica abaixo da arte para mexer o drink",
+                    "type": "range",
+                    "min": 0,
+                    "max": 200,
+                    "step": 5,
+                    "default": 120,
+                    "unit": "mm"
+                },
+                {
+                    "id": "tip_cylinder",
+                    "name": "Cilindro na Ponta",
+                    "help_text": "Adiciona um cilindro decorativo na extremidade inferior da haste.",
+                    "type": "boolean",
+                    "default": true
+                },
+                {
+                    "id": "tip_diameter",
+                    "name": "Diâmetro do Cilindro",
+                    "help_text": "Diâmetro do cilindro na ponta da haste (mm). Fica dentro do comprimento da haste.",
+                    "type": "range",
+                    "min": 2,
+                    "max": 20,
+                    "step": 0.5,
+                    "default": 8,
+                    "unit": "mm"
+                }
+            ]
+        },
+        {
+            "name": "Cores",
+            "collapsed": true,
+            "parameters": [
+                {
+                    "id": "base_color",
+                    "name": "Cor do Contorno e Haste",
+                    "type": "color",
+                    "default": "#FFFFFF"
+                },
+                {
+                    "id": "letters_color",
+                    "name": "Cor da Arte",
+                    "type": "color",
+                    "default": "#F44336"
+                }
+            ]
+        }
+    ]
+}
