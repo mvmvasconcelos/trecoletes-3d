@@ -1397,7 +1397,10 @@ async def generate_parametric_model(request: Request, model_id: str):
                 try: ov["base"] = int(v)
                 except ValueError: pass
             elif k == "extrusor_letras":
-                try: ov["letters"] = int(v)
+                try:
+                    val = int(v)
+                    ov["letters"] = val
+                    ov["svg"] = val  # para modelos com parte "svg" (ex: topo_bolo_svg)
                 except ValueError: pass
 
         bambu_ok = _pack_bambu_3mf(model_id, parts_to_render, job_dir, mf_filepath, extruder_overrides=ov)
@@ -1527,7 +1530,9 @@ async def generate_batch(request: Request, model_id: str):
             if "extrusor_base" in item:
                 ov["base"] = int(item["extrusor_base"])
             if "extrusor_letras" in item:
-                ov["letters"] = int(item["extrusor_letras"])
+                val = int(item["extrusor_letras"])
+                ov["letters"] = val
+                ov["svg"] = val  # para modelos com parte "svg" (ex: topo_bolo_svg)
             names_extruders.append(ov)
     except Exception:
         return JSONResponse(status_code=400, content={"error": "Campo 'names' inválido. Esperado JSON array de objetos com 'nome'."})

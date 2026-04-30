@@ -56,6 +56,7 @@ Atualmente os seguintes modelos possuem `bambu_template/` configurado:
 | `models/cortador_bolacha/` | `carimbo_base` (3), `carimbo_arte` (3), `cortador` (3) |
 | `models/ponteira_lapis_texto/` | `base` (extrusor 3), `letters` (extrusor 1) |
 | `models/tampa_caneta/` | `base` (extrusor 3), `letters` (extrusor 1) |
+| `models/topo_bolo_svg/` | `base` (extrusor 1), `svg` (extrusor 4) |
 
 ---
 
@@ -163,6 +164,16 @@ Edite o arquivo `bambu_parts_config.json` do modelo:
 
 A mudança entra em vigor imediatamente no próximo job — **não é necessário reiniciar
 o Docker** para alterações neste arquivo.
+
+> **Importante — mapeamento de `extrusor_letras`:** o frontend envia os parâmetros
+> `extrusor_base` e `extrusor_letras` para todos os modelos. No backend
+> (`generator.py`), `extrusor_letras` é mapeado simultaneamente para as chaves
+> `"letters"` **e** `"svg"` do dicionário de overrides. Portanto:
+> - Modelos com parte chamada `letters` → recebem o override automaticamente.
+> - Modelos com parte chamada `svg` (ex.: `topo_bolo_svg`) → também recebem.
+> - Se criar um novo modelo com **nome de parte diferente** (ex.: `arte`, `relevo`),
+>   será necessário adicionar o mapeamento correspondente na função que monta `ov`
+>   em `backend/app/api/generator.py` (busque por `extrusor_letras`).
 
 ---
 

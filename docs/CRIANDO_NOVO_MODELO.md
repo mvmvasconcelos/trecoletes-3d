@@ -123,9 +123,56 @@ O backend possui três mecanismos de detecção de paredes finas que retornam al
 
 > **Nota:** todos os avisos são **não-bloqueantes** — o arquivo é gerado normalmente e os alertas aparecem no campo `warnings: []` da resposta JSON. O frontend pode exibir esses avisos ao usuário antes de fazer o download.
 
-### 1.5 Adicione o template Bambu Studio (opcional)
+### 1.5 Adicione o template Bambu Studio (**obrigatório para modelos multicolor**)
 
-Se o modelo gerar `.3mf` com configurações de impressão prontas, adicione `bambu_template/`. Veja `BAMBU_STUDIO_CONFIGURACOES.md` para o processo completo.
+Se o modelo tiver mais de uma parte/extrusor, **o `bambu_template/` é obrigatório**.
+Sem ele, o backend cai no fallback via trimesh, que ignora completamente as atribuições
+de extrusor — o `.3mf` exportado abrirá no Bambu Studio com todas as peças no extrusor 1.
+
+#### Estrutura mínima obrigatória
+
+```
+models/meu_novo_modelo/bambu_template/
+├── bambu_parts_config.json
+└── static/
+    ├── [Content_Types].xml
+    ├── _rels/
+    │   └── .rels
+    └── 3D/
+        └── _rels/
+            └── 3dmodel.model.rels
+```
+
+Copie os arquivos estáticos de qualquer modelo existente (ex.: `models/chaveiro_simples/bambu_template/static/`) — eles são idênticos entre modelos. Só adapte o `bambu_parts_config.json`:
+
+```json
+{
+  "model_id": "meu_novo_modelo",
+  "parts": [
+    { "scad_name": "base",    "display_name": "Base",  "extruder": 1 },
+    { "scad_name": "letters", "display_name": "Texto", "extruder": 2 }
+  ]
+}
+```
+
+O `scad_name` **deve bater exatamente** com o valor do dispatcher `part` no `model.scad`.
+
+#### Nomes de partes e mapeamento de extrusor
+
+O frontend envia `extrusor_base` e `extrusor_letras` para todos os modelos.
+O backend mapeia automaticamente:
+
+| Parâmetro do frontend | Chave do override | Partes cobertas |
+|---|---|---|
+| `extrusor_base` | `"base"` | parte `base` |
+| `extrusor_letras` | `"letters"` **e** `"svg"` | partes `letters` ou `svg` |
+
+Se a sua parte tiver **outro nome** (ex.: `arte`, `relevo`), adicione o mapeamento
+em `backend/app/api/generator.py` na seção que constrói o dicionário `ov`
+(busque por `extrusor_letras`).
+
+Para adicionar um perfil de impressão completo (velocidades, filamentos, etc.),
+consulte `BAMBU_STUDIO_CONFIGURACOES.md`.
 
 ---
 

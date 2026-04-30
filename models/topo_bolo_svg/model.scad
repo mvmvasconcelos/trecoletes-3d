@@ -15,6 +15,8 @@ letter_height = 0.8;  // Altura do relevo da arte acima da base (mm)
 /*[Hastes]*/
 post_count   = 2;    // Número de hastes: 1 (centralizada) ou 2
 post_spacing = 75;   // Distância entre as hastes — somente quando post_count=2 (mm)
+post_x_offset = 0;  // Deslocamento horizontal da haste única (mm); somente quando post_count=1
+post_y_offset = 0;  // Deslocamento vertical do ponto de conexão da haste (mm); somente quando post_count=1
 post_width   = 4;    // Largura das hastes (mm)
 post_length  = 90;   // Comprimento das hastes (mm)
 
@@ -44,10 +46,10 @@ module base_3d() {
     // Hastes (palitos que ficam abaixo da arte para fixar no bolo)
     if (post_length > 0) {
         if (post_count == 1) {
-            // Haste única centralizada em x=0
-            translate([-post_width / 2, -post_length, 0])
+            // Haste única com deslocamento horizontal e vertical opcionais
+            translate([post_x_offset - post_width / 2, post_y_offset - post_length, 0])
                 cube([post_width, post_length, base_height]);
-            translate([0, -post_length, 0])
+            translate([post_x_offset, post_y_offset - post_length, 0])
                 cylinder(h = base_height, d = post_width);
         } else {
             for (m = [-1, 1]) {

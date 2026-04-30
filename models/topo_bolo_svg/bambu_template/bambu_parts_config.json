@@ -1,0 +1,15 @@
+{
+    "model_id": "topo_bolo_svg",
+    "parts": [
+        {
+            "scad_name": "base",
+            "display_name": "Contorno e Hastes",
+            "extruder": 1
+        },
+        {
+            "scad_name": "svg",
+            "display_name": "Arte",
+            "extruder": 4
+        }
+    ]
+}

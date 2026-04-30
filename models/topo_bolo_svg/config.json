@@ -75,6 +75,28 @@
                     ]
                 },
                 {
+                    "id": "post_x_offset",
+                    "name": "Deslocamento horizontal da haste",
+                    "help_text": "Move a haste para a esquerda (negativo) ou direita (positivo)",
+                    "type": "range",
+                    "min": -150,
+                    "max": 150,
+                    "step": 1,
+                    "default": 0,
+                    "unit": "mm"
+                },
+                {
+                    "id": "post_y_offset",
+                    "name": "Deslocamento vertical da haste",
+                    "help_text": "Move o ponto de conexão da haste para cima (positivo) ou para baixo (negativo)",
+                    "type": "range",
+                    "min": -100,
+                    "max": 100,
+                    "step": 1,
+                    "default": 0,
+                    "unit": "mm"
+                },
+                {
                     "id": "post_spacing",
                     "name": "Distância entre as hastes",
                     "help_text": "Distância do centro de uma haste ao centro da outra",

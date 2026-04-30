@@ -185,6 +185,8 @@ export default function GeradorTopoBoloSvg() {
             case 'range': {
                 // Esconde distância quando há apenas 1 haste
                 if (p.id === 'post_spacing' && isSinglePost) return null;
+                // Esconde deslocamentos X e Y quando há 2 hastes
+                if ((p.id === 'post_x_offset' || p.id === 'post_y_offset') && !isSinglePost) return null;
                 // Singular/plural dinâmico
                 const displayName = isSinglePost && p.name_singular ? p.name_singular : p.name;
                 return (
@@ -282,7 +284,7 @@ export default function GeradorTopoBoloSvg() {
             />
 
             <aside className="w-80 flex-shrink-0 bg-neutral-950 border-r border-neutral-800 flex flex-col">
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-3">
                     {!config && <p className="text-sm text-neutral-600 animate-pulse">Carregando configurações...</p>}
                     {config && (
                         <>
