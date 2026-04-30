@@ -7,6 +7,8 @@ __pycache__
 *.stl
 # Exception: A1 build plate is required for 3D viewer component
 !frontend/src/components/ui/*.stl
+# Exception: segurador_handle.stl é um asset fixo do modelo carimbo_eva_svg
+!models/carimbo_eva_svg/segurador_handle.stl
 *.3mf
 temp_*.scad
 temp_*.svg
