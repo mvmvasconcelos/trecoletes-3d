@@ -43,6 +43,7 @@ export default function CortadorBolacha() {
     const [modelConfig, setModelConfig] = useState<any>(null);
     const [dynamicParams, setDynamicParams] = useState<Record<string, any>>({});
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isConvertingPng, setIsConvertingPng] = useState(false);
 
     const [artHeight, setArtHeight] = useState(70);
     const [artWidth, setArtWidth] = useState(70);
@@ -108,37 +109,55 @@ export default function CortadorBolacha() {
         if (lockAspectRatio) setArtHeight(Math.round(val / svgAspectRatio * 10) / 10);
     };
 
+    const _processSvgText = async (text: string) => {
+        setSvgText(text);
+        try {
+            const currentLineOffset = dynamicParams['line_offset'] ?? 0.5;
+            const processed = await processSvgFile(text, currentLineOffset, 3.0);
+            setSvgPreview(processed);
+            if (processed && processed.width > 0 && processed.height > 0) {
+                const natW = processed.width;
+                const natH = processed.height;
+                const ratio = natW / natH;
+                setSvgAspectRatio(ratio);
+                setArtWidth(70);
+                setArtHeight(Math.round((70 / ratio) * 10) / 10);
+            }
+            setIsModalOpen(true);
+        } catch (err) {
+            console.error("SVG Processing Error:", err);
+            alert("Erro ao processar o arquivo SVG.");
+        }
+    };
+
     const handleSvgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         setSvgFile(file);
+        const fileIsPng = file.name.toLowerCase().endsWith('.png') || file.type === 'image/png';
+        if (fileIsPng) {
+            setIsConvertingPng(true);
+            try {
+                const form = new FormData();
+                form.append('file', file, file.name);
+                const res = await axios.post<string>(
+                    `${API_BASE}/api/convert/png-to-svg`,
+                    form,
+                    { responseType: 'text' }
+                );
+                await _processSvgText(res.data);
+            } catch (err: any) {
+                alert(`Erro ao converter PNG: ${err?.response?.data?.error ?? 'Falha desconhecida'}`);
+            } finally {
+                setIsConvertingPng(false);
+            }
+            return;
+        }
         const reader = new FileReader();
         reader.onload = async (evt) => {
             const text = evt.target?.result as string;
             if (!text) return;
-            setSvgText(text);
-            try {
-                const currentLineOffset = dynamicParams['line_offset'] ?? 0.5;
-                const processed = await processSvgFile(text, currentLineOffset, 3.0);
-                setSvgPreview(processed);
-                
-                if (processed && processed.width > 0 && processed.height > 0) {
-                    const natW = processed.width;
-                    const natH = processed.height;
-                    const ratio = natW / natH;
-                    setSvgAspectRatio(ratio);
-                    
-                    // Iniciar SEMPRE com a Largura (Width) em 70
-                    // e Altura (Height) recalculada de acordo
-                    setArtWidth(70);
-                    setArtHeight(Math.round((70 / ratio) * 10) / 10);
-                }
-                
-                setIsModalOpen(true);
-            } catch (err) {
-                console.error("SVG Processing Error:", err);
-                alert("Erro ao processar o arquivo SVG.");
-            }
+            await _processSvgText(text);
         };
         reader.readAsText(file);
     };
@@ -196,14 +215,18 @@ export default function CortadorBolacha() {
                 <div className="p-6 space-y-8">
                     <div className="space-y-3">
                         <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-widest flex items-center gap-2"><Upload className="w-4 h-4" /> Arte Principal</h2>
-                        <input ref={fileInputRef} type="file" className="hidden" accept=".svg" onChange={handleSvgUpload} />
-                        {svgPreview ? (
+                        <input ref={fileInputRef} type="file" className="hidden" accept=".svg,.png" onChange={handleSvgUpload} />
+                        {isConvertingPng ? (
+                            <div className="w-full border-2 border-dashed border-amber-700/50 rounded-lg p-4 text-center bg-neutral-950/50">
+                                <span className="text-amber-400 text-sm animate-pulse">Convertendo PNG para SVG...</span>
+                            </div>
+                        ) : svgPreview ? (
                             <button onClick={() => setIsModalOpen(true)} className="w-full block border-2 border-emerald-700/50 hover:border-emerald-500 rounded-lg p-4 text-center cursor-pointer transition-colors bg-neutral-950/50">
                                 <span className="text-emerald-400 font-medium text-sm">{svgFile?.name || 'Arte carregada'}</span>
                             </button>
                         ) : (
                             <button onClick={triggerFilePicker} className="w-full block border-2 border-dashed border-neutral-700 hover:border-emerald-500 rounded-lg p-4 text-center cursor-pointer transition-colors bg-neutral-950/50">
-                                <span className="text-emerald-400 font-medium text-sm">Selecionar arquivo SVG</span>
+                                <span className="text-emerald-400 font-medium text-sm">Selecionar SVG ou PNG</span>
                             </button>
                         )}
                         {svgPreview && (

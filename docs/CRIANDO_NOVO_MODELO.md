@@ -194,6 +194,66 @@ Duplique uma página existente em `frontend/src/pages/` que se assemelhe ao novo
 
 Renomeie para `MeuNovoModelo.tsx` e troque todas as referências ao `model_id` antigo pelo novo.
 
+#### Suporte a PNG em modelos com SVG
+
+Todas as páginas com upload de SVG já suportam PNG nativamente. O padrão implementado em todas elas é:
+
+1. **Backend (universal):** o endpoint `POST /api/generate_parametric/{model_id}` detecta automaticamente quando o arquivo enviado é um PNG (por magic bytes) e chama `_png_bytes_to_svg()` antes de processar. Nenhuma mudança de backend é necessária para novos modelos.
+
+2. **Endpoint de conversão:** `POST /api/convert/png-to-svg` — recebe um PNG e retorna um SVG vetorizado via potrace, com transforms já achatados (compatível com Paper.js).
+
+3. **Padrão frontend** — ao criar uma página para modelo com SVG, use o padrão:
+   ```tsx
+   const [isConvertingPng, setIsConvertingPng] = useState(false);
+
+   const _processSvgText = async (text: string) => {
+       setSvgText(text);
+       // ... processSvgFile, setSvgPreview, calcular aspecto, setIsModalOpen(true)
+   };
+
+   const handleSvgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+       const file = e.target.files?.[0];
+       if (!file) return;
+       setSvgFile(file);
+       const fileIsPng = file.name.toLowerCase().endsWith('.png') || file.type === 'image/png';
+       if (fileIsPng) {
+           setIsConvertingPng(true);
+           try {
+               const form = new FormData();
+               form.append('file', file, file.name);
+               const res = await axios.post<string>(
+                   `${API_BASE}/api/convert/png-to-svg`, form, { responseType: 'text' }
+               );
+               await _processSvgText(res.data);
+           } catch (err: any) {
+               alert(`Erro ao converter PNG: ${err?.response?.data?.error ?? 'Falha desconhecida'}`);
+           } finally {
+               setIsConvertingPng(false);
+           }
+           return;
+       }
+       const reader = new FileReader();
+       reader.onload = async (evt) => { await _processSvgText(evt.target?.result as string); };
+       reader.readAsText(file);
+   };
+   ```
+
+4. No `<input>`, use `accept=".svg,.png"` e adicione o estado de loading na UI:
+   ```tsx
+   <input ref={fileInputRef} type="file" className="hidden" accept=".svg,.png" onChange={handleSvgUpload} />
+   {isConvertingPng ? (
+       <div className="...border-amber-700/50...">
+           <span className="text-amber-400 animate-pulse">Convertendo PNG para SVG...</span>
+       </div>
+   ) : svgPreview ? (
+       // botão "clique para editar"
+   ) : (
+       // botão "Selecionar SVG ou PNG"
+   )}
+   ```
+
+**Páginas já atualizadas:** `MexedorDrinksSvg`, `ChaveiroSimplesSvg`, `GeradorTopoBoloSvg`, `CarimboEvaSvg`, `CortadorBolacha`, `PonteiraLapisSvg`, `CortadorBolachaFormato`.
+
 O componente `<Viewer3D>` aceita o prop `modelType` para ajustar as mensagens de loading:
 - `'cortador'` — para cortadores de bolacha
 - `'ponteira'` — para ponteiras de lápis

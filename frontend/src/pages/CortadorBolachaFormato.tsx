@@ -48,6 +48,7 @@ export default function CortadorBolachaFormato() {
         width: number;
         height: number;
     } | null>(null);
+    const [isConvertingPng, setIsConvertingPng] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     React.useEffect(() => {
@@ -91,29 +92,50 @@ export default function CortadorBolachaFormato() {
         if (lockAspectRatio) setArtHeight(Math.round((val / svgAspectRatio) * 10) / 10);
     };
 
+    const _processSvgText = async (text: string) => {
+        try {
+            const processed = await processSvgFile(text, 0, 3.0);
+            setSvgPreview(processed);
+            if (processed && processed.width > 0 && processed.height > 0) {
+                const ratio = processed.width / processed.height;
+                setSvgAspectRatio(ratio);
+                setArtWidth(50);
+                setArtHeight(Math.round((50 / ratio) * 10) / 10);
+            }
+        } catch (err) {
+            console.error('SVG Processing Error:', err);
+            alert('Erro ao processar o arquivo SVG.');
+        }
+    };
+
     const handleSvgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         setSvgFile(file);
+        const fileIsPng = file.name.toLowerCase().endsWith('.png') || file.type === 'image/png';
+        if (fileIsPng) {
+            setIsConvertingPng(true);
+            try {
+                const form = new FormData();
+                form.append('file', file, file.name);
+                const res = await axios.post<string>(
+                    `${API_BASE}/api/convert/png-to-svg`,
+                    form,
+                    { responseType: 'text' }
+                );
+                await _processSvgText(res.data);
+            } catch (err: any) {
+                alert(`Erro ao converter PNG: ${err?.response?.data?.error ?? 'Falha desconhecida'}`);
+            } finally {
+                setIsConvertingPng(false);
+            }
+            return;
+        }
         const reader = new FileReader();
         reader.onload = async (evt) => {
             const text = evt.target?.result as string;
             if (!text) return;
-            try {
-                // line_offset=0: não engrossamos as linhas; apenas a silhueta importa
-                const processed = await processSvgFile(text, 0, 3.0);
-                setSvgPreview(processed);
-
-                if (processed && processed.width > 0 && processed.height > 0) {
-                    const ratio = processed.width / processed.height;
-                    setSvgAspectRatio(ratio);
-                    setArtWidth(50);
-                    setArtHeight(Math.round((50 / ratio) * 10) / 10);
-                }
-            } catch (err) {
-                console.error('SVG Processing Error:', err);
-                alert('Erro ao processar o arquivo SVG.');
-            }
+            await _processSvgText(text);
         };
         reader.readAsText(file);
     };
@@ -184,9 +206,14 @@ export default function CortadorBolachaFormato() {
                             ref={fileInputRef}
                             type="file"
                             className="hidden"
-                            accept=".svg"
+                            accept=".svg,.png"
                             onChange={handleSvgUpload}
                         />
+                        {isConvertingPng ? (
+                            <div className="w-full border-2 border-dashed border-amber-700/50 rounded-lg p-4 text-center bg-neutral-950/50">
+                                <span className="text-amber-400 text-sm animate-pulse">Convertendo PNG para SVG...</span>
+                            </div>
+                        ) : (
                         <button
                             onClick={triggerFilePicker}
                             className={`w-full block border-2 rounded-lg p-4 text-center cursor-pointer transition-colors bg-neutral-950/50 ${
@@ -196,9 +223,10 @@ export default function CortadorBolachaFormato() {
                             }`}
                         >
                             <span className="text-emerald-400 font-medium text-sm">
-                                {svgFile?.name || 'Selecionar arquivo SVG'}
+                                {svgFile?.name || 'Selecionar SVG ou PNG'}
                             </span>
                         </button>
+                        )}
                         {svgPreview && (
                             <div
                                 className="relative rounded-lg overflow-hidden border border-neutral-700"

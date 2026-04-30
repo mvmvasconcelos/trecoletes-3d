@@ -46,6 +46,7 @@ export default function GeradorTopoBoloSvg() {
     const [artHeight, setArtHeight] = useState(60);
     const [artWidth, setArtWidth] = useState(100);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isConvertingPng, setIsConvertingPng] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { fromCache, setFromCache, isClearingCache, clearCache } = useCacheManagement();
@@ -94,45 +95,67 @@ export default function GeradorTopoBoloSvg() {
         if (lockAspectRatio) setArtHeight(Math.round(val / svgAspectRatio * 10) / 10);
     };
 
+    const _processSvgText = async (text: string) => {
+        setSvgText(text);
+        try {
+            const processed = await processSvgFile(text, 0.5, 3.0);
+            setSvgPreview(processed);
+            if (processed) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(processed.thickenedSvg, 'image/svg+xml');
+                const svgEl = doc.querySelector('svg');
+                let natW = 0, natH = 0;
+                if (svgEl) {
+                    const vb = svgEl.getAttribute('viewBox');
+                    if (vb) {
+                        const parts = vb.split(/[\s,]+/).map(Number);
+                        if (parts.length >= 4) { natW = parts[2]; natH = parts[3]; }
+                    }
+                    if (!natW) natW = parseFloat(svgEl.getAttribute('width') || '0');
+                    if (!natH) natH = parseFloat(svgEl.getAttribute('height') || '0');
+                }
+                if (natW > 0 && natH > 0) {
+                    const ratio = natW / natH;
+                    setSvgAspectRatio(ratio);
+                    setArtHeight(60);
+                    setArtWidth(Math.round(60 * ratio * 10) / 10);
+                }
+            }
+            setIsModalOpen(true);
+        } catch (err) {
+            console.error('SVG Processing Error:', err);
+            alert('Erro ao processar o arquivo SVG.');
+        }
+    };
+
     const handleSvgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         setSvgFile(file);
+        const fileIsPng = file.name.toLowerCase().endsWith('.png') || file.type === 'image/png';
+        if (fileIsPng) {
+            setIsConvertingPng(true);
+            try {
+                const form = new FormData();
+                form.append('file', file, file.name);
+                const res = await axios.post<string>(
+                    `${API_BASE}/api/convert/png-to-svg`,
+                    form,
+                    { responseType: 'text' }
+                );
+                await _processSvgText(res.data);
+            } catch (err: any) {
+                alert(`Erro ao converter PNG: ${err?.response?.data?.error ?? 'Falha desconhecida'}`);
+            } finally {
+                setIsConvertingPng(false);
+            }
+            return;
+        }
         const reader = new FileReader();
         reader.onload = async (evt) => {
             const text = evt.target?.result as string;
             if (!text) return;
-            setSvgText(text);
-            try {
-                const lineOffset = 0.5;
-                const processed = await processSvgFile(text, lineOffset, 3.0);
-                setSvgPreview(processed);
-                if (processed) {
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(processed.thickenedSvg, 'image/svg+xml');
-                    const svgEl = doc.querySelector('svg');
-                    let natW = 0, natH = 0;
-                    if (svgEl) {
-                        const vb = svgEl.getAttribute('viewBox');
-                        if (vb) {
-                            const parts = vb.split(/[\s,]+/).map(Number);
-                            if (parts.length >= 4) { natW = parts[2]; natH = parts[3]; }
-                        }
-                        if (!natW) natW = parseFloat(svgEl.getAttribute('width') || '0');
-                        if (!natH) natH = parseFloat(svgEl.getAttribute('height') || '0');
-                    }
-                    if (natW > 0 && natH > 0) {
-                        const ratio = natW / natH;
-                        setSvgAspectRatio(ratio);
-                        setArtHeight(60);
-                        setArtWidth(Math.round(60 * ratio * 10) / 10);
-                    }
-                }
-                setIsModalOpen(true);
-            } catch (err) {
-                console.error('SVG Processing Error:', err);
-                alert('Erro ao processar o arquivo SVG.');
-            }
+            await _processSvgText(text);
         };
         reader.readAsText(file);
     };
@@ -292,17 +315,21 @@ export default function GeradorTopoBoloSvg() {
                             <div className="border border-neutral-800 rounded-lg overflow-hidden">
                                 <div className="flex items-center gap-2 px-3 py-2.5 bg-neutral-900">
                                     <Upload className="w-3.5 h-3.5 text-neutral-400" />
-                                    <span className="text-xs font-semibold text-neutral-400 uppercase tracking-widest">Arte SVG</span>
+                                    <span className="text-xs font-semibold text-neutral-400 uppercase tracking-widest">Arte SVG ou PNG</span>
                                 </div>
                                 <div className="px-3 pb-3 pt-2 space-y-3 bg-neutral-950 rounded-b-lg">
                                     <input
                                         ref={fileInputRef}
                                         type="file"
                                         className="hidden"
-                                        accept=".svg"
+                                        accept=".svg,.png"
                                         onChange={handleSvgUpload}
                                     />
-                                    {svgPreview ? (
+                                    {isConvertingPng ? (
+                                        <div className="w-full border-2 border-dashed border-amber-700/50 rounded-lg p-4 text-center bg-neutral-950/50">
+                                            <span className="text-amber-400 text-sm animate-pulse">Convertendo PNG para SVG...</span>
+                                        </div>
+                                    ) : svgPreview ? (
                                         <>
                                             <button
                                                 onClick={() => setIsModalOpen(true)}
@@ -329,7 +356,7 @@ export default function GeradorTopoBoloSvg() {
                                             className="w-full border-2 border-dashed border-neutral-700 hover:border-violet-500 rounded-lg p-4 text-center cursor-pointer transition-colors bg-neutral-950/50"
                                         >
                                             <Upload className="w-5 h-5 text-violet-500 mx-auto mb-1" />
-                                            <span className="text-violet-400 font-medium text-sm block">Selecionar arquivo SVG</span>
+                                            <span className="text-violet-400 font-medium text-sm block">Selecionar SVG ou PNG</span>
                                             <span className="text-xs text-neutral-500">A arte será exibida em relevo no topo</span>
                                         </button>
                                     )}
