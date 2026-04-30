@@ -18,6 +18,317 @@ from app.api._svg_normalize import normalize_svg_to_origin
 from fontTools.ttLib import TTFont
 from app.api.fonts import ensure_font_downloaded, FONTS_DIR
 
+
+def _flatten_svg_transforms(svg_bytes: bytes) -> bytes:
+    """
+    Achata transforms de grupos/paths no SVG para que as coordenadas fiquem
+    diretamente no espaço do viewport. Necessário para compatibilidade com
+    Paper.js, que usa child.bounds no espaço local do parent ao calcular
+    o viewBox exportado.
+
+    Suporta:
+    - <g transform="translate(tx,ty) scale(sx,sy)"> (saída do potrace)
+    - <path transform="translate(tx,ty)">           (saída do vtracer)
+    """
+    import re as _re
+    from lxml import etree
+
+    try:
+        root = etree.fromstring(svg_bytes)
+    except Exception:
+        return svg_bytes
+
+    def _parse_matrix(t_str: str):
+        """Converte string de transform SVG para matriz [a,b,c,d,e,f]. Retorna None se não suportado."""
+        t = t_str.strip()
+        m = _re.match(r'matrix\(\s*([\d.eE+-]+)[,\s]+([\d.eE+-]+)[,\s]+([\d.eE+-]+)[,\s]+([\d.eE+-]+)[,\s]+([\d.eE+-]+)[,\s]+([\d.eE+-]+)\s*\)', t)
+        if m:
+            return [float(x) for x in m.groups()]
+        m = _re.match(r'translate\(\s*([\d.eE+-]+)[\s,]+([\d.eE+-]+)\s*\)\s*scale\(\s*([\d.eE+-]+)[\s,]+([\d.eE+-]+)\s*\)', t)
+        if m:
+            tx, ty, sx, sy = map(float, m.groups())
+            return [sx, 0.0, 0.0, sy, tx, ty]
+        m = _re.match(r'scale\(\s*([\d.eE+-]+)[\s,]+([\d.eE+-]+)\s*\)\s*translate\(\s*([\d.eE+-]+)[\s,]+([\d.eE+-]+)\s*\)', t)
+        if m:
+            sx, sy, tx, ty = map(float, m.groups())
+            return [sx, 0.0, 0.0, sy, sx * tx, sy * ty]
+        m = _re.match(r'translate\(\s*([\d.eE+-]+)[\s,]+([\d.eE+-]+)\s*\)$', t)
+        if m:
+            tx, ty = map(float, m.groups())
+            return [1.0, 0.0, 0.0, 1.0, tx, ty]
+        m = _re.match(r'scale\(\s*([\d.eE+-]+)[\s,]+([\d.eE+-]+)\s*\)$', t)
+        if m:
+            sx, sy = map(float, m.groups())
+            return [sx, 0.0, 0.0, sy, 0.0, 0.0]
+        return None
+
+    def _xform_d(d: str, mat) -> str:
+        """Aplica matriz afim [a,b,c,d,e,f] aos dados de path SVG."""
+        a, b, c, dm, e, f = mat
+
+        def abs_p(x, y):
+            return a * x + c * y + e, b * x + dm * y + f
+
+        def rel_p(dx, dy):
+            return a * dx + c * dy, b * dx + dm * dy
+
+        tokens = _re.findall(r'[A-Za-z]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?', d)
+        out = []
+        i = 0
+        cmd = ''
+
+        def pop(n):
+            nonlocal i
+            vals = [float(tokens[i + j]) for j in range(n)]
+            i += n
+            return vals
+
+        while i < len(tokens):
+            t = tokens[i]
+            if t.isalpha():
+                cmd = t
+                out.append(t)
+                i += 1
+                continue
+            try:
+                if cmd in ('M', 'L', 'T'):
+                    x, y = pop(2)
+                    nx, ny = abs_p(x, y)
+                    out.append(f'{nx:.4g} {ny:.4g}')
+                elif cmd in ('m', 'l', 't'):
+                    dx, dy = pop(2)
+                    ndx, ndy = rel_p(dx, dy)
+                    out.append(f'{ndx:.4g} {ndy:.4g}')
+                elif cmd == 'C':
+                    pts = []
+                    for _ in range(3):
+                        x, y = pop(2)
+                        nx, ny = abs_p(x, y)
+                        pts.append(f'{nx:.4g} {ny:.4g}')
+                    out.append(' '.join(pts))
+                elif cmd == 'c':
+                    pts = []
+                    for _ in range(3):
+                        dx, dy = pop(2)
+                        ndx, ndy = rel_p(dx, dy)
+                        pts.append(f'{ndx:.4g} {ndy:.4g}')
+                    out.append(' '.join(pts))
+                elif cmd in ('S', 'Q'):
+                    pts = []
+                    for _ in range(2):
+                        x, y = pop(2)
+                        nx, ny = abs_p(x, y)
+                        pts.append(f'{nx:.4g} {ny:.4g}')
+                    out.append(' '.join(pts))
+                elif cmd in ('s', 'q'):
+                    pts = []
+                    for _ in range(2):
+                        dx, dy = pop(2)
+                        ndx, ndy = rel_p(dx, dy)
+                        pts.append(f'{ndx:.4g} {ndy:.4g}')
+                    out.append(' '.join(pts))
+                elif cmd == 'H':
+                    [x] = pop(1)
+                    nx, _ = abs_p(x, 0)
+                    out.append(f'{nx:.4g}')
+                elif cmd == 'h':
+                    [dx] = pop(1)
+                    ndx, _ = rel_p(dx, 0)
+                    out.append(f'{ndx:.4g}')
+                elif cmd == 'V':
+                    [y] = pop(1)
+                    _, ny = abs_p(0, y)
+                    out.append(f'{ny:.4g}')
+                elif cmd == 'v':
+                    [dy] = pop(1)
+                    _, ndy = rel_p(0, dy)
+                    out.append(f'{ndy:.4g}')
+                else:
+                    out.append(tokens[i])
+                    i += 1
+            except (IndexError, ValueError):
+                out.append(tokens[i])
+                i += 1
+
+        return ' '.join(out)
+
+    # --- Passa 1: achatar transforms de grupos ---
+    for elem in list(root.iter()):
+        tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+        if tag != 'g':
+            continue
+        t_str = elem.get('transform', '')
+        if not t_str:
+            continue
+        mat = _parse_matrix(t_str)
+        if mat is None:
+            continue
+        fill_from_g = elem.get('fill', '')
+        for child in elem.iter():
+            c_tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+            if c_tag != 'path':
+                continue
+            d = child.get('d', '')
+            if d:
+                child.set('d', _xform_d(d, mat))
+            if fill_from_g and not child.get('fill'):
+                child.set('fill', fill_from_g)
+            child.set('stroke', 'none')
+            if child.get('transform'):
+                del child.attrib['transform']
+        del elem.attrib['transform']
+        if 'fill' in elem.attrib:
+            del elem.attrib['fill']
+
+    # --- Passa 2: achatar transforms restantes diretamente em paths ---
+    for elem in list(root.iter()):
+        tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+        if tag != 'path':
+            continue
+        t_str = elem.get('transform', '')
+        if not t_str:
+            continue
+        mat = _parse_matrix(t_str)
+        if mat is None:
+            continue
+        d = elem.get('d', '')
+        if d:
+            elem.set('d', _xform_d(d, mat))
+        del elem.attrib['transform']
+
+    # --- Normaliza dimensões: usa viewBox, seta width/height para 100% ---
+    vb = root.get('viewBox', '')
+    if not vb:
+        w_str = _re.match(r'[\d.]+', root.get('width', '100'))
+        h_str = _re.match(r'[\d.]+', root.get('height', '100'))
+        if w_str and h_str:
+            root.set('viewBox', f'0 0 {w_str.group()} {h_str.group()}')
+    root.set('width', '100%')
+    root.set('height', '100%')
+
+    return etree.tostring(root, encoding='unicode').encode('utf-8')
+
+
+def _is_white_ish(fill_value: str) -> bool:
+    """Retorna True se a cor de fill é branca ou quase branca."""
+    v = fill_value.strip().lower()
+    if v in ('white', '#fff', '#ffffff', 'rgb(255,255,255)', 'rgb(255, 255, 255)'):
+        return True
+    m = re.match(r'rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)', v)
+    if m:
+        r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        return r > 230 and g > 230 and b > 230
+    return False
+
+
+def _clean_vtracer_svg(svg_str: str) -> bytes:
+    """
+    Pós-processa o SVG gerado pelo vtracer para compatibilidade com Paper.js:
+    1. Converte atributos style="fill:X;stroke:Y" para atributos de apresentação.
+    2. Remove elementos com fill branco/quase-branco (fundo e furos brancos do stacked mode).
+    3. Força fill="black" stroke="none" nos paths restantes.
+    O resultado é um SVG com apenas paths pretos limpos, sem camadas sobrepostas.
+    """
+    try:
+        from lxml import etree
+
+        SVG_NS = 'http://www.w3.org/2000/svg'
+        root = etree.fromstring(svg_str.encode('utf-8'))
+
+        # Coleta elementos para remover (não pode remover durante a iteração)
+        to_remove = []
+        for elem in root.iter():
+            # Converte style="..." para atributos de apresentação
+            style_attr = elem.get('style', '')
+            if style_attr:
+                for part in style_attr.split(';'):
+                    part = part.strip()
+                    if ':' in part:
+                        k, v = part.split(':', 1)
+                        elem.set(k.strip(), v.strip())
+                if 'style' in elem.attrib:
+                    del elem.attrib['style']
+
+            # Marca elementos brancos para remoção
+            fill = elem.get('fill', '')
+            if fill and _is_white_ish(fill):
+                to_remove.append(elem)
+
+        for elem in to_remove:
+            parent = elem.getparent()
+            if parent is not None:
+                parent.remove(elem)
+
+        # Força fill=black e stroke=none em todos os elementos de path
+        SHAPE_TAGS = {'path', 'polygon', 'polyline', 'rect', 'circle', 'ellipse'}
+        for elem in root.iter():
+            tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+            if tag in SHAPE_TAGS:
+                elem.set('fill', 'black')
+                elem.set('stroke', 'none')
+
+        return etree.tostring(root, encoding='unicode').encode('utf-8')
+
+    except Exception as e:
+        print(f"[PNG→SVG] Aviso: falha no pós-processamento SVG: {e}", flush=True)
+        return svg_str.encode('utf-8')  # fallback seguro
+
+
+def _png_bytes_to_svg(png_bytes: bytes) -> bytes:
+    """
+    Converte bytes de uma imagem PNG em SVG vetorizado via potrace.
+    Fluxo: Pillow (grayscale + threshold → PBM 1-bit) → potrace --svg → SVG limpo.
+    Potrace gera paths com coordenadas diretas no espaço pixel, sem transform attributes,
+    o que garante compatibilidade com o Paper.js do frontend.
+    """
+    import io
+    import tempfile
+    try:
+        from PIL import Image
+    except ImportError:
+        raise RuntimeError("Pillow não está instalado. Adicione 'Pillow' ao requirements.txt.")
+
+    # Pré-processa: grayscale → threshold → 1-bit para potrace
+    img = Image.open(io.BytesIO(png_bytes)).convert("L")
+    img = img.point(lambda p: 0 if p < 128 else 255, "L")
+    img_1bit = img.convert("1")
+    w, h = img_1bit.size
+
+    pbm_buf = io.BytesIO()
+    img_1bit.save(pbm_buf, format="PPM")  # Pillow salva mode "1" como PBM
+    pbm_bytes = pbm_buf.getvalue()
+
+    with tempfile.NamedTemporaryFile(suffix=".pbm", delete=False) as tf:
+        tf.write(pbm_bytes)
+        tf_path = tf.name
+
+    try:
+        result = subprocess.run(
+            [
+                "potrace", "--svg", "-o", "-",
+                "--turdsize", "2",
+                tf_path,
+            ],
+            capture_output=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"potrace error: {result.stderr.decode()}")
+
+        svg_str = result.stdout.decode("utf-8")
+
+        # Remove o DOCTYPE e PI do potrace (Paper.js prefere SVG limpo)
+        svg_str = re.sub(r'<\?xml[^?]*\?>', '', svg_str)
+        svg_str = re.sub(r'<!DOCTYPE[^>]*>', '', svg_str)
+        svg_str = re.sub(r'<metadata>.*?</metadata>', '', svg_str, flags=re.DOTALL)
+        svg_str = svg_str.strip()
+
+        print(f"[PNG→SVG] potrace OK: {w}x{h}px → {len(svg_str)} bytes SVG", flush=True)
+        svg_normalized = _flatten_svg_transforms(svg_str.encode("utf-8"))
+        return svg_normalized
+    finally:
+        os.unlink(tf_path)
+
 def _compute_char_positions(text: str, font_path: str, size_mm: float, spacing: float = 1.0, word_spacing: float = 1.0) -> dict:
     """
     Retorna posições X (mm), bounds reais de limite e largura teórica.
@@ -1005,6 +1316,24 @@ async def get_model_config(model_id: str):
 
     return config_data
 
+
+@router.post("/convert/png-to-svg")
+async def convert_png_to_svg(file: UploadFile):
+    """
+    Recebe um arquivo PNG e retorna o SVG vetorizado como texto.
+    Usado pelo frontend para converter PNGs antes de abrir o modal de edição SVG.
+    """
+    raw = await file.read()
+    if not (raw[:8] == b'\x89PNG\r\n\x1a\n'):
+        return JSONResponse(status_code=422, content={"error": "Arquivo enviado não é um PNG válido."})
+    try:
+        svg_bytes = _png_bytes_to_svg(raw)
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"error": f"Falha na conversão: {exc}"})
+    from fastapi.responses import Response
+    return Response(content=svg_bytes, media_type="image/svg+xml")
+
+
 @router.post("/generate/{model_id}")
 async def generate_model(
     request: Request,
@@ -1215,14 +1544,31 @@ async def generate_parametric_model(request: Request, model_id: str):
         if isinstance(v, str)
     )
 
-    # Lê uploads de SVG para modelos que declaram svg_uploads no config.json.
+    # Lê uploads de SVG/PNG para modelos que declaram svg_uploads no config.json.
+    # Se o arquivo enviado for PNG, converte para SVG antes de prosseguir.
     # Os bytes são lidos antes do hash para incluí-los no cálculo do cache.
     svg_upload_fields: list = model_config.get("svg_uploads", [])
-    svg_bytes_map: dict = {}  # field_name -> bytes normalizados
+    svg_bytes_map: dict = {}  # field_name -> bytes SVG normalizados
     for _svg_field in svg_upload_fields:
         _item = form_data.get(_svg_field)
         if _item is not None and not isinstance(_item, str):
             _raw = await _item.read()
+            _filename = getattr(_item, "filename", "") or ""
+            _is_png = (
+                _filename.lower().endswith(".png")
+                or (getattr(_item, "content_type", "") or "").lower() in ("image/png",)
+                or (_raw[:8] == b'\x89PNG\r\n\x1a\n')  # magic bytes PNG
+            )
+            if _is_png:
+                print(f"[PNG→SVG] Convertendo '{_filename}' para SVG...", flush=True)
+                try:
+                    _raw = _png_bytes_to_svg(_raw)
+                    print(f"[PNG→SVG] Conversão concluída ({len(_raw)} bytes SVG)", flush=True)
+                except Exception as _conv_err:
+                    return JSONResponse(
+                        status_code=422,
+                        content={"error": f"Falha ao converter PNG para SVG: {_conv_err}"},
+                    )
             svg_bytes_map[_svg_field] = normalize_svg_to_origin(_raw)
 
     # Hash determinístico para cache
