@@ -10,6 +10,11 @@
             "scad_name": "svg",
             "display_name": "Arte",
             "extruder": 4
+        },
+        {
+            "scad_name": "verso",
+            "display_name": "Arte do Verso",
+            "extruder": 3
         }
     ]
 }

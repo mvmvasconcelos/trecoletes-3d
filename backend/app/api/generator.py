@@ -1615,6 +1615,10 @@ async def generate_parametric_model(request: Request, model_id: str):
 
     # ── Fluxo multipart 3MF ───────────────────────────────────────────────
     if output_format == "3mf" and parts_to_render:
+        parts_to_render = list(parts_to_render)  # cópia mutável
+        # Se verso_enable=False, não renderizar parte verso (evita STL vazio no 3MF)
+        if _params_dict.get("verso_enable", "false").lower() in ("false", "0") and "verso" in parts_to_render:
+            parts_to_render.remove("verso")
         mf_filename = f"{model_id}_all.3mf"
         mf_filepath = os.path.join(job_dir, mf_filename)
 
@@ -1624,7 +1628,7 @@ async def generate_parametric_model(request: Request, model_id: str):
             cached_urls["3mf"] = f"/static/generated/{job_id}/{mf_filename}"
             # Ray casting também no cache hit
             if model_config.get("thin_wall_check") and _min_feature_mm > 0:
-                for _check_part in ("letters", "svg", "nome"):
+                for _check_part in ("letters", "svg", "nome", "verso"):
                     _stl_p = os.path.join(job_dir, f"{model_id}_{_check_part}.stl")
                     if not os.path.exists(_stl_p):
                         continue
@@ -1714,7 +1718,7 @@ async def generate_parametric_model(request: Request, model_id: str):
         # ── Opção 1: ray casting nas malhas geradas ───────────────────────────────
         # Verifica paredes laterais das peças de texto/SVG após renderização.
         if model_config.get("thin_wall_check") and _min_feature_mm > 0:
-            for _check_part in ("letters", "svg", "nome"):
+            for _check_part in ("letters", "svg", "nome", "verso"):
                 _stl_p = os.path.join(job_dir, f"{model_id}_{_check_part}.stl")
                 if not os.path.exists(_stl_p):
                     continue
@@ -1747,6 +1751,9 @@ async def generate_parametric_model(request: Request, model_id: str):
                     val = int(v)
                     ov["letters"] = val
                     ov["svg"] = val  # para modelos com parte "svg" (ex: topo_bolo_svg)
+                except ValueError: pass
+            elif k == "extrusor_verso":
+                try: ov["verso"] = int(v)
                 except ValueError: pass
 
         bambu_ok = _pack_bambu_3mf(model_id, parts_to_render, job_dir, mf_filepath, extruder_overrides=ov)

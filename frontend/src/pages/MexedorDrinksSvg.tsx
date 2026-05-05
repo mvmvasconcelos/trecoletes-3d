@@ -32,6 +32,7 @@ export default function MexedorDrinksSvg() {
 
     const [baseUrl, setBaseUrl] = useState<string | null>(null);
     const [svgUrl, setSvgUrl] = useState<string | null>(null);
+    const [versoUrl, setVersoUrl] = useState<string | null>(null);
     const [tmfUrl, setTmfUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [warnings, setWarnings] = useState<string[]>([]);
@@ -49,10 +50,18 @@ export default function MexedorDrinksSvg() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // SVG / PNG upload — verso
+    const [svgVersoFile, setSvgVersoFile] = useState<File | null>(null);
+    const [svgVersoText, setSvgVersoText] = useState<string | null>(null);
+    const [svgVersoPreview, setSvgVersoPreview] = useState<{ originalSvg: string; thickenedSvg: string; silhouetteSvg: string } | null>(null);
+    const [isConvertingVersoPng, setIsConvertingVersoPng] = useState(false);
+    const [isVersoModalOpen, setIsVersoModalOpen] = useState(false);
+    const versoFileInputRef = useRef<HTMLInputElement>(null);
+
     const { fromCache, setFromCache, isClearingCache, clearCache } = useCacheManagement();
 
     const handleClearCache = () => clearCache(() => {
-        setTmfUrl(null); setBaseUrl(null); setSvgUrl(null);
+        setTmfUrl(null); setBaseUrl(null); setSvgUrl(null); setVersoUrl(null);
     });
 
     useEffect(() => {
@@ -65,6 +74,7 @@ export default function MexedorDrinksSvg() {
                 cfg.sections?.forEach((s: any) => setDefaults(s.parameters));
                 initial['extrusor_base'] = 1;
                 initial['extrusor_letras'] = 4;
+                initial['extrusor_verso'] = 3;
                 setParams(initial);
                 const initOpen: Record<string, boolean> = {};
                 cfg.sections?.forEach((s: any) => {
@@ -82,6 +92,13 @@ export default function MexedorDrinksSvg() {
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
             fileInputRef.current.click();
+        }
+    };
+
+    const triggerVersoFilePicker = () => {
+        if (versoFileInputRef.current) {
+            versoFileInputRef.current.value = '';
+            versoFileInputRef.current.click();
         }
     };
 
@@ -171,10 +188,83 @@ export default function MexedorDrinksSvg() {
         setIsModalOpen(false);
     };
 
+    const _processVersoSvgText = async (text: string) => {
+        setSvgVersoText(text);
+        try {
+            const processed = await processSvgFile(text, 0.5, 3.0);
+            setSvgVersoPreview(processed);
+            if (processed) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(processed.thickenedSvg, 'image/svg+xml');
+                const svgEl = doc.querySelector('svg');
+                let natW = 0, natH = 0;
+                if (svgEl) {
+                    const vb = svgEl.getAttribute('viewBox');
+                    if (vb) {
+                        const parts = vb.split(/[\s,]+/).map(Number);
+                        if (parts.length >= 4) { natW = parts[2]; natH = parts[3]; }
+                    }
+                    if (!natW) natW = parseFloat(svgEl.getAttribute('width') || '0');
+                    if (!natH) natH = parseFloat(svgEl.getAttribute('height') || '0');
+                }
+                if (natW > 0 && natH > 0) {
+                    const ratio = natW / natH;
+                    const newH = Math.round(25 / ratio * 10) / 10;
+                    setParam('verso_width', 25);
+                    setParam('verso_height', Math.min(100, Math.max(5, newH)));
+                }
+            }
+            setIsVersoModalOpen(true);
+        } catch (err) {
+            console.error('Verso SVG Processing Error:', err);
+            alert('Erro ao processar o arquivo SVG do verso.');
+        }
+    };
+
+    const handleVersoSvgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setSvgVersoFile(file);
+
+        const fileIsPng = file.name.toLowerCase().endsWith('.png') || file.type === 'image/png';
+
+        if (fileIsPng) {
+            setIsConvertingVersoPng(true);
+            try {
+                const form = new FormData();
+                form.append('file', file, file.name);
+                const res = await axios.post<string>(
+                    `${API_BASE}/api/convert/png-to-svg`,
+                    form,
+                    { responseType: 'text' }
+                );
+                await _processVersoSvgText(res.data);
+            } catch (err: any) {
+                alert(`Erro ao converter PNG do verso: ${err?.response?.data?.error ?? 'Falha desconhecida'}`);
+            } finally {
+                setIsConvertingVersoPng(false);
+            }
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            const text = evt.target?.result as string;
+            if (!text) return;
+            await _processVersoSvgText(text);
+        };
+        reader.readAsText(file);
+    };
+
+    const handleVersoModalConfirm = (processed: any) => {
+        setSvgVersoPreview(processed);
+        setIsVersoModalOpen(false);
+    };
+
     const handleGenerate = async () => {
         if (!svgPreview) return;
         setIsGenerating(true);
-        setError(null); setWarnings([]); setBaseUrl(null); setSvgUrl(null); setTmfUrl(null); setFromCache(null);
+        setError(null); setWarnings([]); setBaseUrl(null); setSvgUrl(null); setVersoUrl(null); setTmfUrl(null); setFromCache(null);
         try {
             const form = new FormData();
             form.append(
@@ -184,9 +274,23 @@ export default function MexedorDrinksSvg() {
             );
             form.append('art_width', String(artWidth));
             form.append('art_height', String(artHeight));
+
+            // verso_enable: ativo apenas quando SVG do verso está carregado
+            const versoActive = !!(svgVersoPreview && params['verso_enable']);
+
             Object.entries(params).forEach(([k, v]) => {
+                if (k === 'verso_enable') return; // tratado separadamente abaixo
                 if (v !== undefined && v !== null) form.append(k, String(v));
             });
+            form.append('verso_enable', versoActive ? 'true' : 'false');
+
+            if (versoActive && svgVersoPreview) {
+                form.append(
+                    'svg_verso_path',
+                    new Blob([svgVersoPreview.thickenedSvg], { type: 'image/svg+xml' }),
+                    'verso.svg'
+                );
+            }
 
             const res = await axios.post(
                 `${API_BASE}/api/generate_parametric/mexedor_drinks_svg`,
@@ -195,6 +299,7 @@ export default function MexedorDrinksSvg() {
             if (res.data?.files) {
                 if (res.data.files.base) setBaseUrl(`${API_BASE}${res.data.files.base}`);
                 if (res.data.files.svg) setSvgUrl(`${API_BASE}${res.data.files.svg}`);
+                if (res.data.files.verso) setVersoUrl(`${API_BASE}${res.data.files.verso}`);
                 if (res.data.files['3mf']) setTmfUrl(`${API_BASE}${res.data.files['3mf']}`);
                 setFromCache(res.data.from_cache ?? false);
                 setWarnings(res.data.warnings ?? []);
@@ -271,8 +376,19 @@ export default function MexedorDrinksSvg() {
                     </div>
                 );
             case 'color': {
-                const extField = p.id === 'base_color' ? 'extrusor_base' : 'extrusor_letras';
-                const extVal = params[extField] ?? (p.id === 'base_color' ? 1 : 4);
+                let extField: string;
+                let defaultExt: number;
+                if (p.id === 'base_color') {
+                    extField = 'extrusor_base';
+                    defaultExt = 1;
+                } else if (p.id === 'verso_color') {
+                    extField = 'extrusor_verso';
+                    defaultExt = 3;
+                } else {
+                    extField = 'extrusor_letras';
+                    defaultExt = 4;
+                }
+                const extVal = params[extField] ?? defaultExt;
                 return (
                     <BambuColorPicker
                         key={p.id} label={p.name} helpText={p.help_text} color={val} extruder={extVal}
@@ -317,6 +433,14 @@ export default function MexedorDrinksSvg() {
                 onConfirm={handleModalConfirm}
                 onLoadAnother={() => { setIsModalOpen(false); triggerFilePicker(); }}
                 svgText={svgText}
+                initialThickness={0.5}
+            />
+            <SvgPreviewModal
+                isOpen={isVersoModalOpen}
+                onClose={() => setIsVersoModalOpen(false)}
+                onConfirm={handleVersoModalConfirm}
+                onLoadAnother={() => { setIsVersoModalOpen(false); triggerVersoFilePicker(); }}
+                svgText={svgVersoText}
                 initialThickness={0.5}
             />
 
@@ -423,6 +547,60 @@ export default function MexedorDrinksSvg() {
                             {/* Demais seções do config (exceto Cores) */}
                             {mainSections.map(renderAccordionSection)}
 
+                            {/* Upload da Arte do Verso — visível quando verso_enable=true */}
+                            {params['verso_enable'] && (
+                                <div className="border border-violet-900/50 rounded-lg overflow-hidden">
+                                    <div className="flex items-center gap-2 px-3 py-2.5 bg-neutral-900">
+                                        <Upload className="w-3.5 h-3.5 text-violet-400" />
+                                        <span className="text-xs font-semibold text-violet-400 uppercase tracking-widest">Arte do Verso (SVG ou PNG)</span>
+                                    </div>
+                                    <div className="px-3 pb-3 pt-2 space-y-3 bg-neutral-950 rounded-b-lg">
+                                        <input
+                                            ref={versoFileInputRef}
+                                            type="file"
+                                            className="hidden"
+                                            accept=".svg,.png"
+                                            onChange={handleVersoSvgUpload}
+                                        />
+                                        {isConvertingVersoPng ? (
+                                            <div className="w-full border-2 border-dashed border-amber-700/50 rounded-lg p-4 text-center bg-neutral-950/50">
+                                                <span className="text-amber-400 text-sm animate-pulse">Convertendo PNG para SVG...</span>
+                                            </div>
+                                        ) : svgVersoPreview ? (
+                                            <>
+                                                <button
+                                                    onClick={() => setIsVersoModalOpen(true)}
+                                                    className="w-full border-2 border-violet-700/50 hover:border-violet-500 rounded-lg px-3 py-2 text-center cursor-pointer transition-colors bg-neutral-900/50"
+                                                >
+                                                    <span className="text-violet-400 font-medium text-sm truncate block">
+                                                        {svgVersoFile?.name || 'Arte do verso carregada'}
+                                                    </span>
+                                                    <span className="text-xs text-neutral-500">Clique para editar</span>
+                                                </button>
+                                                <div
+                                                    className="relative rounded-lg overflow-hidden border border-neutral-700"
+                                                    style={{ backgroundColor: '#f0ebe3' }}
+                                                >
+                                                    <div
+                                                        dangerouslySetInnerHTML={{ __html: svgVersoPreview.thickenedSvg }}
+                                                        className="w-full [&>svg]:w-full [&>svg]:h-auto [&>svg]:max-h-32 [&>svg]:object-contain p-2"
+                                                    />
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <button
+                                                onClick={triggerVersoFilePicker}
+                                                className="w-full border-2 border-dashed border-neutral-700 hover:border-violet-500 rounded-lg p-4 text-center cursor-pointer transition-colors bg-neutral-950/50"
+                                            >
+                                                <Upload className="w-5 h-5 text-violet-500 mx-auto mb-1" />
+                                                <span className="text-violet-400 font-medium text-sm block">Selecionar SVG ou PNG</span>
+                                                <span className="text-xs text-neutral-500">Arte espelhada na face inferior</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
                             {colorsSection && renderAccordionSection(colorsSection)}
                         </>
                     )}
@@ -459,6 +637,7 @@ export default function MexedorDrinksSvg() {
                             modelColor={(params['base_color'] as string) ?? '#FFFFFF'}
                             modelType="default"
                             highlightArte={thinWallParts.length > 0}
+                            extraMeshes={versoUrl ? [{ url: versoUrl, color: (params['verso_color'] as string) ?? '#FFFFFF' }] : []}
                         />
                     </div>
                 </div>

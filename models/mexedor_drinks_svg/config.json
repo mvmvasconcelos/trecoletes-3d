@@ -7,9 +7,10 @@
     "output_format": "3mf",
     "parts": [
         "base",
-        "svg"
+        "svg",
+        "verso"
     ],
-    "svg_uploads": ["svg_linhas_path"],
+    "svg_uploads": ["svg_linhas_path", "svg_verso_path"],
     "min_feature_size_mm": 0.8,
     "thin_wall_check": true,
     "parameters": [],
@@ -140,6 +141,39 @@
             ]
         },
         {
+            "name": "Arte do Verso",
+            "collapsed": true,
+            "parameters": [
+                {
+                    "id": "verso_enable",
+                    "name": "Ativar Arte do Verso",
+                    "help_text": "Adiciona uma arte espelhada na face inferior do mexedor (0,2 mm colada na mesa). A peça inteira sobe 0,2 mm para acomodar a camada do verso.",
+                    "type": "boolean",
+                    "default": false
+                },
+                {
+                    "id": "verso_width",
+                    "name": "Largura da Arte do Verso",
+                    "type": "range",
+                    "min": 5,
+                    "max": 100,
+                    "step": 1,
+                    "default": 25,
+                    "unit": "mm"
+                },
+                {
+                    "id": "verso_height",
+                    "name": "Altura da Arte do Verso",
+                    "type": "range",
+                    "min": 5,
+                    "max": 100,
+                    "step": 1,
+                    "default": 25,
+                    "unit": "mm"
+                }
+            ]
+        },
+        {
             "name": "Cores",
             "collapsed": true,
             "parameters": [
@@ -154,6 +188,12 @@
                     "name": "Cor da Arte",
                     "type": "color",
                     "default": "#F44336"
+                },
+                {
+                    "id": "verso_color",
+                    "name": "Cor da Arte do Verso",
+                    "type": "color",
+                    "default": "#123456"
                 }
             ]
         }
