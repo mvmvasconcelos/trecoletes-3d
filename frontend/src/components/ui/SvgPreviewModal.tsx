@@ -57,7 +57,7 @@ export function SvgPreviewModal({
                             <label className="flex justify-between text-sm font-medium text-neutral-400">
                                 <span>Engrossar Linhas: <span className="text-emerald-400">{thickness.toFixed(1)}px</span></span>
                             </label>
-                            <input type="range" min="0" max="5" step="0.1" value={thickness} onChange={e => setThickness(parseFloat(e.target.value))} className="w-full accent-emerald-500" />
+                            <input type="range" min="0" max="20" step="0.5" value={thickness} onChange={e => setThickness(parseFloat(e.target.value))} className="w-full accent-emerald-500" />
                         </div>
                         <button
                             onClick={() => setPreserveFill(p => !p)}

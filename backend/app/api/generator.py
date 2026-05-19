@@ -1008,8 +1008,36 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
         return args  # sem fonte, fallback para text() padrão
 
     ttf_path = ensure_font_downloaded(font_family)
+
+    # Fallback: procurar nos TTFs bundled no diretório do modelo
+    if not ttf_path and model_dir and os.path.isdir(model_dir):
+        from fontTools.ttLib import TTFont as _TTFont
+        font_family_lower = font_family.lower()
+        for fname in os.listdir(model_dir):
+            if not fname.lower().endswith(".ttf"):
+                continue
+            candidate = os.path.join(model_dir, fname)
+            try:
+                _ft = _TTFont(candidate)
+                _name_table = _ft["name"]
+                for record in _name_table.names:
+                    # nameID 1 = Family name, 4 = Full name
+                    if record.nameID in (1, 4):
+                        try:
+                            _val = record.toUnicode().lower()
+                        except Exception:
+                            continue
+                        if font_family_lower in _val or _val in font_family_lower:
+                            ttf_path = candidate
+                            print(f"[FONTS] Fonte bundled encontrada: {candidate} (family='{font_family}')", flush=True)
+                            break
+            except Exception:
+                pass
+            if ttf_path:
+                break
+
     if not ttf_path:
-        return args  # falha no download, fallback
+        return args  # falha no download e sem bundled, fallback
 
     max_line_w = 0.0  # largura abstrata principal
     global_min_x = 999999.0
@@ -1019,6 +1047,7 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     for line_key, size_key, chars_param, xs_param in [
         ("text_line_1", "text_size_1", "chars1", "char_xs1"),
         ("text_line_2", "text_size_2", "chars2", "char_xs2"),
+        ("text_line_3", "text_size_3", "chars3", "char_xs3"),
     ]:
         text_val = params.get(line_key, "")
         if not text_val:

@@ -26,6 +26,33 @@ function getPaperProject(): paper.Project {
     return paper.project;
 }
 
+/**
+ * Extrai as dimensões naturais do SVG a partir do viewBox (preferencial)
+ * ou dos atributos width/height. Usado para redimensionar o view do Paper.js
+ * e evitar escalonamento não-uniforme ao importar SVGs não-quadrados.
+ */
+function getSvgViewBoxSize(svgString: string): { width: number; height: number } {
+    // Tenta viewBox primeiro (ex: viewBox="0 0 600 200")
+    const vbMatch = svgString.match(/\bviewBox\s*=\s*["']([^"']+)["']/i);
+    if (vbMatch) {
+        const nums = vbMatch[1].trim().split(/[\s,]+/);
+        if (nums.length >= 4) {
+            const w = parseFloat(nums[2]);
+            const h = parseFloat(nums[3]);
+            if (w > 0 && h > 0) return { width: w, height: h };
+        }
+    }
+    // Fallback: atributos width/height numéricos (ignora percentagens)
+    const wMatch = svgString.match(/<svg\b[^>]*\bwidth\s*=\s*["']([0-9.]+)["']/i);
+    const hMatch = svgString.match(/<svg\b[^>]*\bheight\s*=\s*["']([0-9.]+)["']/i);
+    if (wMatch && hMatch) {
+        const w = parseFloat(wMatch[1]);
+        const h = parseFloat(hMatch[1]);
+        if (w > 0 && h > 0) return { width: w, height: h };
+    }
+    return { width: 500, height: 500 };
+}
+
 function injectPaddedViewBox(svgStr: string, cbWidth: number, cbHeight: number): string {
     let result = svgStr;
     // Remove explicit dimensions on the root SVG element to force a fluid container
@@ -59,6 +86,13 @@ export async function processSvgFile(
     return new Promise((resolve, reject) => {
         try {
             const project = getPaperProject();
+
+            // Redimensiona o view do Paper.js para corresponder ao tamanho natural do SVG.
+            // Sem isso, Paper.js escala as coordenadas para preencher o canvas 1000×1000 de
+            // forma NÃO-UNIFORME quando o SVG não é quadrado — ex: um SVG 600×200 faz
+            // scaleX = 1000/600 e scaleY = 1000/200, achatando os paths exportados.
+            const svgSize = getSvgViewBoxSize(svgString);
+            paper.view.viewSize = new paper.Size(svgSize.width, svgSize.height);
 
             // Import the original SVG
             project.importSVG(svgString, {
@@ -119,23 +153,36 @@ export async function processSvgFile(
 
 
 
-                    // 2. Thicken: set strokeWidth geometrically on cloned filled paths.
-                    // Paper.js exports stroke as SVG attribute. OpenSCAD respects stroke-width
-                    // when importing SVG, expanding the rendered geometry.
+                    // 2. Thicken: add stroke-only clones alongside the original filled paths.
+                    // OpenSCAD ignores stroke-width on filled paths (fill+stroke), but does
+                    // convert stroke-only paths (fill=none) into expanded filled geometry.
+                    // By keeping the original filled paths intact and adding separate stroke-only
+                    // clones, we get: browser renders fill+stroke visually (preview looks correct),
+                    // and OpenSCAD creates union of fill area + stroke area = expanded shape.
                     const thickenedItem = item.clone();
-                    thickenedItem.getItems({ class: paper.PathItem }).forEach((child: paper.Item) => {
-                        if (child.parent && child.parent.className === 'CompoundPath') {
-                            return;
-                        }
-                        const pathChild = child as paper.Path;
-                        if (thickness > 0) {
-                            pathChild.strokeWidth = thickness;
-                            pathChild.strokeJoin = 'round';
-                            pathChild.strokeCap = 'round';
-                            // Use fill color as stroke so it blends and expands outward
-                            pathChild.strokeColor = pathChild.fillColor || new paper.Color('black');
-                        }
-                    });
+                    if (thickness > 0) {
+                        const pathsToExpand: paper.Path[] = [];
+                        thickenedItem.getItems({ class: paper.PathItem }).forEach((child: paper.Item) => {
+                            if (child.parent && child.parent.className === 'CompoundPath') {
+                                return;
+                            }
+                            const pathChild = child as paper.Path;
+                            if (pathChild.fillColor) {
+                                pathsToExpand.push(pathChild);
+                            }
+                        });
+                        // Add stroke-only clones after collecting to avoid modifying during iteration.
+                        // clone() inserts the copy as a sibling inside thickenedItem's subtree,
+                        // so it will be included in the exportSVG() output.
+                        pathsToExpand.forEach(pathChild => {
+                            const strokeClone = pathChild.clone();
+                            strokeClone.fillColor = null;
+                            strokeClone.strokeColor = pathChild.fillColor;
+                            strokeClone.strokeWidth = thickness;
+                            strokeClone.strokeJoin = 'round';
+                            strokeClone.strokeCap = 'round';
+                        });
+                    }
 
                     const exportOptions = { asString: true, bounds: 'content' } as any;
                     let thickenedSvgStr = thickenedItem.exportSVG(exportOptions) as string;

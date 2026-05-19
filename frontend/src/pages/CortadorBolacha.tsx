@@ -50,12 +50,15 @@ export default function CortadorBolacha() {
     const [lockAspectRatio, setLockAspectRatio] = useState(true);
     const [svgAspectRatio, setSvgAspectRatio] = useState(1.0);
 
-    type CutterShape = 'silhouette' | 'square' | 'circle' | 'rectangle' | 'hexagon';
+    type CutterShape = 'silhouette' | 'square' | 'circle' | 'rectangle' | 'hexagon' | 'ellipse';
     const [cutterShape, setCutterShape] = useState<CutterShape>('silhouette');
     const [cutterW, setCutterW] = useState(78);
     const [cutterH, setCutterH] = useState(78);
+    const [cutterWDraft, setCutterWDraft] = useState('78');
+    const [cutterHDraft, setCutterHDraft] = useState('78');
 
     const currentSilhouetteExp = dynamicParams['silhouette_exp'] ?? 4.0;
+    const currentWallThickness = dynamicParams['wall_thickness'] ?? 2.4;
     const minCutterW = artWidth + currentSilhouetteExp * 2;
     const minCutterH = artHeight + currentSilhouetteExp * 2;
 
@@ -63,10 +66,24 @@ export default function CortadorBolacha() {
     const autoSquareSize = Math.max(artWidth, artHeight) + currentSilhouetteExp * 2;
     const autoCircleHexSize = artDiag + currentSilhouetteExp * 2;
     const isAutoShape = cutterShape === 'square' || cutterShape === 'circle' || cutterShape === 'hexagon';
+    const isManualSizeShape = cutterShape === 'rectangle' || cutterShape === 'ellipse';
     const autoSize = cutterShape === 'square' ? autoSquareSize : autoCircleHexSize;
 
     const effectiveCutterW = isAutoShape ? autoSize : Math.max(cutterW, minCutterW);
     const effectiveCutterH = isAutoShape ? autoSize : Math.max(cutterH, minCutterH);
+
+    // Quando o formato muda para elipse/retângulo, garante que as dimensões respeitam o mínimo
+    React.useEffect(() => {
+        if (isManualSizeShape) {
+            const newW = Math.ceil(Math.max(cutterW, minCutterW));
+            const newH = Math.ceil(Math.max(cutterH, minCutterH));
+            setCutterW(newW);
+            setCutterH(newH);
+            setCutterWDraft(newW.toString());
+            setCutterHDraft(newH.toString());
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [cutterShape]);
 
     const [svgPreview, setSvgPreview] = useState<{ originalSvg: string; thickenedSvg: string; silhouetteSvg: string; } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -292,8 +309,63 @@ export default function CortadorBolacha() {
                                 <option value="circle">Círculo</option>
                                 <option value="rectangle">Retângulo</option>
                                 <option value="hexagon">Hexágono</option>
+                                <option value="ellipse">Elipse</option>
                             </select>
                             {isAutoShape && <p className="text-xs text-emerald-500/80">Automático: {autoSize.toFixed(1)} mm</p>}
+                            {isManualSizeShape && (
+                                <div className="grid grid-cols-2 gap-3 mt-2">
+                                    <div className="space-y-1">
+                                        <span className="text-xs text-neutral-500">
+                                            {cutterShape === 'ellipse' ? 'Largura' : 'Largura'}
+                                            <span className="text-amber-500/80"> (mín. {minCutterW.toFixed(0)} mm)</span>
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="number"
+                                                max={300}
+                                                step={1}
+                                                value={cutterWDraft}
+                                                onChange={e => setCutterWDraft(e.target.value)}
+                                                onBlur={e => {
+                                                    const v = Math.ceil(Math.max(parseFloat(e.target.value) || minCutterW, minCutterW));
+                                                    setCutterW(v);
+                                                    setCutterWDraft(v.toString());
+                                                }}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                                }}
+                                                className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                                            />
+                                            <span className="text-xs text-neutral-500">mm</span>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-xs text-neutral-500">
+                                            {cutterShape === 'ellipse' ? 'Altura' : 'Altura'}
+                                            <span className="text-amber-500/80"> (mín. {minCutterH.toFixed(0)} mm)</span>
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="number"
+                                                max={300}
+                                                step={1}
+                                                value={cutterHDraft}
+                                                onChange={e => setCutterHDraft(e.target.value)}
+                                                onBlur={e => {
+                                                    const v = Math.ceil(Math.max(parseFloat(e.target.value) || minCutterH, minCutterH));
+                                                    setCutterH(v);
+                                                    setCutterHDraft(v.toString());
+                                                }}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                                }}
+                                                className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                                            />
+                                            <span className="text-xs text-neutral-500">mm</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-4 mt-6">

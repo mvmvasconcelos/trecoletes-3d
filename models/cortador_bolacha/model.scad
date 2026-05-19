@@ -101,6 +101,12 @@ module main_outline(extra_r = 0) {
         offset(r = cutter_rounding, $fn = 32)
             offset(delta = -cutter_rounding)
                 square([cutter_width  + extra_r * 2, cutter_height + extra_r * 2], center = true);
+    } else if (cutter_shape == "ellipse") {
+        // Elipse: semi-eixos = cutter_width/2 e cutter_height/2.
+        // offset(r = extra_r) produz expansão uniforme ao redor da elipse base.
+        offset(r = extra_r, $fn = 128)
+            scale([cutter_width / cutter_height, 1])
+                circle(r = cutter_height / 2, $fn = 128);
     } else if (cutter_shape == "hexagon") {
         r_hex = (cutter_width / 2) / cos(30);
         offset(r = cutter_rounding, $fn = 32)
@@ -129,7 +135,7 @@ module carimbo() {
         // Marca d'água Principal
         translate([0, -11, -0.1])
         linear_extrude(height = 0.5) {
-            text("ADOIS", font="TAN \\- NIMBUS:style=Regular", size=6, halign="center", valign="center");
+            text("DACATI", font="TAN \\- NIMBUS:style=Regular", size=6, halign="center", valign="center");
         }
         
         // Marca d'água Secundária
@@ -239,7 +245,7 @@ if (part == "all") {
             // Marca d'água Principal
             translate([0, -11, -0.1])
             linear_extrude(height = 0.5) {
-                text("ADOIS", font="TAN \\- NIMBUS:style=Regular", size=6, halign="center", valign="center");
+                //text("DACATI", font="TAN \\- NIMBUS:style=Regular", size=6, halign="center", valign="center");
             }
             
             // Marca d'água Secundária
