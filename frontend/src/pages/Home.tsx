@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Scissors, Image, Type, PenTool, Sliders, FlaskConical, PenLine, KeyRound, Cake, Stamp, GlassWater } from 'lucide-react';
+import { Scissors, Image, Type, PenTool, Sliders, FlaskConical, PenLine, KeyRound, Cake, Stamp, GlassWater, Layers } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -133,6 +133,16 @@ export default function Home() {
           <div>
             <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Mexedor de Drinks</h2>
             <p className="text-neutral-500 mt-2 text-sm">Gere mexedores de drinks personalizados com arte SVG em relevo e fundo orgânico, circular ou quadrado.</p>
+          </div>
+        </Link>
+
+        <Link to="/letreiro-social" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
+          <div className="w-12 h-12 rounded-lg bg-emerald-900/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
+            <Layers className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Letreiro Social</h2>
+            <p className="text-neutral-500 mt-2 text-sm">Gere letreiros com texto em 3 camadas de cor: base, borda e letras — perfeito para impressão multicolor.</p>
           </div>
         </Link>
         </div>

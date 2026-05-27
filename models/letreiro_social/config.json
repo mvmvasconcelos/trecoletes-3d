@@ -1,0 +1,160 @@
+{
+  "id": "letreiro_social",
+  "title": {
+    "pt": "Letreiro Social",
+    "en": "Social Sign"
+  },
+  "output_format": "3mf",
+  "parts": ["base", "borda", "letras"],
+  "text_to_svg": true,
+  "min_feature_size_mm": 0.8,
+  "thin_wall_check": true,
+  "parameters": [
+    {
+      "id": "text_line_1",
+      "name": "Texto",
+      "type": "text",
+      "default": "@dacati"
+    },
+    {
+      "id": "text_size_1",
+      "name": "Tamanho do Texto",
+      "type": "range",
+      "min": 5,
+      "max": 80,
+      "step": 1,
+      "default": 30,
+      "unit": "mm"
+    },
+    {
+      "id": "font_name",
+      "name": "Fonte",
+      "type": "select",
+      "default": "Chewy:style=Regular",
+      "options": [
+        { "value": "Chewy:style=Regular",        "label": "Chewy" },
+        { "value": "Bangers:style=Regular",       "label": "Bangers" },
+        { "value": "Leckerli One:style=Regular",  "label": "Leckerli One" },
+        { "value": "Pacifico:style=Regular",      "label": "Pacifico" },
+        { "value": "Comic Neue:style=Regular",    "label": "Comic Neue" },
+        { "value": "Oswald:style=Regular",        "label": "Oswald" },
+        { "value": "Bree Serif:style=Regular",    "label": "Bree Serif" }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "name": "Alturas das Peças",
+      "parameters": [
+        {
+          "id": "letter_height",
+          "name": "Altura das Letras",
+          "type": "range",
+          "min": 0.4,
+          "max": 5.0,
+          "step": 0.2,
+          "default": 2.0,
+          "unit": "mm",
+          "min_safe_mm": 0.4
+        },
+        {
+          "id": "border_height",
+          "name": "Espessura da Borda",
+          "type": "range",
+          "min": 1.5,
+          "max": 10.0,
+          "step": 0.5,
+          "default": 2.0,
+          "unit": "mm"
+        },
+        {
+          "id": "base_height",
+          "name": "Espessura da Base",
+          "type": "range",
+          "min": 1.5,
+          "max": 30.0,
+          "step": 0.5,
+          "default": 25.0,
+          "unit": "mm"
+        }
+      ]
+    },
+    {
+      "name": "Margens de Offset",
+      "parameters": [
+        {
+          "id": "border_margin",
+          "name": "Margem da Borda",
+          "type": "range",
+          "min": 1.0,
+          "max": 10.0,
+          "step": 0.5,
+          "default": 3.0,
+          "unit": "mm"
+        },
+        {
+          "id": "base_extra_margin",
+          "name": "Margem Extra da Base",
+          "type": "range",
+          "min": 1.0,
+          "max": 10.0,
+          "step": 0.5,
+          "default": 3.0,
+          "unit": "mm"
+        }
+      ]
+    },
+    {
+      "name": "Cores",
+      "parameters": [
+        {
+          "id": "base_color",
+          "name": "Cor da Base",
+          "type": "color",
+          "default": "#C8A46E"
+        },
+        {
+          "id": "border_color",
+          "name": "Cor da Borda",
+          "type": "color",
+          "default": "#2D7A3A"
+        },
+        {
+          "id": "letters_color",
+          "name": "Cor das Letras",
+          "type": "color",
+          "default": "#FFFFFF"
+        }
+      ]
+    },
+    {
+      "name": "Forma da Base",
+      "parameters": [
+        {
+          "id": "base_corner_radius",
+          "name": "Raio dos Cantos da Base",
+          "type": "range",
+          "min": 0,
+          "max": 30,
+          "step": 1,
+          "default": 0,
+          "unit": "mm"
+        }
+      ]
+    },
+    {
+      "name": "Ajustes Finos",
+      "parameters": [
+        {
+          "id": "spacing",
+          "name": "Espaçamento entre Letras",
+          "type": "range",
+          "min": 0.5,
+          "max": 2.0,
+          "step": 0.1,
+          "default": 1.4
+        }
+      ]
+    }
+  ]
+}

@@ -17,6 +17,7 @@ import ChaveiroSimplesSvg from './pages/ChaveiroSimplesSvg';
 import GeradorTopoBolo from './pages/GeradorTopoBolo';
 import GeradorTopoBoloSvg from './pages/GeradorTopoBoloSvg';
 import MexedorDrinksSvg from './pages/MexedorDrinksSvg';
+import LetreiraSocial from './pages/LetreiraSocial';
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
         <Route path="/topo-bolo" element={<GeradorTopoBolo />} />
         <Route path="/topo-bolo-svg" element={<GeradorTopoBoloSvg />} />
         <Route path="/mexedor-drinks-svg" element={<MexedorDrinksSvg />} />
+        <Route path="/letreiro-social" element={<LetreiraSocial />} />
         <Route path="/ferramentas" element={<Ferramentas />} />
       </Routes>
     </BrowserRouter>

@@ -352,6 +352,8 @@ def _compute_char_positions(text: str, font_path: str, size_mm: float, spacing: 
     advs = []
     min_xs = []
     max_xs = []
+    min_ys = []
+    max_ys = []
 
     for char in text:
         gname = cmap.get(ord(char), '.notdef')
@@ -373,9 +375,13 @@ def _compute_char_positions(text: str, font_path: str, size_mm: float, spacing: 
         if pen_bounds:
             min_xs.append(pen_bounds[0] * scale)
             max_xs.append(pen_bounds[2] * scale)
+            min_ys.append(pen_bounds[1] * scale)
+            max_ys.append(pen_bounds[3] * scale)
         else:
             min_xs.append(0)
             max_xs.append(adv)
+            min_ys.append(0.0)
+            max_ys.append(size_mm * 0.75)  # fallback: 75% do em
 
     total_w = sum(advs)
     # OpenSCAD text com halign="left" aninha nativamente o vetor no ponto 0.
@@ -398,11 +404,16 @@ def _compute_char_positions(text: str, font_path: str, size_mm: float, spacing: 
         physical_min_x = start_x
         physical_max_x = start_x + total_w
 
+    physical_min_y = min(min_ys) if min_ys else 0.0
+    physical_max_y = max(max_ys) if max_ys else size_mm
+
     return {
         "positions": positions,
         "total_w": total_w,
         "min_x": physical_min_x,
-        "max_x": physical_max_x
+        "max_x": physical_max_x,
+        "min_y": physical_min_y,
+        "max_y": physical_max_y,
     }
 
 
@@ -1042,6 +1053,8 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     max_line_w = 0.0  # largura abstrata principal
     global_min_x = 999999.0
     global_max_x = -999999.0
+    global_min_y = 999999.0   # bounds Y reais dos glifos (espaço SCAD)
+    global_max_y = -999999.0
     line_actual_w: dict = {}  # total_w real por linha (escala correta de _compute_char_positions)
 
     for line_key, size_key, chars_param, xs_param in [
@@ -1070,11 +1083,17 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
             args.extend(["-D", f'{xs_param}={xs_str}'])
             adj_min_x = data["min_x"] + center_offset
             adj_max_x = data["max_x"] + center_offset
-            print(f"[CHAR_POS] {line_key}='{text_val}' min_x={adj_min_x:.2f} max_x={adj_max_x:.2f}", flush=True)
+            # Y: BoundsPen retorna coords no espaço da fonte (baseline=0).
+            # O model.scad faz translate([..., -size_mm/2]) → subtrai size_mm/2.
+            adj_min_y = data["min_y"] - size_mm / 2
+            adj_max_y = data["max_y"] - size_mm / 2
+            print(f"[CHAR_POS] {line_key}='{text_val}' min_x={adj_min_x:.2f} max_x={adj_max_x:.2f} min_y={adj_min_y:.2f} max_y={adj_max_y:.2f}", flush=True)
 
             max_line_w = max(max_line_w, data["total_w"])
             global_min_x = min(global_min_x, adj_min_x)
             global_max_x = max(global_max_x, adj_max_x)
+            global_min_y = min(global_min_y, adj_min_y)
+            global_max_y = max(global_max_y, adj_max_y)
             line_actual_w[line_key] = data["total_w"]
         except Exception as exc:
             print(f"[CHAR_POS] Erro para '{line_key}': {exc}", flush=True)
@@ -1089,6 +1108,9 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     if global_min_x != 999999.0:
         args.extend(["-D", f"body_min_x={round(global_min_x, 6)}"])
         args.extend(["-D", f"body_max_x={round(global_max_x, 6)}"])
+    if global_min_y != 999999.0:
+        args.extend(["-D", f"body_min_y={round(global_min_y, 6)}"])
+        args.extend(["-D", f"body_max_y={round(global_max_y, 6)}"])
 
     # Ajustado de natural_w considerando o physical_span inteiro
     physical_span = (global_max_x - global_min_x) if global_min_x != 999999.0 else max_line_w
@@ -1779,7 +1801,11 @@ async def generate_parametric_model(request: Request, model_id: str):
                 try:
                     val = int(v)
                     ov["letters"] = val
-                    ov["svg"] = val  # para modelos com parte "svg" (ex: topo_bolo_svg)
+                    ov["svg"] = val    # para modelos com parte "svg" (ex: topo_bolo_svg)
+                    ov["letras"] = val  # para modelos com parte "letras" (ex: letreiro_social)
+                except ValueError: pass
+            elif k == "extrusor_borda":
+                try: ov["borda"] = int(v)
                 except ValueError: pass
             elif k == "extrusor_verso":
                 try: ov["verso"] = int(v)
@@ -1914,7 +1940,10 @@ async def generate_batch(request: Request, model_id: str):
             if "extrusor_letras" in item:
                 val = int(item["extrusor_letras"])
                 ov["letters"] = val
-                ov["svg"] = val  # para modelos com parte "svg" (ex: topo_bolo_svg)
+                ov["svg"] = val    # para modelos com parte "svg" (ex: topo_bolo_svg)
+                ov["letras"] = val  # para modelos com parte "letras" (ex: letreiro_social)
+            if "extrusor_borda" in item:
+                ov["borda"] = int(item["extrusor_borda"])
             names_extruders.append(ov)
     except Exception:
         return JSONResponse(status_code=400, content={"error": "Campo 'names' inválido. Esperado JSON array de objetos com 'nome'."})
