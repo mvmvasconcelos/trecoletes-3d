@@ -194,13 +194,54 @@ export async function processSvgFile(
                     // We unite all paths into a single solid block, remove internal holes, and then expand it by silhouetteOffset.
                     let unified: paper.PathItem | null = null;
 
+                    // Filter out background/artboard rectangles before computing the silhouette.
+                    //
+                    // The core problem: many SVG editors (Inkscape, Illustrator, clipart sites)
+                    // embed a full-canvas background rect. When Paper.js unites all paths, that
+                    // rect (being the bounding union of everything) swallows all other paths and
+                    // produces a plain rectangle as the silhouette.
+                    //
+                    // Colour-based filters don't work reliably because:
+                    //   - The background might be fill="none" (transparent), fill="white", or any colour.
+                    //   - Legitimate art paths can also have fill="none" (stroke-only lineart).
+                    //
+                    // Instead we use SHAPE: a background/artboard frame is always near-rectangular
+                    // (its enclosed area ≈ its bounding-box area), whereas real art paths are complex
+                    // and fill only a fraction of their bounding box.
+                    //
+                    // Rectangularity = |path.area| / (bounds.width × bounds.height)
+                    //   Background rect  → ≈ 1.0  → EXCLUDE
+                    //   Santa outline    → ≈ 0.4  → KEEP
+                    //   Solid silhouette → ≈ 0.6  → KEEP
+                    //
+                    // We only apply the test to paths whose bounding box covers ≥90% of the canvas
+                    // in both dimensions, to avoid accidentally excluding small square art.
+                    const pathsForSilhouette = allPaths.filter(path => {
+                        if (!cb) return true;
+                        const pBounds = path.bounds;
+                        const wFrac = pBounds.width / cb.width;
+                        const hFrac = pBounds.height / cb.height;
+                        // Small path → definitely not a background frame
+                        if (wFrac < 0.90 || hFrac < 0.90) return true;
+                        // Large path: check if it's rectangular (background) vs complex (art)
+                        const bboxArea = pBounds.width * pBounds.height;
+                        if (bboxArea <= 0) return true;
+                        const pathArea = Math.abs((path as paper.Path).area ?? 0);
+                        const rectangularity = pathArea / bboxArea;
+                        // Rectangularity > 0.85 → too rectangular to be real art, exclude it
+                        return rectangularity < 0.85;
+                    });
+                    // If filtering removed everything (e.g. entire art is one big solid shape),
+                    // fall back to the full path list.
+                    const silhouetteSrcPaths = pathsForSilhouette.length > 0 ? pathsForSilhouette : allPaths;
+
                     // Safety: if too many paths, fall back to bounding-box hull
                     // to avoid an O(n²) unite chain that would block the browser.
                     const USE_BBOX_THRESHOLD = 40;
-                    if (allPaths.length > USE_BBOX_THRESHOLD) {
+                    if (silhouetteSrcPaths.length > USE_BBOX_THRESHOLD) {
                         // Compute total bounds then create a rectangular hull
                         let totalBounds: paper.Rectangle | null = null;
-                        allPaths.forEach(path => {
+                        silhouetteSrcPaths.forEach(path => {
                             totalBounds = totalBounds ? totalBounds.unite(path.bounds) : path.bounds;
                         });
                         if (totalBounds) {
@@ -208,7 +249,7 @@ export async function processSvgFile(
                         }
                     } else {
                         // First pass: unite everything to get a single exterior.
-                        allPaths.forEach(path => {
+                        silhouetteSrcPaths.forEach(path => {
                             // temporarily make everything filled to unite them solid
                             path.fillColor = new paper.Color('black');
                             if (!unified) {
@@ -223,6 +264,56 @@ export async function processSvgFile(
 
                     if (!unified) {
                         reject(new Error("Failed to unite paths."));
+                        return;
+                    }
+
+                    // Safety net: if the union is a near-perfect rectangle covering the full canvas,
+                    // the naive "fill everything black and unite" approach failed — this happens with
+                    // potrace/vtracer-converted PNGs where the art paths collectively fill the entire
+                    // bounding box (e.g. Santa whose hat/boots/hands all touch the frame edges).
+                    //
+                    // Strategy: instead of retrying the union, pick the MOST COMPLEX individual path
+                    // (highest segment count, not itself a simple rectangle) as the silhouette.
+                    // For potrace SVGs this is the main body outline (e.g. P1 with 136 segments).
+                    if (cb && (unified as paper.Item).className === 'Path') {
+                        const uPath = unified as paper.Path;
+                        const uArea = Math.abs(uPath.area);
+                        const cbArea = cb.width * cb.height;
+                        const segCount = uPath.segments ? uPath.segments.length : 999;
+                        if (cbArea > 0 && uArea / cbArea > 0.90 && segCount <= 6) {
+                            uPath.remove();
+                            unified = null;
+
+                            // Pick the path with the most segments that is itself NOT a near-rectangle.
+                            // "Near-rectangle": ≤ 8 segments OR (area/bbox > 0.92 and segs ≤ 20).
+                            let bestPath: paper.PathItem | null = null;
+                            let bestSegs = -1;
+                            let bestArea = -1;
+                            for (const p of silhouetteSrcPaths) {
+                                if ((p as paper.Item).className !== 'Path') continue;
+                                const pp = p as paper.Path;
+                                const segs = pp.segments?.length ?? 0;
+                                const pArea = Math.abs(pp.area ?? 0);
+                                const pBbox = pp.bounds.width * pp.bounds.height;
+                                const pRect = pBbox > 0 ? pArea / pBbox : 0;
+                                // Skip near-rectangles
+                                if (segs <= 8) continue;
+                                if (pRect > 0.92 && segs <= 20) continue;
+                                if (segs > bestSegs || (segs === bestSegs && pArea > bestArea)) {
+                                    bestSegs = segs;
+                                    bestArea = pArea;
+                                    bestPath = p;
+                                }
+                            }
+
+                            if (bestPath) {
+                                unified = bestPath.clone() as paper.PathItem;
+                            }
+                        }
+                    }
+
+                    if (!unified) {
+                        reject(new Error("Failed to unite paths after background removal."));
                         return;
                     }
 
@@ -254,6 +345,24 @@ export async function processSvgFile(
                     // Importante: usar os bounds REAIS do unified (não cb), pois o simplify/unite
                     // pode deslocar o bounding box. Traduzimos o unified para (0,0) antes de exportar
                     // para que o SCAD resize() fique alinhado com o linhas.svg.
+
+                    // Simplify + flatten the silhouette before export.
+                    //
+                    // Root cause of OpenSCAD timeout: each bezier curve segment in the SVG
+                    // is approximated by OpenSCAD into ~$fn line segments EVERY time offset()
+                    // is called. With 10 chamfer steps × 12 total offset() calls × N bezier
+                    // segments, the cost is O(calls × N × $fn).
+                    //
+                    // Fix: convert to a pure polygon (no bezier curves) before export.
+                    //   simplify(25) → reduce bezier count to ~30 curves
+                    //   flatten(8)   → convert remaining curves to straight line segments
+                    // Result: OpenSCAD receives a plain polygon with ~200-300 vertices.
+                    // Offset of a polygon is O(vertices) — fast, no curve approximation.
+                    if ((unified as paper.Item).className === 'Path') {
+                        (unified as paper.Path).simplify(25);
+                        (unified as paper.Path).flatten(8);
+                    }
+
                     unified.fillColor = new paper.Color('black');
                     unified.strokeColor = null;
 

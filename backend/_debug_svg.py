@@ -1,33 +1,21 @@
-import subprocess, re, os, tempfile
-from PIL import Image, ImageDraw
-import io
+import re, os, glob
 
-img = Image.new('RGBA', (200, 200), (255,255,255,255))
-draw = ImageDraw.Draw(img)
-draw.ellipse([20, 20, 180, 180], fill=(0,0,0,255))
-draw.ellipse([60, 60, 140, 140], fill=(255,255,255,255))
+gen_dir = "/app/static/generated"
+dirs = sorted([d for d in glob.glob(f"{gen_dir}/*") if os.path.isdir(d)], key=os.path.getmtime, reverse=True)
+target = dirs[0]
+print("Job dir:", target)
 
-# grayscale + threshold + 1bit
-gray = img.convert('L')
-gray = gray.point(lambda p: 0 if p < 128 else 255, 'L')
-bw = gray.convert('1')
-w, h = bw.size
+with open(f"{target}/linhas.svg", "r") as f:
+    c = f.read()
 
-pbm_buf = io.BytesIO()
-bw.save(pbm_buf, format='PPM')
-
-with tempfile.NamedTemporaryFile(suffix='.pbm', delete=False) as tf:
-    tf.write(pbm_buf.getvalue())
-    tf_path = tf.name
-
-result = subprocess.run(
-    ['potrace', '--svg', '-o', '-', '--turdsize', '2', tf_path],
-    capture_output=True, timeout=30
-)
-os.unlink(tf_path)
-
-svg = result.stdout.decode('utf-8')
-svg_clean = re.sub(r'<\?xml[^?]*\?>', '', svg)
+paths = re.findall(r'<path[^>]+>', c)
+print(f"Total paths: {len(paths)}")
+for i, p in enumerate(paths):
+    fill = re.search(r'fill="([^"]+)"', p)
+    stroke = re.search(r'stroke="([^"]+)"', p)
+    sw = re.search(r'stroke-width="([^"]+)"', p)
+    d = re.search(r'\bd="(.{0,80})', p)
+    print(f"P{i}: fill={fill.group(1) if fill else None}  stroke={stroke.group(1) if stroke else None}  sw={sw.group(1) if sw else None}  d={d.group(1) if d else '?'}")
 svg_clean = re.sub(r'<!DOCTYPE[^>]*>', '', svg_clean)
 svg_clean = re.sub(r'<metadata>.*?</metadata>', '', svg_clean, flags=re.DOTALL)
 svg_clean = svg_clean.strip()

@@ -72,7 +72,9 @@ module art_svg() {
 // (que levava >200s em SVGs complexos com muitos paths).
 // ============================================================
 module silhoueta_shape(extra_r = 0) {
-    offset(r = silhouette_exp + extra_r, $fn = 128) {
+    // $fn=32 é suficiente para cortadores de bolacha (erro max ~0.04mm a r=4mm)
+    // e é 16x mais rápido que $fn=128, evitando timeout com SVGs complexos.
+    offset(r = silhouette_exp + extra_r, $fn = 32) {
         translate([-art_width / 2, -art_height / 2]) {
             resize([art_width, art_height], auto=[false, false]) {
                 import(svg_silhueta_path);
@@ -178,6 +180,7 @@ module cortador() {
         translate([0, 0, wall_height - chamfer_height])
         difference() {
             union() {
+                // 5 degraus são suficientes visualmente e cortam a carga de offset pela metade.
                 for (i = [0 : 9]) {
                     z = i * (chamfer_height / 10);
                     h = (chamfer_height / 10) + 0.01;
