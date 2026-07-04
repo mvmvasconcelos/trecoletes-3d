@@ -95,27 +95,30 @@ export default function PonteiraLapisSvg() {
             const currentLineOffset = dynamicParams['line_offset'] ?? 0.5;
             const processed = await processSvgFile(text, currentLineOffset, 3.0);
             setSvgPreview(processed);
-            if (processed) {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(processed.thickenedSvg, 'image/svg+xml');
-                const svgEl = doc.querySelector('svg');
-                let natW = 0, natH = 0;
-                if (svgEl) {
-                    const vb = svgEl.getAttribute('viewBox');
-                    if (vb) {
-                        const parts = vb.split(/[\s,]+/).map(Number);
-                        if (parts.length >= 4) { natW = parts[2]; natH = parts[3]; }
-                    }
-                    if (!natW) natW = parseFloat(svgEl.getAttribute('width') || '0');
-                    if (!natH) natH = parseFloat(svgEl.getAttribute('height') || '0');
+
+            // Read aspect ratio from original SVG dimensions (most reliable).
+            // Paper.js scales content to fit the canvas, distorting content bounds.
+            let ratio = 1.0;
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'image/svg+xml');
+            const svgEl = doc.querySelector('svg');
+            if (svgEl) {
+                let w = 0, h = 0;
+                const vb = svgEl.getAttribute('viewBox');
+                if (vb) {
+                    const parts = vb.trim().split(/[\s,]+/).map(Number);
+                    if (parts.length >= 4 && parts[2] > 0 && parts[3] > 0) { w = parts[2]; h = parts[3]; }
                 }
-                if (natW > 0 && natH > 0) {
-                    const ratio = natW / natH;
-                    setSvgAspectRatio(ratio);
-                    setArtHeight(70);
-                    setArtWidth(Math.round(70 * ratio * 10) / 10);
+                if (!w || !h) {
+                    const wa = svgEl.getAttribute('width'), ha = svgEl.getAttribute('height');
+                    if (wa && ha) { w = parseFloat(wa); h = parseFloat(ha); }
                 }
+                if (w > 0 && h > 0) ratio = w / h;
             }
+            setSvgAspectRatio(ratio);
+            setArtHeight(70);
+            setArtWidth(Math.round(70 * ratio * 10) / 10);
+
             setIsModalOpen(true);
         } catch (err) {
             console.error("SVG Processing Error:", err);
