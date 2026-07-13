@@ -29,7 +29,7 @@ export function PartsPanel({ partGroups, settings, onChangeHeight, onChangeColor
     if (partGroups.length === 0) {
         return (
             <p className="text-sm text-neutral-600">
-                Atribua camadas a uma parte (menu na lista de camadas) para configurar altura e cor.
+                Atribua camadas a uma parte (menu na lista de camadas) para configurar espessura e cor.
             </p>
         );
     }
@@ -39,8 +39,8 @@ export function PartsPanel({ partGroups, settings, onChangeHeight, onChangeColor
             {partGroups.map((group) => {
                 const s = settings[group.partId];
                 return (
-                    <div key={group.partId} className="border border-neutral-800 rounded-lg overflow-hidden">
-                        <div className="flex items-center gap-2 px-3 py-2.5 bg-neutral-900">
+                    <div key={group.partId} className="border border-neutral-800 rounded-lg">
+                        <div className="flex items-center gap-2 px-3 py-2.5 bg-neutral-900 rounded-t-lg">
                             <span className="text-xs font-semibold text-neutral-400 uppercase tracking-widest flex-1">
                                 {PART_LABELS[group.partId]}
                             </span>
@@ -50,7 +50,7 @@ export function PartsPanel({ partGroups, settings, onChangeHeight, onChangeColor
                         </div>
                         <div className="px-3 pb-3 pt-2 space-y-3 bg-neutral-950 rounded-b-lg">
                             <label className="flex items-center justify-between gap-2 text-sm text-neutral-400">
-                                Altura (mm)
+                                Espessura (mm)
                                 <input
                                     type="number"
                                     min={0.2}

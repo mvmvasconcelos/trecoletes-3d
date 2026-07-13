@@ -71,6 +71,40 @@ export interface TextToPathResult {
 const TEXT_FILL_COLOR = '#1a1a1a';
 
 /**
+ * Builds a text path by composing each character's own glyph outline directly
+ * (via `charToGlyph`), advancing by its own advance width — bypassing
+ * opentype.js's GSUB-based shaping pipeline (ligatures, contextual
+ * substitution) that `font.getPath()` runs for a whole string. Some bundled
+ * fonts (e.g. Bangers, Oswald) contain a GSUB lookup type opentype.js doesn't
+ * implement ("substFormat 2" contextual substitution) and throw on
+ * `font.getPath()` for ordinary text, not just edge cases — this is the
+ * fallback for those. We don't need ligatures/contextual substitution for
+ * this editor's use case (outline-to-3D-print paths, not rich text layout),
+ * so losing them in the fallback path is an acceptable, deliberate trade-off.
+ */
+function getPathPerGlyph(font: opentype.Font, text: string, x: number, y: number, fontSize: number): opentype.Path {
+    const scale = fontSize / font.unitsPerEm;
+    const path = new opentype.Path();
+    let cursorX = x;
+    for (const ch of text) {
+        const glyph = font.charToGlyph(ch);
+        path.extend(glyph.getPath(cursorX, y, fontSize));
+        cursorX += (glyph.advanceWidth ?? 0) * scale;
+    }
+    return path;
+}
+
+/** `font.getPath()`, falling back to `getPathPerGlyph` if the font's GSUB table
+ * trips an opentype.js parsing limitation (see `getPathPerGlyph`'s doc). */
+function getTextPath(font: opentype.Font, text: string, x: number, y: number, fontSize: number): opentype.Path {
+    try {
+        return font.getPath(text, x, y, fontSize);
+    } catch {
+        return getPathPerGlyph(font, text, x, y, fontSize);
+    }
+}
+
+/**
  * Fetches (or reuses a cached) .ttf font and converts `text` at `fontSize` into
  * one ImagePathShape whose `d` is normalized to start at the layer-local origin
  * (0,0), matching svgImport.ts's contract so both layer types render identically.
@@ -82,7 +116,7 @@ export async function textToPath(text: string, fontFile: string, fontSize: numbe
     const renderText = text.length > 0 ? text : ' ';
     const font = await loadFont(fontFile);
 
-    const rawPath = font.getPath(renderText, 0, 0, fontSize);
+    const rawPath = getTextPath(font, renderText, 0, 0, fontSize);
     const bbox = rawPath.getBoundingBox();
     const hasFiniteBounds =
         Number.isFinite(bbox.x1) && Number.isFinite(bbox.y1) && Number.isFinite(bbox.x2) && Number.isFinite(bbox.y2);
@@ -98,7 +132,7 @@ export async function textToPath(text: string, fontFile: string, fontSize: numbe
 
     // Re-render translated so the combined bounding box starts at (0, 0),
     // matching the "layer-local origin" contract of ImagePathShape.
-    const normalizedPath = font.getPath(renderText, -bbox.x1, -bbox.y1, fontSize);
+    const normalizedPath = getTextPath(font, renderText, -bbox.x1, -bbox.y1, fontSize);
     const d = normalizedPath.toPathData(2);
 
     return {

@@ -76,17 +76,16 @@ const ARC_TOLERANCE_SCALED = 0.25 * CLIPPER_SCALE;
 // Bezier curves must become straight-line segments before a polygon-offset library
 // can touch them — the exact same technique, for the exact same reason, as
 // svgProcessor.ts's `unified.simplify(25); unified.flatten(8);` before its
-// OpenSCAD offset() export (see the comment there for the full "why"). The
-// difference here: svgProcessor.ts works in real-world mm and can afford one fixed
-// tolerance; this module runs directly on layer-local units whose absolute scale
-// varies wildly (a 40-unit-tall letter vs. a 1000-unit imported SVG), so the
-// tolerance is derived as a small fraction of the shapes' own combined size rather
-// than a flat constant — otherwise a fixed tolerance would either butcher small
-// text (too coarse) or flatten a large import into tens of thousands of segments
-// (too fine, slow).
-const FLATTEN_TOLERANCE_RATIO = 0.004; // 0.4% of the combined shapes' longest side
-const FLATTEN_TOLERANCE_MIN = 0.05;
-const FLATTEN_TOLERANCE_MAX = 4;
+// OpenSCAD offset() export (see the comment there for the full "why"). Layer-local
+// units here are the same ones lib/serializePartToSvg.ts later treats as literal
+// mm (see that module's doc), so a fixed real-world-scale tolerance applies
+// equally well here. A previous size-relative tolerance (capped at 4 units for
+// large shapes) caused visibly faceted/polygonal silhouettes on bigger
+// compositions (found via manual QA — a duplicated+offset text came out with
+// straight-edge facets instead of smooth curves once scaled up); measured cost
+// of a small fixed tolerance instead is negligible (a ~550-unit-wide multi-letter
+// shape flattens in ~10ms), so there's no real reason to trade smoothness for it.
+const FLATTEN_TOLERANCE = 0.1;
 
 export interface OffsetResult {
     shapes: ImagePathShape[];
@@ -166,9 +165,7 @@ export function offsetShapes(shapes: ImagePathShape[], margin: number): OffsetRe
     const parsedItems: paper.PathItem[] = [];
 
     try {
-        // Pass 1: parse everything and measure the combined bounds, so the flatten
-        // tolerance (a % of size) is based on the whole layer, not a single shape —
-        // keeps multi-shape layers visually consistent.
+        // Pass 1: parse everything and check there's at least one real shape to offset.
         let combinedBounds: paper.Rectangle | null = null;
         for (const shape of shapes) {
             if (!shape.d) continue;
@@ -183,12 +180,6 @@ export function offsetShapes(shapes: ImagePathShape[], margin: number): OffsetRe
             return { shapes, width: 0, height: 0, originShiftX: 0, originShiftY: 0 };
         }
 
-        const longestSide = Math.max(combinedBounds.width, combinedBounds.height, 1);
-        const flattenTolerance = Math.min(
-            FLATTEN_TOLERANCE_MAX,
-            Math.max(FLATTEN_TOLERANCE_MIN, longestSide * FLATTEN_TOLERANCE_RATIO)
-        );
-
         const deltaScaled = margin * CLIPPER_SCALE;
 
         // Pass 2: offset each parsed shape independently.
@@ -200,7 +191,7 @@ export function offsetShapes(shapes: ImagePathShape[], margin: number): OffsetRe
                 continue;
             }
             const item = parsedItems[parsedIndex++];
-            const subpaths = extractScaledSubpaths(item, flattenTolerance);
+            const subpaths = extractScaledSubpaths(item, FLATTEN_TOLERANCE);
             if (subpaths.length === 0) {
                 rawResults.push({ d: '', fill: shape.fill, stroke: shape.stroke, strokeWidth: shape.strokeWidth });
                 continue;
@@ -208,8 +199,25 @@ export function offsetShapes(shapes: ImagePathShape[], margin: number): OffsetRe
 
             const offset = new ClipperLib.ClipperOffset(2, ARC_TOLERANCE_SCALED);
             offset.AddPaths(subpaths, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
-            const solution: ClipperPaths = [];
+            let solution: ClipperPaths = [];
             offset.Execute(solution, deltaScaled);
+
+            if (margin > 0) {
+                // Outward expansion (the "silhouette"/backing-plate use case): a positive
+                // margin applied to several close/touching subpaths (e.g. adjacent glyphs
+                // in one text layer) can leave small negative-area "hole" polygons behind
+                // at the seams where two subpaths' expanded boundaries merge — an artifact
+                // of offsetting non-convex geometry together, not a real enclosed region
+                // (verified: reproducing this against real glyph data, e.g. offsetting the
+                // word "Texto", left phantom holes at inter-letter seams with no counterpart
+                // in the original un-offset glyphs). A silhouette/backing shape is meant to
+                // be one solid blob behind the source layer anyway — even a *genuine* letter
+                // counter, like the holes in "e"/"o", shouldn't stay punched through a
+                // backing plate — so for expansion we keep only solid (positive-area,
+                // outer-boundary) polygons and drop every hole outright, rather than trying
+                // to distinguish "real" from "artifact" holes after the fact.
+                solution = solution.filter((poly) => ClipperLib.Clipper.Area(poly) > 0);
+            }
 
             if (solution.length === 0) {
                 // Fully collapsed under a large negative margin — drop this shape.

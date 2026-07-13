@@ -15,10 +15,11 @@
 //      dimensões reais em mm definidas pelo frontend; existe aqui para deixar
 //      claro o contrato "resize + extrude apenas" e para permitir, no futuro,
 //      um recorte de segurança sem precisar mexer no dispatcher.
-//   3. Empilhar em Z: Parte 1 é sempre a base (z=0), cada parte ativa seguinte
-//      sobe pela soma das alturas das partes ativas anteriores (ver
-//      z_off_partN abaixo) — ordem fixa pelo número da parte, sem UI de
-//      reordenação.
+//   3. Empilhar em Z: Parte 1 é sempre o topo (a camada mais alta), Parte 4 é
+//      a mais próxima da mesa — cada parte ativa de número maior fica embaixo
+//      das de número menor, empilhando pela soma das alturas das partes
+//      ativas de número maior (ver z_off_partN abaixo) — ordem fixa pelo
+//      número da parte, sem UI de reordenação.
 //   4. linear_extrude() até a altura configurada (partN_height).
 //
 // REGRA DE OURO: este arquivo NUNCA pode chamar a primitiva de expansão 2D
@@ -56,15 +57,17 @@ module extrude_slot(svg_path, height) {
 }
 
 // ── Empilhamento em Z: ordem fixa pelo número da parte ─────────────────────
-// Parte 1 é sempre a base (z=0); cada parte ativa seguinte empilha em cima da
-// soma das alturas das partes ativas de número menor — nunca a partir de z=0
-// para todas ao mesmo tempo (o que faria as peças se interpenetrarem em vez
-// de empilhar). Partes inativas não contam altura nenhuma, então a "próxima"
-// parte ativa sempre pousa exatamente onde a anterior terminou.
-z_off_part1 = 0;
-z_off_part2 = z_off_part1 + (part1_active ? part1_height : 0);
-z_off_part3 = z_off_part2 + (part2_active ? part2_height : 0);
-z_off_part4 = z_off_part3 + (part3_active ? part3_height : 0);
+// Parte 4 é sempre a base (z=0, a mais próxima da mesa); cada parte ativa de
+// número menor empilha em cima da soma das alturas das partes ativas de
+// número maior — nunca a partir de z=0 para todas ao mesmo tempo (o que
+// faria as peças se interpenetrarem em vez de empilhar). Partes inativas não
+// contam altura nenhuma, então a "próxima" parte ativa (a de número menor)
+// sempre pousa exatamente onde a anterior (de número maior) terminou —
+// Parte 1, no topo, é a última a ser somada.
+z_off_part4 = 0;
+z_off_part3 = z_off_part4 + (part4_active ? part4_height : 0);
+z_off_part2 = z_off_part3 + (part3_active ? part3_height : 0);
+z_off_part1 = z_off_part2 + (part2_active ? part2_height : 0);
 
 // ── Dispatcher de partes ───────────────────────────────────────────────────
 // Peça: "part_1" | "part_2" | "part_3" | "part_4"

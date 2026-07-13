@@ -35,6 +35,12 @@ declare module 'clipper-lib' {
 
     interface ClipperLibStatic {
         ClipperOffset: typeof ClipperOffset;
+        /** Static helpers on the `Clipper` class actually used here — just the signed-area
+         * calculation (positive = counter-clockwise/solid, negative = clockwise/hole),
+         * used to filter offset results. Not the full `Clipper` boolean-ops class. */
+        Clipper: {
+            Area(path: Path): number;
+        };
         JoinType: {
             jtSquare: number;
             jtRound: number;

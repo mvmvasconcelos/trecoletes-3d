@@ -76,6 +76,8 @@
  * only ever produces 2D (X/Y) geometry.
  */
 import paper from 'paper';
+import ClipperLib from 'clipper-lib';
+import type { Path as ClipperPath, Paths as ClipperPaths } from 'clipper-lib';
 import type { PartGroup } from './partGrouping';
 import type { LayerTransform, PartId } from '../types/editor2d';
 
@@ -121,6 +123,99 @@ function layerMatrix(t: LayerTransform): paper.Matrix {
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+
+// clipper-lib integer-coordinate scale — same convention/rationale as
+// lib/polygonOffset.ts (see that module's doc for why 1000x).
+const CLIPPER_SCALE = 1000;
+
+// Morphological "closing" radius (grow then shrink by this amount) applied to
+// every shape below, in mm (this module's units — see module doc). Fixes a
+// real defect found via manual QA: some fonts' glyph outlines are *designed*
+// to have adjacent letters touch (e.g. a connected-script style), but the
+// actual bezier boundary can meet at a near-zero-width point rather than a
+// robust bridge. Browsers render that fine (anti-aliased fill hides a
+// sub-pixel gap/pinch), but OpenSCAD's exact CGAL-based extrusion does not —
+// it was confirmed (via a real generated job, letters "x"+"t" in the Chewy
+// font) to produce a non-watertight mesh with a visible gap exactly at that
+// pinch point, even though the source SVG was a single, "clean" closed path
+// with no separate hole polygons. A small closing pass welds any such
+// near-zero-width connection into a real minimum-width bridge. 0.3mm is
+// deliberately tiny — far below any feature size a font's actual letter
+// counters (the holes in "e", "o", etc.) would have, so genuine holes survive
+// closing unchanged; only pathological pinches this thin get fixed. Applied
+// here (not just in lib/polygonOffset.ts's silhouette path) because the bug
+// reproduces on plain, un-offset text too — this is the shared step every
+// layer (text, image, silhouette) passes through before upload, so it's the
+// right place for a fix that must cover all of them.
+const CLOSE_DELTA_MM = 0.3;
+
+// Bezier-to-polygon flatten tolerance for the repair pass, in mm (this module's
+// units — see module doc: 1 unit = 1mm, unlike lib/polygonOffset.ts's abstract
+// editor units, so a FIXED real-world tolerance is the right call here rather
+// than one scaled to the shape's own size). Every shape gets flattened before
+// going through Clipper (it only understands polygons, not curves) — too
+// coarse a tolerance visibly facets what should be smooth letter curves at
+// larger print sizes (found via manual QA: a ~550mm-wide composition came out
+// visibly polygonal with a size-relative tolerance capped at 4mm). 0.1mm is
+// well below anything a nozzle can resolve, so curves stay visually smooth
+// regardless of how big the composition is.
+const FLATTEN_TOLERANCE_MM = 0.1;
+
+function toClipperSubpaths(item: paper.PathItem, flattenTolerance: number): ClipperPath[] {
+    const flat = item.clone({ insert: false }) as paper.PathItem;
+    flat.flatten(flattenTolerance);
+    const children: paper.Path[] =
+        flat.className === 'CompoundPath' ? ((flat as paper.CompoundPath).children as paper.Path[]) : [flat as paper.Path];
+    const subpaths: ClipperPath[] = [];
+    for (const child of children) {
+        child.closed = true;
+        const points: ClipperPath = child.segments.map((seg) => ({
+            X: Math.round(seg.point.x * CLIPPER_SCALE),
+            Y: Math.round(seg.point.y * CLIPPER_SCALE),
+        }));
+        if (points.length >= 3) subpaths.push(points);
+    }
+    return subpaths;
+}
+
+function closingOffset(paths: ClipperPaths, deltaScaled: number): ClipperPaths {
+    const offset = new ClipperLib.ClipperOffset(2, 250);
+    offset.AddPaths(paths, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+    const solution: ClipperPaths = [];
+    offset.Execute(solution, deltaScaled);
+    return solution;
+}
+
+function clipperPathToData(points: ClipperPath): string {
+    if (points.length === 0) return '';
+    const first = points[0];
+    let d = `M ${(first.X / CLIPPER_SCALE).toFixed(2)} ${(first.Y / CLIPPER_SCALE).toFixed(2)}`;
+    for (let i = 1; i < points.length; i++) {
+        const p = points[i];
+        d += ` L ${(p.X / CLIPPER_SCALE).toFixed(2)} ${(p.Y / CLIPPER_SCALE).toFixed(2)}`;
+    }
+    return d + ' Z';
+}
+
+/**
+ * Welds any near-zero-width pinch in `item`'s boundary into a robust minimum
+ * width (see `CLOSE_DELTA_MM` doc), while leaving genuinely open regions
+ * (real letter counters, deliberate cutouts) untouched. Returns fresh SVG
+ * path data; falls back to `item.pathData` unchanged if the shape has too few
+ * points to offset (e.g. a degenerate/empty shape).
+ */
+function repairPathData(item: paper.PathItem): string {
+    const subpaths = toClipperSubpaths(item, FLATTEN_TOLERANCE_MM);
+    if (subpaths.length === 0) return item.pathData;
+
+    const deltaScaled = CLOSE_DELTA_MM * CLIPPER_SCALE;
+    const grown = closingOffset(subpaths, deltaScaled);
+    if (grown.length === 0) return item.pathData;
+    const closed = closingOffset(grown, -deltaScaled);
+    if (closed.length === 0) return item.pathData;
+
+    return closed.map(clipperPathToData).join(' ');
+}
 
 interface FlatShape {
     item: paper.PathItem;
@@ -209,7 +304,7 @@ export function serializePartsToSvg(groups: PartGroup[]): Partial<Record<PartId,
         for (const group of groups) {
             const items = perPartItems.get(group.partId) ?? [];
             const pathEls = items
-                .map(({ item, fill }) => `<path d="${item.pathData}" fill="${fill}" />`)
+                .map(({ item, fill }) => `<path d="${repairPathData(item)}" fill="${fill}" />`)
                 .join('');
             result[group.partId] =
                 `<svg xmlns="${SVG_NS}" viewBox="0 0 ${width} ${height}" width="${width}mm" height="${height}mm">${pathEls}</svg>`;

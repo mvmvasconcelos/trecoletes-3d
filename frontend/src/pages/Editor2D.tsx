@@ -58,6 +58,12 @@ interface TextDraft {
 const DEFAULT_TEXT_DRAFT: TextDraft = { text: 'Texto', fontFile: DEFAULT_FONT_FILE, fontSize: 40 };
 
 export default function Editor2D() {
+    // 'edit' shows the tools/canvas/parts panels full-width; 'preview' shows the
+    // Viewer3D full-width instead. Both live states — none of the 4 panels ever
+    // unmount, only their visibility (via a `hidden` class) toggles, so switching
+    // modes never resets layers/selectedId/partSettings and never forces the
+    // Viewer3D's WebGL context or STL meshes to reload.
+    const [mode, setMode] = useState<'edit' | 'preview'>('edit');
     const [layers, setLayers] = useState<EditorLayer[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
@@ -78,24 +84,41 @@ export default function Editor2D() {
     // is applied — otherwise a slow first request could overwrite a fast second one.
     const textUpdateTokenRef = useRef<Record<string, number>>({});
 
+    // Measure the canvas area so the Konva Stage always fills it. Extracted as a
+    // stable callback so both the mount-time ResizeObserver effect below AND the
+    // mode-change effect (right after it) can invoke the same logic.
+    const measureCanvasContainer = useCallback(() => {
+        const el = canvasContainerRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+            setStageSize({ width: Math.floor(rect.width), height: Math.floor(rect.height) });
+        }
+    }, []);
+
     // Measure the canvas area so the Konva Stage always fills it, and stays in sync
     // when the sidebar/window resizes.
     useEffect(() => {
         const el = canvasContainerRef.current;
         if (!el) return;
 
-        const measure = () => {
-            const rect = el.getBoundingClientRect();
-            if (rect.width > 0 && rect.height > 0) {
-                setStageSize({ width: Math.floor(rect.width), height: Math.floor(rect.height) });
-            }
-        };
-
-        measure();
-        const observer = new ResizeObserver(measure);
+        measureCanvasContainer();
+        const observer = new ResizeObserver(measureCanvasContainer);
         observer.observe(el);
         return () => observer.disconnect();
-    }, []);
+    }, [measureCanvasContainer]);
+
+    // The canvas container is hidden (via the `hidden` class, not unmounted) while
+    // in 'preview' mode, so it can report a stale/zero size the whole time — and
+    // the ResizeObserver above won't necessarily fire a useful measurement right
+    // when it becomes visible again. Re-measure explicitly whenever we come back
+    // to 'edit' so the Konva stage isn't left frozen at whatever size it had
+    // before the switch (or the DEFAULT_STAGE_WIDTH/HEIGHT fallback).
+    useEffect(() => {
+        if (mode === 'edit') {
+            measureCanvasContainer();
+        }
+    }, [mode, measureCanvasContainer]);
 
     const addImageLayer = useCallback((parsed: { shapes: ImageLayer['shapes']; width: number; height: number }) => {
         const stageW = stageSize.width || DEFAULT_STAGE_WIDTH;
@@ -216,6 +239,7 @@ export default function Editor2D() {
                 }
                 setPartStlUrls(stlUrls);
                 setTmfUrl(res.data.files['3mf'] ? `${API_BASE}${res.data.files['3mf']}` : null);
+                setMode('preview');
             }
         } catch (err: any) {
             setGenerateError(err?.response?.data?.error ?? err?.message ?? 'Erro ao gerar modelo 3D.');
@@ -453,7 +477,13 @@ export default function Editor2D() {
 
     return (
         <Layout title="Editor 2D">
-            <aside className="w-80 flex-shrink-0 min-h-0 bg-neutral-950 border-r border-neutral-800 flex flex-col">
+            <aside
+                className={
+                    mode === 'edit'
+                        ? 'w-80 flex-shrink-0 min-h-0 bg-neutral-950 border-r border-neutral-800 flex flex-col'
+                        : 'hidden'
+                }
+            >
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                     <div className="border border-neutral-800 rounded-lg overflow-hidden">
                         <div className="flex items-center gap-2 px-3 py-2.5 bg-neutral-900">
@@ -496,7 +526,7 @@ export default function Editor2D() {
                         <div className="flex items-center gap-2 px-3 py-2.5 bg-neutral-900">
                             <TypeIcon className="w-3.5 h-3.5 text-neutral-400" />
                             <span className="text-xs font-semibold text-neutral-400 uppercase tracking-widest">
-                                Adicionar texto
+                                {selectedLayer?.type === 'text' ? 'Editando texto' : 'Adicionar texto'}
                             </span>
                         </div>
                         <div className="px-3 pb-3 pt-2 space-y-2 bg-neutral-950 rounded-b-lg">
@@ -537,7 +567,11 @@ export default function Editor2D() {
                                 className="w-full border-2 border-dashed border-neutral-700 hover:border-emerald-500 rounded-lg p-2 text-center cursor-pointer transition-colors bg-neutral-950/50 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <span className="text-emerald-400 font-medium text-sm">
-                                    {isRenderingText ? 'Gerando...' : 'Adicionar camada de texto'}
+                                    {isRenderingText
+                                        ? 'Gerando...'
+                                        : selectedLayer?.type === 'text'
+                                          ? 'Nova camada de texto'
+                                          : 'Adicionar camada de texto'}
                                 </span>
                             </button>
                             {textError && (
@@ -604,7 +638,13 @@ export default function Editor2D() {
                 </div>
             </aside>
 
-            <section className="flex-1 p-4 relative min-w-0 min-h-0 flex flex-col gap-3">
+            <section
+                className={
+                    mode === 'edit'
+                        ? 'flex-1 p-4 relative min-w-0 min-h-0 flex flex-col gap-3'
+                        : 'hidden'
+                }
+            >
                 <div
                     ref={canvasContainerRef}
                     className="flex-1 relative min-h-0 rounded-lg border border-dashed border-neutral-800 bg-neutral-950 overflow-hidden"
@@ -620,7 +660,13 @@ export default function Editor2D() {
                 </div>
             </section>
 
-            <aside className="w-72 flex-shrink-0 min-h-0 bg-neutral-950 border-l border-neutral-800 flex flex-col">
+            <aside
+                className={
+                    mode === 'edit'
+                        ? 'w-72 flex-shrink-0 min-h-0 bg-neutral-950 border-l border-neutral-800 flex flex-col'
+                        : 'hidden'
+                }
+            >
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
                     <h2 className="text-xs font-semibold text-neutral-500 uppercase tracking-widest flex items-center gap-2">
                         <Boxes className="w-3.5 h-3.5" /> Partes (geração 3D)
@@ -655,7 +701,13 @@ export default function Editor2D() {
                 </div>
             </aside>
 
-            <section className="w-[420px] flex-shrink-0 p-4 relative min-w-0 min-h-0 flex flex-col gap-3 border-l border-neutral-800">
+            <section
+                className={
+                    mode === 'preview'
+                        ? 'flex-1 p-4 relative min-w-0 min-h-0 flex flex-col gap-3 border-l border-neutral-800'
+                        : 'hidden'
+                }
+            >
                 <div className="flex-1 relative min-h-0">
                     <div className="absolute inset-0">
                         <Viewer3D
@@ -670,8 +722,15 @@ export default function Editor2D() {
                         />
                     </div>
                 </div>
-                {tmfUrl && (
-                    <div className="flex-shrink-0 flex flex-col items-center gap-1">
+                <div className="flex-shrink-0 flex flex-col items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setMode('edit')}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold rounded-lg shadow-lg text-sm transition-colors"
+                    >
+                        Voltar para o Editor
+                    </button>
+                    {tmfUrl && (
                         <button
                             type="button"
                             onClick={() => downloadBlob(tmfUrl, 'editor_2d_camadas.3mf')}
@@ -679,8 +738,8 @@ export default function Editor2D() {
                         >
                             <Download className="w-4 h-4" /> Exportar 3MF
                         </button>
-                    </div>
-                )}
+                    )}
+                </div>
             </section>
         </Layout>
     );
