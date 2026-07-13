@@ -13,17 +13,27 @@ export interface ProcessedSVG {
 // Singleton: reutiliza um único projeto Paper.js em vez de criar um canvas novo
 // a cada chamada. Criar múltiplos paper.setup() acumula projetos na memória e
 // torna o unite() progressivamente mais lento.
+//
+// Usa um PaperScope dedicado (não o `paper` global ambiente) para que este projeto
+// não seja silenciosamente trocado por outro consumidor headless de paper.js na mesma
+// página (ex.: lib/svgImport.ts, usado pelo Editor 2D) — o objeto global `paper` sempre
+// aponta pro escopo que chamou setup()/foi ativado por último, então dois consumidores
+// independentes compartilhando esse global corrompem o estado um do outro entre
+// navegações dentro desta SPA.
+let _scope: paper.PaperScope | null = null;
 let _paperCanvas: HTMLCanvasElement | null = null;
 
 function getPaperProject(): paper.Project {
-    if (!_paperCanvas) {
+    if (!_scope) {
+        _scope = new paper.PaperScope();
         _paperCanvas = document.createElement('canvas');
         _paperCanvas.width = 1000;
         _paperCanvas.height = 1000;
-        paper.setup(_paperCanvas);
+        _scope.setup(_paperCanvas);
     }
-    paper.project.clear();
-    return paper.project;
+    _scope.activate();
+    _scope.project.clear();
+    return _scope.project;
 }
 
 /**
@@ -80,8 +90,8 @@ function injectPaddedViewBox(svgStr: string, cbWidth: number, cbHeight: number):
 export async function processSvgFile(
     svgString: string,
     thickness: number = 0.5,
-    silhouetteOffset: number = 3.0,
-    preserveFill: boolean = true
+    _silhouetteOffset: number = 3.0,
+    _preserveFill: boolean = true
 ): Promise<ProcessedSVG | null> {
     return new Promise((resolve, reject) => {
         try {
@@ -100,6 +110,10 @@ export async function processSvgFile(
                 insert: true,
                 onError: (err: any) => reject(err),
                 onLoad: (item: paper.Item) => {
+                    // Re-ativa defensivamente: se paper.js chamar onLoad de forma assíncrona,
+                    // outro consumidor headless (ex.: lib/svgImport.ts) pode ter ativado seu
+                    // próprio escopo nesse meio-tempo.
+                    _scope?.activate();
                     // Remove invisible paths (like empty canvas rectangles) before any calculation
                     const toRemove: paper.Item[] = [];
                     item.getItems({ class: paper.PathItem }).forEach((child) => {
@@ -185,7 +199,7 @@ export async function processSvgFile(
                     }
 
                     const exportOptions = { asString: true, bounds: 'content' } as any;
-                    let thickenedSvgStr = thickenedItem.exportSVG(exportOptions) as string;
+                    const thickenedSvgStr = thickenedItem.exportSVG(exportOptions) as string;
                     thickenedItem.remove();
 
                     const thickenedSvg = injectPaddedViewBox(thickenedSvgStr, cb.width, cb.height);

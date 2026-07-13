@@ -1,0 +1,121 @@
+{
+    "id": "editor_generico",
+    "title": {
+        "pt": "Editor de Camadas 2D",
+        "en": "2D Layer Editor"
+    },
+    "output_format": "3mf",
+    "parts": [
+        "part_1",
+        "part_2",
+        "part_3",
+        "part_4"
+    ],
+    "svg_uploads": [
+        "part1_svg",
+        "part2_svg",
+        "part3_svg",
+        "part4_svg"
+    ],
+    "skip_svg_normalize": true,
+    "min_feature_size_mm": 0.8,
+    "parameters": [],
+    "sections": [
+        {
+            "name": "Parte 1",
+            "collapsed": false,
+            "parameters": [
+                {
+                    "id": "part1_active",
+                    "name": "Ativar Parte 1",
+                    "type": "checkbox",
+                    "default": true
+                },
+                {
+                    "id": "part1_height",
+                    "name": "Altura da Parte 1",
+                    "help_text": "Espessura da extrusão desta parte, em milímetros",
+                    "type": "range",
+                    "min": 0.2,
+                    "max": 20.0,
+                    "step": 0.1,
+                    "default": 2.0,
+                    "unit": "mm",
+                    "min_safe_mm": 0.4
+                }
+            ]
+        },
+        {
+            "name": "Parte 2",
+            "collapsed": false,
+            "parameters": [
+                {
+                    "id": "part2_active",
+                    "name": "Ativar Parte 2",
+                    "type": "checkbox",
+                    "default": false
+                },
+                {
+                    "id": "part2_height",
+                    "name": "Altura da Parte 2",
+                    "help_text": "Espessura da extrusão desta parte, em milímetros",
+                    "type": "range",
+                    "min": 0.2,
+                    "max": 20.0,
+                    "step": 0.1,
+                    "default": 2.0,
+                    "unit": "mm",
+                    "min_safe_mm": 0.4
+                }
+            ]
+        },
+        {
+            "name": "Parte 3",
+            "collapsed": true,
+            "parameters": [
+                {
+                    "id": "part3_active",
+                    "name": "Ativar Parte 3",
+                    "type": "checkbox",
+                    "default": false
+                },
+                {
+                    "id": "part3_height",
+                    "name": "Altura da Parte 3",
+                    "help_text": "Espessura da extrusão desta parte, em milímetros",
+                    "type": "range",
+                    "min": 0.2,
+                    "max": 20.0,
+                    "step": 0.1,
+                    "default": 2.0,
+                    "unit": "mm",
+                    "min_safe_mm": 0.4
+                }
+            ]
+        },
+        {
+            "name": "Parte 4",
+            "collapsed": true,
+            "parameters": [
+                {
+                    "id": "part4_active",
+                    "name": "Ativar Parte 4",
+                    "type": "checkbox",
+                    "default": false
+                },
+                {
+                    "id": "part4_height",
+                    "name": "Altura da Parte 4",
+                    "help_text": "Espessura da extrusão desta parte, em milímetros",
+                    "type": "range",
+                    "min": 0.2,
+                    "max": 20.0,
+                    "step": 0.1,
+                    "default": 2.0,
+                    "unit": "mm",
+                    "min_safe_mm": 0.4
+                }
+            ]
+        }
+    ]
+}

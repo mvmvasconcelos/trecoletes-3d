@@ -345,7 +345,7 @@ export default function ChaveiroSimples() {
                         />
                     </div>
                 );
-            case 'color':
+            case 'color': {
                 const extField = p.id === 'base_color' ? 'extrusor_base' : 'extrusor_letras';
                 const extVal = params[extField] ?? (p.id === 'base_color' ? 1 : 2);
                 return (
@@ -355,6 +355,7 @@ export default function ChaveiroSimples() {
                         onChangeExtruder={(newExt) => setParam(extField, newExt)}
                     />
                 );
+            }
             case 'select':
                 if (p.id === 'font_name') {
                     return <FontPicker key={p.id} parameter={p} value={val} onChange={setParam} />;

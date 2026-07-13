@@ -9,7 +9,7 @@ interface LayoutProps {
 
 export function Layout({ title, children }: LayoutProps) {
   return (
-    <div className="min-h-screen bg-neutral-900 text-neutral-200 flex flex-col font-sans">
+    <div className="h-screen overflow-hidden bg-neutral-900 text-neutral-200 flex flex-col font-sans">
       {/* Header Pipeline Status */}
       <header className="flex items-center justify-between px-6 py-4 bg-neutral-950 border-b border-neutral-800">
         <Link to="/" className="flex items-center gap-3 text-emerald-500 font-bold text-xl tracking-wide hover:text-emerald-400 transition-colors">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Ruler, Trash2 } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';

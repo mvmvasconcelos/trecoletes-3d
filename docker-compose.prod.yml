@@ -1,0 +1,52 @@
+name: trecoletes3d-prod
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: trecoletes3d_backend_prod
+    volumes:
+      - ./models:/models:ro
+    environment:
+      - MODELS_DIR=/models
+      - PYTHONUNBUFFERED=1
+      - ALLOWED_ORIGINS=https://mvmvasconcelos.com.br
+    restart: unless-stopped
+    networks:
+      - mvmvasconcelos-web
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.trecoletes3d-api.rule=PathPrefix(`/trecoletes-3d/api`) || PathPrefix(`/trecoletes-3d/static`)
+      - traefik.http.routers.trecoletes3d-api.priority=10
+      - traefik.http.routers.trecoletes3d-api.middlewares=trecoletes3d-stripprefix
+      - traefik.http.services.trecoletes3d-api.loadbalancer.server.port=8000
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: /trecoletes-3d
+    container_name: trecoletes3d_frontend_prod
+    restart: unless-stopped
+    networks:
+      - mvmvasconcelos-web
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.trecoletes3d-app.rule=PathPrefix(`/trecoletes-3d`)
+      - traefik.http.routers.trecoletes3d-app.priority=5
+      - traefik.http.routers.trecoletes3d-app.middlewares=trecoletes3d-stripprefix
+      - traefik.http.services.trecoletes3d-app.loadbalancer.server.port=80
+      - traefik.http.middlewares.trecoletes3d-stripprefix.stripprefix.prefixes=/trecoletes-3d
+      - traefik.http.routers.trecoletes3d-root.rule=Path(`/trecoletes-3d`)
+      - traefik.http.routers.trecoletes3d-root.priority=20
+      - traefik.http.routers.trecoletes3d-root.middlewares=trecoletes3d-redirect
+      - traefik.http.routers.trecoletes3d-root.service=trecoletes3d-app
+      - traefik.http.middlewares.trecoletes3d-redirect.redirectregex.regex=^https?://[^/]+/trecoletes-3d$$
+      - traefik.http.middlewares.trecoletes3d-redirect.redirectregex.replacement=/trecoletes-3d/
+      - traefik.http.middlewares.trecoletes3d-redirect.redirectregex.permanent=true
+
+networks:
+  mvmvasconcelos-web:
+    external: true

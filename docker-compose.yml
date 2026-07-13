@@ -1,4 +1,4 @@
-version: '3.8'
+name: trecoletes3d-dev
 
 services:
   backend:

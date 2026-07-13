@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
-import { Upload, Sliders, Plus, Minus, Trash2, ChevronRight, GripVertical } from 'lucide-react';
+import { Upload, Sliders } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
 import { SvgPreviewModal } from '../components/ui/SvgPreviewModal';
 import Viewer3D from '../components/ui/Viewer3D';
@@ -58,7 +58,6 @@ export default function CortadorBolacha() {
     const [cutterHDraft, setCutterHDraft] = useState('78');
 
     const currentSilhouetteExp = dynamicParams['silhouette_exp'] ?? 4.0;
-    const currentWallThickness = dynamicParams['wall_thickness'] ?? 2.4;
     const minCutterW = artWidth + currentSilhouetteExp * 2;
     const minCutterH = artHeight + currentSilhouetteExp * 2;
 

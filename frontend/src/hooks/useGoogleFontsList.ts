@@ -18,5 +18,6 @@ export function useGoogleFontsList(fontFamilies: string[]) {
             link.href = `https://fonts.googleapis.com/css2?${familiesQuery}&display=swap`;
             document.head.appendChild(link);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- JSON.stringify(fontFamilies) is the intentional dependency (avoids array reference-equality churn)
     }, [JSON.stringify(fontFamilies)]);
 }

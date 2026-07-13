@@ -178,7 +178,7 @@ export default function PonteiraLapisTexto() {
                         />
                     </div>
                 );
-            case 'color':
+            case 'color': {
                 const extField = p.id === 'base_color' ? 'extrusor_base' : 'extrusor_letras';
                 const extVal = params[extField] ?? (p.id === 'base_color' ? 1 : 4);
                 return (
@@ -188,6 +188,7 @@ export default function PonteiraLapisTexto() {
                         onChangeExtruder={(newExt) => setParam(extField, newExt)}
                     />
                 );
+            }
             case 'select':
                 if (p.id === 'font_name') {
                     return <FontPicker key={p.id} parameter={p} value={val} onChange={setParam} />;

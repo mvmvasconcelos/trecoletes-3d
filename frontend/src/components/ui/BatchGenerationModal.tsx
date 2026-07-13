@@ -137,6 +137,7 @@ export function BatchGenerationModal({
         const normalized = normalizeRows(rows);
         snapshotRef.current = JSON.stringify(normalized);
         setLocalError(null);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only reset snapshot when the modal opens, not on every `rows` change
     }, [isOpen]);
 
     const normalizedRows = useMemo(() => normalizeRows(rows), [rows]);

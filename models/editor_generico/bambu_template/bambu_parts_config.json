@@ -1,0 +1,25 @@
+{
+    "model_id": "editor_generico",
+    "parts": [
+        {
+            "scad_name": "part_1",
+            "display_name": "Parte 1",
+            "extruder": 1
+        },
+        {
+            "scad_name": "part_2",
+            "display_name": "Parte 2",
+            "extruder": 2
+        },
+        {
+            "scad_name": "part_3",
+            "display_name": "Parte 3",
+            "extruder": 3
+        },
+        {
+            "scad_name": "part_4",
+            "display_name": "Parte 4",
+            "extruder": 4
+        }
+    ]
+}

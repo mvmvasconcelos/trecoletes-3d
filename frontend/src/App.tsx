@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import CortadorBolacha from './pages/CortadorBolacha';
@@ -18,10 +17,11 @@ import GeradorTopoBolo from './pages/GeradorTopoBolo';
 import GeradorTopoBoloSvg from './pages/GeradorTopoBoloSvg';
 import MexedorDrinksSvg from './pages/MexedorDrinksSvg';
 import LetreiraSocial from './pages/LetreiraSocial';
+import Editor2D from './pages/Editor2D';
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/cortador-bolacha" element={<CortadorBolacha />} />
@@ -41,6 +41,7 @@ function App() {
         <Route path="/mexedor-drinks-svg" element={<MexedorDrinksSvg />} />
         <Route path="/letreiro-social" element={<LetreiraSocial />} />
         <Route path="/ferramentas" element={<Ferramentas />} />
+        <Route path="/editor-2d" element={<Editor2D />} />
       </Routes>
     </BrowserRouter>
   );

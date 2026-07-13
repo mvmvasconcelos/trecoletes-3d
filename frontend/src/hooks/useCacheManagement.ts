@@ -24,7 +24,9 @@ export function useCacheManagement() {
             await axios.post(`${API_BASE}/api/clear_cache`);
             setFromCache(null);
             onClear?.();
-        } catch { }
+        } catch {
+            // ignore — cache clear failure is non-critical
+        }
         setIsClearingCache(false);
     };
 

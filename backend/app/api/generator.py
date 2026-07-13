@@ -1620,7 +1620,16 @@ async def generate_parametric_model(request: Request, model_id: str):
                         status_code=422,
                         content={"error": f"Falha ao converter PNG para SVG: {_conv_err}"},
                     )
-            svg_bytes_map[_svg_field] = normalize_svg_to_origin(_raw)
+            if model_config.get("skip_svg_normalize"):
+                # editor_generico: o frontend já entrega cada part*_svg pré-normalizado
+                # num referencial COMPARTILHADO entre todas as partes ativas (ver
+                # frontend/src/lib/serializePartToSvg.ts). Rodar normalize_svg_to_origin
+                # aqui re-apertaria o viewBox de cada parte pro próprio conteúdo
+                # individualmente, destruindo o alinhamento relativo entre partes que o
+                # frontend acabou de calcular.
+                svg_bytes_map[_svg_field] = _raw
+            else:
+                svg_bytes_map[_svg_field] = normalize_svg_to_origin(_raw)
 
     # Hash determinístico para cache
     # Inclui assinatura dos arquivos do modelo para invalidar cache
@@ -1670,6 +1679,15 @@ async def generate_parametric_model(request: Request, model_id: str):
         # Se verso_enable=False, não renderizar parte verso (evita STL vazio no 3MF)
         if _params_dict.get("verso_enable", "false").lower() in ("false", "0") and "verso" in parts_to_render:
             parts_to_render.remove("verso")
+        # editor_generico: 4 slots fixos (part_1..part_4), cada um controlado por
+        # partN_active. Se partN_active=False, remove a parte ANTES de renderizar
+        # e de chamar _pack_bambu_3mf, evitando STL vazio/degenerado no 3MF
+        # (mesmo padrão de verso_enable acima).
+        for _slot_n in range(1, 5):
+            _slot_part = f"part_{_slot_n}"
+            _slot_flag = f"part{_slot_n}_active"
+            if _params_dict.get(_slot_flag, "true").lower() in ("false", "0") and _slot_part in parts_to_render:
+                parts_to_render.remove(_slot_part)
         mf_filename = f"{model_id}_all.3mf"
         mf_filepath = os.path.join(job_dir, mf_filename)
 
@@ -1809,6 +1827,10 @@ async def generate_parametric_model(request: Request, model_id: str):
                 except ValueError: pass
             elif k == "extrusor_verso":
                 try: ov["verso"] = int(v)
+                except ValueError: pass
+            elif k in ("extrusor_part1", "extrusor_part2", "extrusor_part3", "extrusor_part4"):
+                # editor_generico: scad_name é "part_1".."part_4" (com underscore antes do número)
+                try: ov[f"part_{k[-1]}"] = int(v)
                 except ValueError: pass
 
         bambu_ok = _pack_bambu_3mf(model_id, parts_to_render, job_dir, mf_filepath, extruder_overrides=ov)

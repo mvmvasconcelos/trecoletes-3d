@@ -1,4 +1,3 @@
-import React from 'react';
 import { ParameterLabel } from './ParameterLabel';
 import { useGoogleFontsList } from '../../hooks/useGoogleFontsList';
 

@@ -429,6 +429,7 @@ export default function Viewer3D({ carimbBaseUrl, carimbArteUrl, cortadorUrl, is
         const first = setTimeout(advance, delays[0]);
 
         return () => { clearInterval(timer); clearTimeout(first); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- MESSAGES is a static constant, not a reactive dependency
     }, [isGenerating]);
 
     const msg = MESSAGES[msgIndex];
