@@ -274,23 +274,39 @@ def _clean_vtracer_svg(svg_str: str) -> bytes:
         return svg_str.encode('utf-8')  # fallback seguro
 
 
-def _png_bytes_to_svg(png_bytes: bytes) -> bytes:
+def _png_bytes_to_svg(png_bytes: bytes, dilate_px: int = 0) -> bytes:
     """
     Converte bytes de uma imagem PNG em SVG vetorizado via potrace.
     Fluxo: Pillow (grayscale + threshold → PBM 1-bit) → potrace --svg → SVG limpo.
     Potrace gera paths com coordenadas diretas no espaço pixel, sem transform attributes,
     o que garante compatibilidade com o Paper.js do frontend.
+
+    dilate_px: quando > 0, engrossa as regiões pretas (traços) antes de vetorizar,
+    aplicando um MinFilter (mode "L", preto=0=mínimo) com janela 2*dilate_px+1.
+    Quando 0 (padrão), o comportamento é idêntico ao original.
     """
     import io
     import tempfile
     try:
         from PIL import Image
+        if dilate_px > 0:
+            from PIL import ImageFilter
     except ImportError:
         raise RuntimeError("Pillow não está instalado. Adicione 'Pillow' ao requirements.txt.")
 
-    # Pré-processa: grayscale → threshold → 1-bit para potrace
-    img = Image.open(io.BytesIO(png_bytes)).convert("L")
+    # Pré-processa: achata transparência sobre fundo branco (senão pixels
+    # transparentes com RGB preto por baixo viram preto ao perder o alpha),
+    # depois grayscale → threshold → 1-bit para potrace
+    img = Image.open(io.BytesIO(png_bytes))
+    if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+        img = img.convert("RGBA")
+        background = Image.new("RGB", img.size, (255, 255, 255))
+        background.paste(img, mask=img.split()[-1])
+        img = background
+    img = img.convert("L")
     img = img.point(lambda p: 0 if p < 128 else 255, "L")
+    if dilate_px > 0:
+        img = img.filter(ImageFilter.MinFilter(size=2 * dilate_px + 1))
     img_1bit = img.convert("1")
     w, h = img_1bit.size
 
@@ -328,6 +344,58 @@ def _png_bytes_to_svg(png_bytes: bytes) -> bytes:
         return svg_normalized
     finally:
         os.unlink(tf_path)
+
+
+def _detect_image_kind(raw: bytes) -> str | None:
+    """
+    Detecta se `raw` é um SVG ou uma imagem raster suportada, sem levantar
+    exceção em nenhum caso (entrada malformada/maliciosa sempre cai em None).
+
+    Retorna "svg", "raster" ou None.
+    """
+    from lxml import etree
+    try:
+        parser = etree.XMLParser(resolve_entities=False, no_network=True)
+        root = etree.fromstring(raw, parser=parser)
+        tag = root.tag.split('}')[-1] if '}' in root.tag else root.tag
+        if tag == 'svg':
+            return "svg"
+    except Exception:
+        pass
+
+    try:
+        import io
+        from PIL import Image
+        img = Image.open(io.BytesIO(raw))
+        if img.format in {"PNG", "JPEG", "BMP", "GIF", "WEBP", "TIFF"}:
+            return "raster"
+    except Exception:
+        pass
+
+    return None
+
+
+def _svg_bytes_to_png_bytes(svg_bytes: bytes, max_size: int = 1500) -> bytes:
+    """
+    Rasteriza um SVG em PNG via rsvg-convert, limitando o maior lado a
+    `max_size` px e preservando a proporção original.
+    """
+    result = subprocess.run(
+        [
+            "rsvg-convert",
+            "--format", "png",
+            "-w", str(max_size),
+            "-h", str(max_size),
+            "--keep-aspect-ratio",
+        ],
+        input=svg_bytes,
+        capture_output=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"rsvg-convert error: {result.stderr.decode(errors='replace')}")
+    return result.stdout
+
 
 def _compute_char_positions(text: str, font_path: str, size_mm: float, spacing: float = 1.0, word_spacing: float = 1.0) -> dict:
     """
@@ -1379,6 +1447,34 @@ async def convert_png_to_svg(file: UploadFile):
         return JSONResponse(status_code=422, content={"error": "Arquivo enviado não é um PNG válido."})
     try:
         svg_bytes = _png_bytes_to_svg(raw)
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"error": f"Falha na conversão: {exc}"})
+    from fastapi.responses import Response
+    return Response(content=svg_bytes, media_type="image/svg+xml")
+
+
+@router.post("/tools/image-to-svg")
+async def tools_image_to_svg(file: UploadFile, line_thickness: int = Form(0, ge=0, le=5)):
+    """
+    Recebe um arquivo de imagem (PNG, JPEG, BMP, GIF, WEBP, TIFF ou SVG) e
+    retorna sempre um SVG vetorizado monocromático, com opção de engrossar
+    os traços (line_thickness) antes da vetorização via potrace.
+    Entradas SVG são rasterizadas via rsvg-convert antes de reentrar no
+    mesmo pipeline potrace usado para imagens raster.
+    Endpoint isolado da ferramenta de conversão PNG→SVG; não afeta
+    /api/convert/png-to-svg nem outros usos de _png_bytes_to_svg.
+    """
+    raw = await file.read()
+    kind = _detect_image_kind(raw)
+    if kind is None:
+        return JSONResponse(status_code=422, content={"error": "Arquivo enviado não é uma imagem suportada (PNG, JPEG, BMP, GIF, WEBP, TIFF ou SVG)."})
+    if kind == "svg":
+        try:
+            raw = _svg_bytes_to_png_bytes(raw)
+        except Exception as exc:
+            return JSONResponse(status_code=422, content={"error": f"SVG inválido ou não pôde ser processado: {exc}"})
+    try:
+        svg_bytes = _png_bytes_to_svg(raw, dilate_px=line_thickness)
     except Exception as exc:
         return JSONResponse(status_code=500, content={"error": f"Falha na conversão: {exc}"})
     from fastapi.responses import Response
