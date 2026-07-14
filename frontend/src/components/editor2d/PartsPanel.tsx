@@ -1,3 +1,4 @@
+import { BambuColorPicker } from '../ui/BambuColorPicker';
 import type { PartId } from '../../types/editor2d';
 import type { PartGroup } from '../../lib/partGrouping';
 import type { PartSettingsMap } from '../../lib/partSettings';
@@ -13,21 +14,22 @@ interface PartsPanelProps {
     partGroups: PartGroup[];
     settings: PartSettingsMap;
     onChangeHeight: (partId: PartId, height: number) => void;
+    onChangeColor: (partId: PartId, color: string) => void;
+    onChangeExtruder: (partId: PartId, extruder: number) => void;
 }
 
 /**
  * Always-visible per-part generation settings (Group 7): for every `PartGroup`
  * that currently has >=1 layer assigned (from lib/partGrouping.ts), shows a
- * height input. Never gated behind a "Generate" click — visible as soon as
- * `partGroups` has an entry, so height changes are ready before the first
- * "Gerar 3D". Cor/extrusora moved to `LayerPanel.tsx` (per-layer row, editing
- * the same underlying `PartSettingsMap` entry) — see that component's doc.
+ * height input and a color/extruder picker. Never gated behind a "Generate"
+ * click — visible as soon as `partGroups` has an entry, so height/color changes
+ * are ready before the first "Gerar 3D".
  */
-export function PartsPanel({ partGroups, settings, onChangeHeight }: PartsPanelProps) {
+export function PartsPanel({ partGroups, settings, onChangeHeight, onChangeColor, onChangeExtruder }: PartsPanelProps) {
     if (partGroups.length === 0) {
         return (
             <p className="text-sm text-neutral-600">
-                Atribua camadas a uma parte (menu na lista de camadas) para configurar espessura.
+                Atribua camadas a uma parte (menu na lista de camadas) para configurar espessura e cor.
             </p>
         );
     }
@@ -59,6 +61,13 @@ export function PartsPanel({ partGroups, settings, onChangeHeight }: PartsPanelP
                                     className="w-20 bg-neutral-900 border border-neutral-800 rounded-lg px-2 py-1 text-sm text-neutral-200 focus:outline-none focus:border-emerald-600"
                                 />
                             </label>
+                            <BambuColorPicker
+                                label="Cor"
+                                color={s.color}
+                                extruder={s.extruder}
+                                onChangeColor={(val) => onChangeColor(group.partId, val)}
+                                onChangeExtruder={(val) => onChangeExtruder(group.partId, val)}
+                            />
                         </div>
                     </div>
                 );

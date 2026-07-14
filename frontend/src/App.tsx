@@ -18,7 +18,6 @@ import GeradorTopoBoloSvg from './pages/GeradorTopoBoloSvg';
 import MexedorDrinksSvg from './pages/MexedorDrinksSvg';
 import LetreiraSocial from './pages/LetreiraSocial';
 import Editor2D from './pages/Editor2D';
-import ConversorPngSvg from './pages/ConversorPngSvg';
 
 function App() {
   return (
@@ -43,7 +42,6 @@ function App() {
         <Route path="/letreiro-social" element={<LetreiraSocial />} />
         <Route path="/ferramentas" element={<Ferramentas />} />
         <Route path="/editor-2d" element={<Editor2D />} />
-        <Route path="/conversor-png-svg" element={<ConversorPngSvg />} />
       </Routes>
     </BrowserRouter>
   );

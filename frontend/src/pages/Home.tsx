@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Scissors, Image, Type, PenTool, Sliders, FlaskConical, PenLine, KeyRound, Cake, Stamp, GlassWater, Layers, LayoutTemplate, Wand2 } from 'lucide-react';
+import { Scissors, Image, Type, PenTool, Sliders, FlaskConical, PenLine, KeyRound, Cake, Stamp, GlassWater, Layers, LayoutTemplate } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -201,16 +201,6 @@ export default function Home() {
           <div>
             <h2 className="text-xl font-bold text-neutral-100 group-hover:text-sky-400 transition-colors">Editor 2D</h2>
             <p className="text-neutral-500 mt-2 text-sm">Componha camadas de texto e imagem num canvas e gere modelos 3D multicolor. (Em desenvolvimento)</p>
-          </div>
-        </Link>
-
-        <Link to="/conversor-png-svg" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-sky-500 hover:shadow-lg hover:shadow-sky-900/20 transition-all">
-          <div className="w-12 h-12 rounded-lg bg-sky-900/30 flex items-center justify-center text-sky-500 group-hover:scale-110 transition-transform">
-            <Wand2 className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-sky-400 transition-colors">Conversor PNG → SVG</h2>
-            <p className="text-neutral-500 mt-2 text-sm">Converta imagens PNG em traços SVG vetoriais, com ajuste de espessura de linha.</p>
           </div>
         </Link>
         </div>
