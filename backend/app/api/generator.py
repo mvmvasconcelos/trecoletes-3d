@@ -274,23 +274,31 @@ def _clean_vtracer_svg(svg_str: str) -> bytes:
         return svg_str.encode('utf-8')  # fallback seguro
 
 
-def _png_bytes_to_svg(png_bytes: bytes) -> bytes:
+def _png_bytes_to_svg(png_bytes: bytes, dilate_px: int = 0) -> bytes:
     """
     Converte bytes de uma imagem PNG em SVG vetorizado via potrace.
     Fluxo: Pillow (grayscale + threshold → PBM 1-bit) → potrace --svg → SVG limpo.
     Potrace gera paths com coordenadas diretas no espaço pixel, sem transform attributes,
     o que garante compatibilidade com o Paper.js do frontend.
+
+    dilate_px: quando > 0, engrossa as regiões pretas (traços) antes de vetorizar,
+    aplicando um MinFilter (mode "L", preto=0=mínimo) com janela 2*dilate_px+1.
+    Quando 0 (padrão), o comportamento é idêntico ao original.
     """
     import io
     import tempfile
     try:
         from PIL import Image
+        if dilate_px > 0:
+            from PIL import ImageFilter
     except ImportError:
         raise RuntimeError("Pillow não está instalado. Adicione 'Pillow' ao requirements.txt.")
 
     # Pré-processa: grayscale → threshold → 1-bit para potrace
     img = Image.open(io.BytesIO(png_bytes)).convert("L")
     img = img.point(lambda p: 0 if p < 128 else 255, "L")
+    if dilate_px > 0:
+        img = img.filter(ImageFilter.MinFilter(size=2 * dilate_px + 1))
     img_1bit = img.convert("1")
     w, h = img_1bit.size
 
@@ -1379,6 +1387,25 @@ async def convert_png_to_svg(file: UploadFile):
         return JSONResponse(status_code=422, content={"error": "Arquivo enviado não é um PNG válido."})
     try:
         svg_bytes = _png_bytes_to_svg(raw)
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"error": f"Falha na conversão: {exc}"})
+    from fastapi.responses import Response
+    return Response(content=svg_bytes, media_type="image/svg+xml")
+
+
+@router.post("/tools/png-to-svg")
+async def tools_png_to_svg(file: UploadFile, line_thickness: int = Form(0, ge=0, le=5)):
+    """
+    Recebe um arquivo PNG e retorna o SVG vetorizado, com opção de engrossar
+    os traços (line_thickness) antes da vetorização via potrace.
+    Endpoint isolado da ferramenta de conversão PNG→SVG; não afeta
+    /api/convert/png-to-svg nem outros usos de _png_bytes_to_svg.
+    """
+    raw = await file.read()
+    if not (raw[:8] == b'\x89PNG\r\n\x1a\n'):
+        return JSONResponse(status_code=422, content={"error": "Arquivo enviado não é um PNG válido."})
+    try:
+        svg_bytes = _png_bytes_to_svg(raw, dilate_px=line_thickness)
     except Exception as exc:
         return JSONResponse(status_code=500, content={"error": f"Falha na conversão: {exc}"})
     from fastapi.responses import Response
