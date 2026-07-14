@@ -3,8 +3,10 @@ import axios from 'axios';
 import { Boxes, Copy, Download, Layers, Type as TypeIcon, Upload } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
 import { EditorCanvas } from '../components/editor2d/EditorCanvas';
+import { computeStageScale } from '../lib/stageScale';
 import { LayerPanel } from '../components/editor2d/LayerPanel';
 import { PartsPanel } from '../components/editor2d/PartsPanel';
+import { AlignmentToolbar } from '../components/editor2d/AlignmentToolbar';
 import { createDefaultPartSettingsMap, type PartSettingsMap } from '../lib/partSettings';
 import Viewer3D from '../components/ui/Viewer3D';
 import { parseSvgToShapes } from '../lib/svgImport';
@@ -61,11 +63,14 @@ export default function Editor2D() {
     // 'edit' shows the tools/canvas/parts panels full-width; 'preview' shows the
     // Viewer3D full-width instead. Both live states — none of the 4 panels ever
     // unmount, only their visibility (via a `hidden` class) toggles, so switching
-    // modes never resets layers/selectedId/partSettings and never forces the
+    // modes never resets layers/selectedIds/partSettings and never forces the
     // Viewer3D's WebGL context or STL meshes to reload.
     const [mode, setMode] = useState<'edit' | 'preview'>('edit');
     const [layers, setLayers] = useState<EditorLayer[]>([]);
-    const [selectedId, setSelectedId] = useState<string | null>(null);
+    // Multi-select (Group 5): 0, 1, or many layer ids may be selected at once.
+    // `selectedLayer` below derives the "exactly one selected" case that most
+    // of the existing single-selection UI (text panel, silhouette panel) reads.
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -121,8 +126,16 @@ export default function Editor2D() {
     }, [mode, measureCanvasContainer]);
 
     const addImageLayer = useCallback((parsed: { shapes: ImageLayer['shapes']; width: number; height: number }) => {
-        const stageW = stageSize.width || DEFAULT_STAGE_WIDTH;
-        const stageH = stageSize.height || DEFAULT_STAGE_HEIGHT;
+        // EditorCanvas zooms the Stage so the 256x256mm print bed fills most of
+        // the view (see EditorCanvas.tsx's computeStageScale doc) — new layers
+        // must be sized/centered against that same *visible* unit-space extent
+        // (container pixels / stageScale), not the raw container pixel count,
+        // or they'd land off-center and the wrong apparent size once zoomed.
+        const rawW = stageSize.width || DEFAULT_STAGE_WIDTH;
+        const rawH = stageSize.height || DEFAULT_STAGE_HEIGHT;
+        const stageScale = computeStageScale(rawW, rawH);
+        const stageW = rawW / stageScale;
+        const stageH = rawH / stageScale;
 
         const naturalMax = Math.max(parsed.width, parsed.height, 1);
         const targetMax = Math.min(stageW, stageH) * IMPORT_FIT_RATIO;
@@ -152,7 +165,7 @@ export default function Editor2D() {
         };
 
         setLayers((prev) => [...prev, layer]);
-        setSelectedId(id);
+        setSelectedIds([id]);
     }, [stageSize]);
 
     const updateLayerTransform = useCallback((id: string, partial: Partial<LayerTransform>) => {
@@ -163,8 +176,90 @@ export default function Editor2D() {
 
     const deleteLayer = useCallback((id: string) => {
         setLayers((prev) => prev.filter((layer) => layer.id !== id));
-        setSelectedId((prev) => (prev === id ? null : prev));
+        setSelectedIds((prev) => prev.filter((sid) => sid !== id));
     }, []);
+
+    // Reorders a layer's position in the z-index array (index 0 = back-most,
+    // last index = front-most). LayerPanel already translates its reversed,
+    // on-screen list indices into real `layers`-array indices before calling
+    // this, so this is a plain splice-move with no reversal logic here.
+    // Selection (`selectedIds`) is untouched — reordering never changes which
+    // layers are selected, only where they render.
+    const reorderLayer = useCallback((fromIndex: number, toIndex: number) => {
+        setLayers((prev) => {
+            if (fromIndex === toIndex || fromIndex < 0 || fromIndex >= prev.length) return prev;
+            const next = [...prev];
+            const [moved] = next.splice(fromIndex, 1);
+            next.splice(toIndex, 0, moved);
+            return next;
+        });
+    }, []);
+
+    // Selection handlers passed down to EditorCanvas (deliverable 2). Kept as
+    // three small, explicit operations rather than one overloaded setter:
+    // - handleSelectLayer: plain click (replace) or shift+click (toggle) on a shape
+    // - handleMarqueeSelect: rubber-band drag — always ADDS to the current
+    //   selection, never replaces, so chaining two drags in a row accumulates
+    // - handleClearSelection: click on empty canvas — replaces with none
+    const handleSelectLayer = useCallback((id: string, options?: { shift?: boolean }) => {
+        if (options?.shift) {
+            setSelectedIds((prev) => (prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id]));
+        } else {
+            setSelectedIds([id]);
+        }
+    }, []);
+
+    const handleMarqueeSelect = useCallback((ids: string[]) => {
+        if (ids.length === 0) return;
+        setSelectedIds((prev) => Array.from(new Set([...prev, ...ids])));
+    }, []);
+
+    const handleClearSelection = useCallback(() => {
+        setSelectedIds([]);
+    }, []);
+
+    // Delete/Backspace keyboard shortcut for removing the selected layer(s).
+    // Guards against stealing Backspace from text inputs (text-content,
+    // font-size, silhouette-margin fields, etc.): if focus is inside an
+    // <input>/<select>/<textarea> when the key is pressed, this does nothing
+    // at all — no preventDefault, no layer/selection changes — so the field's
+    // own native editing behavior (deleting a character) proceeds untouched.
+    // Only when focus is elsewhere (e.g. on the canvas or body) does the
+    // shortcut delete the current selection, then clear it so no stale id
+    // is left pointing at a now-deleted layer.
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (mode !== 'edit') return;
+            if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+            const activeTag = (document.activeElement as HTMLElement | null)?.tagName;
+            if (activeTag === 'INPUT' || activeTag === 'SELECT' || activeTag === 'TEXTAREA') return;
+            if (selectedIds.length === 0) return;
+            selectedIds.forEach((id) => deleteLayer(id));
+            setSelectedIds([]);
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [mode, selectedIds, deleteLayer]);
+
+    // Live-resize HUD (Group 3): while a Transformer resize handle is being
+    // dragged, EditorCanvas reports the actively-resizing layer's current
+    // width/height (in mm) here via onTransformPreview, distinct from the
+    // committed `layers` transform which only updates on release
+    // (onTransformEnd). `null` means "no resize in progress right now".
+    const [transformPreview, setTransformPreview] = useState<{ id: string; width: number; height: number } | null>(
+        null
+    );
+    const handleTransformPreview = useCallback((id: string, size: { width: number; height: number } | null) => {
+        setTransformPreview(size ? { id, ...size } : null);
+    }, []);
+    // Guards against a stale in-progress size surviving a selection change
+    // (e.g. selecting a different layer, or the same layer again later after
+    // its size changed some other way) — selectedIds only changes on an
+    // actual selection action, never mid-drag, so this never interrupts a
+    // live resize of the currently selected layer.
+    useEffect(() => {
+        setTransformPreview(null);
+    }, [selectedIds]);
 
     // Assigns (or clears, via `null`) which of the up to 4 parts a layer
     // belongs to. See types/editor2d.ts (PartId) and lib/partGrouping.ts,
@@ -262,7 +357,28 @@ export default function Editor2D() {
     const [silhouetteMargin, setSilhouetteMargin] = useState(DEFAULT_SILHOUETTE_MARGIN);
     const [isComputingSilhouette, setIsComputingSilhouette] = useState(false);
     const [silhouetteError, setSilhouetteError] = useState<string | null>(null);
-    const selectedLayer = selectedId ? layers.find((l) => l.id === selectedId) ?? null : null;
+    // Only non-null when exactly one layer is selected — every existing UI
+    // piece that assumed single-selection (text edit sync, "Duplicar +
+    // silhueta" panel, etc.) reads THIS instead of `selectedIds` directly, so
+    // it naturally hides/no-ops for 0 or 2+ selections without special-casing.
+    const selectedLayer = selectedIds.length === 1 ? layers.find((l) => l.id === selectedIds[0]) ?? null : null;
+
+    // Live width×height (mm) HUD size for the selected layer, only ever
+    // non-null when exactly one layer is selected (mirrors `selectedLayer`'s
+    // own gating). While a resize drag is in progress on this exact layer,
+    // uses the live `transformPreview` reported by EditorCanvas's
+    // onTransform; otherwise (no drag, or between drags) falls back to the
+    // layer's committed natural size × its committed transform scale — 1
+    // editor unit = 1mm, see serializePartToSvg.ts's "Editor units vs.
+    // real-world millimeters" section.
+    const hudSize =
+        selectedLayer &&
+        (transformPreview && transformPreview.id === selectedLayer.id
+            ? { width: transformPreview.width, height: transformPreview.height }
+            : {
+                  width: selectedLayer.width * selectedLayer.transform.scaleX,
+                  height: selectedLayer.height * selectedLayer.transform.scaleY,
+              });
 
     // "Duplicar + silhueta": takes the selected layer's shapes, expands their
     // geometry outward by `silhouetteMargin` (lib/polygonOffset.ts — real path
@@ -318,7 +434,7 @@ export default function Editor2D() {
                 };
 
                 setLayers((prev) => [...prev, newLayer]);
-                setSelectedId(id);
+                setSelectedIds([id]);
             } catch (err: any) {
                 setSilhouetteError(err?.message ?? 'Erro ao gerar silhueta.');
             } finally {
@@ -330,17 +446,19 @@ export default function Editor2D() {
     // When the user selects an existing text layer (e.g. clicking it in the
     // LayerPanel), sync the "add text" form to that layer's current values so
     // editing continues seamlessly instead of showing stale draft values.
-    // Depends only on `selectedId` — reacting to every `layers` change too would
-    // fight the user's typing (see handleTextFieldChange below, which is the
-    // thing that changes `layers` while this layer stays selected).
+    // Reads `selectedLayer` (only non-null for exactly one selection), so 0 or
+    // 2+ selected layers naturally no-op here. Depends only on the selected
+    // layer's id (a stable primitive), not on `selectedLayer` itself or on
+    // `layers` — reacting to every `layers` change too would fight the user's
+    // typing (see handleTextFieldChange below, which is the thing that
+    // changes `layers` while this layer stays selected).
     useEffect(() => {
-        if (!selectedId) return;
-        const layer = layers.find((l) => l.id === selectedId);
-        if (layer && layer.type === 'text') {
-            setTextDraft({ text: layer.text, fontFile: layer.fontFamily, fontSize: layer.fontSize });
+        if (!selectedLayer) return;
+        if (selectedLayer.type === 'text') {
+            setTextDraft({ text: selectedLayer.text, fontFile: selectedLayer.fontFamily, fontSize: selectedLayer.fontSize });
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only re-sync when the selection changes, not on every layers update
-    }, [selectedId]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only re-sync when the selected layer's identity changes, not on every layers update
+    }, [selectedLayer?.id]);
 
     // Regenerates an existing text layer's glyph shapes in place (text/font/size
     // change) — never creates a new layer. This is what satisfies "changing the
@@ -380,12 +498,14 @@ export default function Editor2D() {
     // text layer, the edit also applies live to that layer (see regenerateTextLayer)
     // instead of only sitting in the draft — that's the "live edit" behavior.
     // Adding a brand-new layer is a separate, explicit action (handleAddTextLayer).
+    // Reads `selectedLayer` (only non-null for exactly one selection), so with
+    // 0 or 2+ layers selected this naturally just updates the draft with no
+    // live-edit side effect.
     const handleTextFieldChange = (partial: Partial<TextDraft>) => {
         const next = { ...textDraft, ...partial };
         setTextDraft(next);
-        const current = selectedId ? layers.find((l) => l.id === selectedId) : undefined;
-        if (current && current.type === 'text') {
-            void regenerateTextLayer(current.id, next);
+        if (selectedLayer && selectedLayer.type === 'text') {
+            void regenerateTextLayer(selectedLayer.id, next);
         }
     };
 
@@ -394,8 +514,12 @@ export default function Editor2D() {
         setIsRenderingText(true);
         try {
             const result = await textToPath(textDraft.text, textDraft.fontFile, textDraft.fontSize);
-            const stageW = stageSize.width || DEFAULT_STAGE_WIDTH;
-            const stageH = stageSize.height || DEFAULT_STAGE_HEIGHT;
+            // Same visible-unit-space adjustment as addImageLayer — see its comment.
+            const rawW = stageSize.width || DEFAULT_STAGE_WIDTH;
+            const rawH = stageSize.height || DEFAULT_STAGE_HEIGHT;
+            const stageScale = computeStageScale(rawW, rawH);
+            const stageW = rawW / stageScale;
+            const stageH = rawH / stageScale;
 
             const naturalMax = Math.max(result.width, result.height, 1);
             const targetMax = Math.min(stageW, stageH) * IMPORT_FIT_RATIO;
@@ -428,7 +552,7 @@ export default function Editor2D() {
             };
 
             setLayers((prev) => [...prev, layer]);
-            setSelectedId(id);
+            setSelectedIds([id]);
         } catch (err: any) {
             setTextError(err?.message ?? 'Erro ao gerar texto.');
         } finally {
@@ -588,10 +712,14 @@ export default function Editor2D() {
                         </h2>
                         <LayerPanel
                             layers={layers}
-                            selectedId={selectedId}
-                            onSelect={setSelectedId}
+                            selectedIds={selectedIds}
+                            onSelect={(id) => setSelectedIds([id])}
                             onDelete={deleteLayer}
                             onAssignPart={updateLayerPart}
+                            onReorder={reorderLayer}
+                            partSettings={partSettings}
+                            onChangeColor={updatePartColor}
+                            onChangeExtruder={updatePartExtruder}
                         />
                     </div>
 
@@ -645,18 +773,30 @@ export default function Editor2D() {
                         : 'hidden'
                 }
             >
+                {selectedIds.length >= 2 && (
+                    <AlignmentToolbar layers={layers} selectedIds={selectedIds} onTransformChange={updateLayerTransform} />
+                )}
                 <div
                     ref={canvasContainerRef}
                     className="flex-1 relative min-h-0 rounded-lg border border-dashed border-neutral-800 bg-neutral-950 overflow-hidden"
                 >
                     <EditorCanvas
                         layers={layers}
-                        selectedId={selectedId}
-                        onSelect={setSelectedId}
+                        selectedIds={selectedIds}
+                        onSelect={handleSelectLayer}
+                        onMarqueeSelect={handleMarqueeSelect}
+                        onClearSelection={handleClearSelection}
                         onTransformChange={updateLayerTransform}
+                        onTransformPreview={handleTransformPreview}
                         width={stageSize.width}
                         height={stageSize.height}
+                        partSettings={partSettings}
                     />
+                    {hudSize && (
+                        <div className="absolute bottom-3 left-3 pointer-events-none select-none rounded-md border border-neutral-700 bg-neutral-900/90 px-3 py-1.5 font-mono text-xs text-neutral-200 shadow-lg">
+                            {hudSize.width.toFixed(1)}×{hudSize.height.toFixed(1)} mm
+                        </div>
+                    )}
                 </div>
             </section>
 
@@ -675,8 +815,6 @@ export default function Editor2D() {
                         partGroups={partGroups}
                         settings={partSettings}
                         onChangeHeight={updatePartHeight}
-                        onChangeColor={updatePartColor}
-                        onChangeExtruder={updatePartExtruder}
                     />
                     {generateError && (
                         <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-sm text-red-300">
