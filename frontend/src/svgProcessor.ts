@@ -102,7 +102,7 @@ export async function processSvgFile(
             // forma NÃO-UNIFORME quando o SVG não é quadrado — ex: um SVG 600×200 faz
             // scaleX = 1000/600 e scaleY = 1000/200, achatando os paths exportados.
             const svgSize = getSvgViewBoxSize(svgString);
-            paper.view.viewSize = new paper.Size(svgSize.width, svgSize.height);
+            _scope!.view.viewSize = new paper.Size(svgSize.width, svgSize.height);
 
             // Import the original SVG
             project.importSVG(svgString, {
