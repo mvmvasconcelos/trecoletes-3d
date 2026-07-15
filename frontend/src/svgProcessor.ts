@@ -360,21 +360,38 @@ export async function processSvgFile(
                     // pode deslocar o bounding box. Traduzimos o unified para (0,0) antes de exportar
                     // para que o SCAD resize() fique alinhado com o linhas.svg.
 
-                    // Simplify + flatten the silhouette before export.
+                    // Flatten the silhouette before export.
                     //
                     // Root cause of OpenSCAD timeout: each bezier curve segment in the SVG
                     // is approximated by OpenSCAD into ~$fn line segments EVERY time offset()
                     // is called. With 10 chamfer steps × 12 total offset() calls × N bezier
                     // segments, the cost is O(calls × N × $fn).
                     //
-                    // Fix: convert to a pure polygon (no bezier curves) before export.
-                    //   simplify(25) → reduce bezier count to ~30 curves
-                    //   flatten(8)   → convert remaining curves to straight line segments
-                    // Result: OpenSCAD receives a plain polygon with ~200-300 vertices.
-                    // Offset of a polygon is O(vertices) — fast, no curve approximation.
+                    // Fix: convert to a pure polygon (no bezier curves) before export via
+                    // flatten(tolerance), which walks the EXISTING curves and emits line
+                    // segments that stay within `tolerance` of them — it cannot move the
+                    // shape's outline.
+                    //
+                    // Deliberately NOT calling Path.simplify() first (as an earlier version of
+                    // this code did, to shrink the curve count before flattening): simplify()
+                    // re-fits a *new* bezier through the path using paper.js's PathFitter, and
+                    // verified experimentally (see conversation history) that its curve-refit
+                    // overshoots on potrace output — even at paper.js's own default tolerance
+                    // (2.5) it visibly ballooned a simple traced arch outward by ~10%, turning
+                    // straight edges into bulges. potrace paths are already curve-optimized
+                    // (rarely more than a few hundred curves even for complex art), so
+                    // flatten() alone keeps vertex counts low enough for OpenSCAD without ever
+                    // touching the actual outline shape.
+                    //
+                    // Tolerance scales with the shape's own size, not a fixed constant:
+                    // potrace's SVG output inherits the source image's pixel dimensions, which
+                    // range from tiny icons (~100px) to large photos (~3000px+) — a fixed
+                    // tolerance tuned for one resolution is proportionally way off at another.
                     if ((unified as paper.Item).className === 'Path') {
-                        (unified as paper.Path).simplify(25);
-                        (unified as paper.Path).flatten(8);
+                        const toleranceBounds = (unified as paper.Item).bounds;
+                        const diagonal = Math.sqrt(toleranceBounds.width ** 2 + toleranceBounds.height ** 2);
+                        const flattenTolerance = Math.min(8, Math.max(0.5, diagonal * 0.004));
+                        (unified as paper.Path).flatten(flattenTolerance);
                     }
 
                     unified.fillColor = new paper.Color('black');
