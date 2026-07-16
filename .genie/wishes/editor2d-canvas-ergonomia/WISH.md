@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | DRAFT |
+| **Status** | SHIPPED |
 | **Slug** | `editor2d-canvas-ergonomia` |
 | **Date** | 2026-07-13 |
 | **Author** | Vinicius Vasconcelos |
@@ -53,16 +53,16 @@ seleção múltipla com alinhamento, e atalho DEL/Backspace.
 
 ## Success Criteria
 
-- [ ] Arrastar uma camada na lista muda sua posição; a forma correspondente muda de ordem visual (frente/trás) no canvas
-- [ ] Retângulo pontilhado 256×256mm sempre visível; posicionar/redimensionar objetos pra fora dele não é bloqueado
-- [ ] Selecionar um objeto mostra largura×altura em mm; arrastar uma âncora de resize atualiza os números em tempo real
-- [ ] Camada atribuída a uma parte renderiza no canvas com a cor configurada daquela parte; camada sem parte mantém o preenchimento original (preto para texto; cores originais por-path para imagem/SVG importado)
-- [ ] Shift+clique adiciona/remove da seleção; arrastar numa área vazia seleciona tudo dentro do retângulo; os dois métodos compõem (nunca substituem a seleção atual)
-- [ ] Com 2+ objetos selecionados, os botões de alinhamento (H: esq/centro/dir/distribuído; V: topo/centro/baixo/distribuído) reposicionam corretamente
-- [ ] DEL/Backspace com seleção ativa (e nenhum campo de texto focado) exclui a(s) camada(s)
-- [ ] Digitar Backspace dentro do campo de texto/tamanho de fonte/margem de silhueta corrige o campo normalmente e NÃO exclui a camada selecionada
-- [ ] Com 2+ camadas selecionadas: painel "Adicionar/Editar texto" volta ao modo "Adicionar", painel "Duplicar + silhueta" fica oculto, HUD de dimensões some — sem erro no console
-- [ ] `npm run build` e `npm run lint` limpos
+- [x] Arrastar uma camada na lista muda sua posição; a forma correspondente muda de ordem visual (frente/trás) no canvas
+- [x] Retângulo pontilhado 256×256mm sempre visível; posicionar/redimensionar objetos pra fora dele não é bloqueado
+- [x] Selecionar um objeto mostra largura×altura em mm; arrastar uma âncora de resize atualiza os números em tempo real
+- [x] Camada atribuída a uma parte renderiza no canvas com a cor configurada daquela parte; camada sem parte mantém o preenchimento original (preto para texto; cores originais por-path para imagem/SVG importado)
+- [x] Shift+clique adiciona/remove da seleção; arrastar numa área vazia seleciona tudo dentro do retângulo; os dois métodos compõem (nunca substituem a seleção atual)
+- [x] Com 2+ objetos selecionados, os botões de alinhamento (H: esq/centro/dir/distribuído; V: topo/centro/baixo/distribuído) reposicionam corretamente
+- [x] DEL/Backspace com seleção ativa (e nenhum campo de texto focado) exclui a(s) camada(s)
+- [x] Digitar Backspace dentro do campo de texto/tamanho de fonte/margem de silhueta corrige o campo normalmente e NÃO exclui a camada selecionada
+- [x] Com 2+ camadas selecionadas: painel "Adicionar/Editar texto" volta ao modo "Adicionar", painel "Duplicar + silhueta" fica oculto, HUD de dimensões some — sem erro no console
+- [x] `npm run build` e `npm run lint` limpos
 
 ## Execution Strategy
 
@@ -123,12 +123,12 @@ quebrar nenhum consumidor existente de seleção única.
    distribuído, sobre o bounding box axis-aligned de cada objeto selecionado.
 
 **Acceptance Criteria:**
-- [ ] Shift+clique adiciona/remove um objeto da seleção sem afetar os demais já selecionados
-- [ ] Arrastar numa área vazia do canvas (>4px) seleciona todos os objetos que a caixa intersecta, somando à seleção atual
-- [ ] Um clique simples (sem arrasto) numa área vazia continua deselecionando tudo, como hoje
-- [ ] Com 2+ selecionados: painel de texto mostra "Adicionar texto" (não edita nenhuma camada), painel de silhueta fica oculto, nenhum erro no console
-- [ ] Com 2+ selecionados, os botões de alinhamento aparecem e reposicionam corretamente pelo bounding box axis-aligned
-- [ ] `Transformer` do Konva mostra as alças de todos os objetos selecionados simultaneamente
+- [x] Shift+clique adiciona/remove um objeto da seleção sem afetar os demais já selecionados
+- [x] Arrastar numa área vazia do canvas (>4px) seleciona todos os objetos que a caixa intersecta, somando à seleção atual
+- [x] Um clique simples (sem arrasto) numa área vazia continua deselecionando tudo, como hoje
+- [x] Com 2+ selecionados: painel de texto mostra "Adicionar texto" (não edita nenhuma camada), painel de silhueta fica oculto, nenhum erro no console
+- [x] Com 2+ selecionados, os botões de alinhamento aparecem e reposicionam corretamente pelo bounding box axis-aligned
+- [x] `Transformer` do Konva mostra as alças de todos os objetos selecionados simultaneamente
 
 **Validation:**
 ```bash
@@ -161,8 +161,8 @@ entre 0/1/2+ selecionados.
    (`layers.map(...)` em `EditorCanvas.tsx`), então nenhuma mudança adicional é necessária lá.
 
 **Acceptance Criteria:**
-- [ ] Arrastar a camada do topo da lista pro fundo faz ela desenhar atrás das outras no canvas (e vice-versa)
-- [ ] A seleção atual (Grupo 5) não muda ao reordenar
+- [x] Arrastar a camada do topo da lista pro fundo faz ela desenhar atrás das outras no canvas (e vice-versa)
+- [x] A seleção atual (Grupo 5) não muda ao reordenar
 
 **Validation:**
 ```bash
@@ -185,9 +185,9 @@ A1 — nunca bloqueia posicionar/redimensionar.
    sem preenchimento), 256×256 unidades (= mm, convenção já estabelecida), centralizado no Stage.
 
 **Acceptance Criteria:**
-- [ ] Guia sempre visível, em qualquer estado do editor
-- [ ] Não intercepta cliques (objetos atrás/sob a guia continuam selecionáveis)
-- [ ] Posicionar ou redimensionar um objeto pra fora da guia funciona normalmente (sem clamp)
+- [x] Guia sempre visível, em qualquer estado do editor
+- [x] Não intercepta cliques (objetos atrás/sob a guia continuam selecionáveis)
+- [x] Posicionar ou redimensionar um objeto pra fora da guia funciona normalmente (sem clamp)
 
 **Validation:**
 ```bash
@@ -213,9 +213,9 @@ parte, em vez do preenchimento fixo atual.
    por-path preservadas pra imagem/SVG importado).
 
 **Acceptance Criteria:**
-- [ ] Camada atribuída a uma parte com cor azul configurada renderiza azul no canvas
-- [ ] Camada sem parte mantém as cores originais (preta pra texto; cores originais por-path pra SVG multi-cor importado)
-- [ ] Trocar a cor de uma parte no painel de Partes atualiza a cor no canvas imediatamente (sem precisar recarregar)
+- [x] Camada atribuída a uma parte com cor azul configurada renderiza azul no canvas
+- [x] Camada sem parte mantém as cores originais (preta pra texto; cores originais por-path pra SVG multi-cor importado)
+- [x] Trocar a cor de uma parte no painel de Partes atualiza a cor no canvas imediatamente (sem precisar recarregar)
 
 **Validation:**
 ```bash
@@ -241,9 +241,9 @@ durante um redimensionamento.
    HUD atualiza em tempo real, antes de soltar a âncora.
 
 **Acceptance Criteria:**
-- [ ] Selecionar 1 objeto mostra o HUD com as dimensões corretas em mm
-- [ ] Arrastar uma âncora de resize atualiza os números do HUD continuamente durante o arrasto, não só ao soltar
-- [ ] HUD desaparece com 0 ou 2+ objetos selecionados
+- [x] Selecionar 1 objeto mostra o HUD com as dimensões corretas em mm
+- [x] Arrastar uma âncora de resize atualiza os números do HUD continuamente durante o arrasto, não só ao soltar
+- [x] HUD desaparece com 0 ou 2+ objetos selecionados
 
 **Validation:**
 ```bash
@@ -266,9 +266,9 @@ QA manual: selecionar 1 objeto, conferir números; redimensionar e observar atua
    chama `deleteLayer` para cada id em `selectedIds`.
 
 **Acceptance Criteria:**
-- [ ] Com uma seleção ativa e foco fora de qualquer campo de texto, DEL/Backspace exclui a(s) camada(s) selecionada(s)
-- [ ] Com foco no campo de texto/tamanho de fonte/margem de silhueta, Backspace edita o campo normalmente e NÃO exclui nenhuma camada
-- [ ] Sem seleção ativa, DEL/Backspace não faz nada (sem erro)
+- [x] Com uma seleção ativa e foco fora de qualquer campo de texto, DEL/Backspace exclui a(s) camada(s) selecionada(s)
+- [x] Com foco no campo de texto/tamanho de fonte/margem de silhueta, Backspace edita o campo normalmente e NÃO exclui nenhuma camada
+- [x] Sem seleção ativa, DEL/Backspace não faz nada (sem erro)
 
 **Validation:**
 ```bash
@@ -285,9 +285,9 @@ QA manual: testar DEL com seleção fora de campo de texto (exclui), e Backspace
 
 _What must be verified on dev after merge. The QA agent tests each criterion._
 
-- [ ] Fluxo completo: montar composição com 3+ camadas em 2+ partes, reordenar, selecionar múltiplas, alinhar, atribuir cores, redimensionar conferindo o HUD, excluir com DEL — sem erros no console
-- [ ] Integração: nada dos grupos 1-4/6 quebra o fluxo de geração 3D (Gerar 3D → modo preview) do wish `editor2d-navegacao-viewer`, já em produção
-- [ ] Regressão: fluxo de texto (`Adicionar/Editar texto`) e "Duplicar + silhueta" continuam funcionando normalmente com seleção única, como antes do Grupo 5
+- [x] Fluxo completo: montar composição com 3+ camadas em 2+ partes, reordenar, selecionar múltiplas, alinhar, atribuir cores, redimensionar conferindo o HUD, excluir com DEL — sem erros no console
+- [x] Integração: nada dos grupos 1-4/6 quebra o fluxo de geração 3D (Gerar 3D → modo preview) do wish `editor2d-navegacao-viewer`, já em produção
+- [x] Regressão: fluxo de texto (`Adicionar/Editar texto`) e "Duplicar + silhueta" continuam funcionando normalmente com seleção única, como antes do Grupo 5
 
 ---
 
