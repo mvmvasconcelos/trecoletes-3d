@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | DRAFT |
+| **Status** | SHIPPED |
 | **Slug** | `conversor-imagem-svg` |
 | **Date** | 2026-07-14 |
 | **Author** | Vinicius Vasconcelos |
