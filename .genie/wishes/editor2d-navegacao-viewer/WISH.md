@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | DRAFT |
+| **Status** | SHIPPED |
 | **Slug** | `editor2d-navegacao-viewer` |
 | **Date** | 2026-07-13 |
 | **Author** | Vinicius Vasconcelos |
@@ -63,13 +63,13 @@ voltar.
 
 ## Success Criteria
 
-- [ ] Modo `edit` ocupa toda a área `<main>` do `Layout` (abaixo do header) com canvas + camadas + partes, sem Viewer3D visível
-- [ ] Clicar "Gerar 3D" chama o backend como hoje e, ao suceder, alterna automaticamente para o modo `preview`
-- [ ] Modo `preview` mostra o Viewer3D nessa mesma área `<main>`, com o botão "Exportar 3MF" ainda disponível
-- [ ] Botão "Voltar para o Editor" no modo `preview` retorna ao modo `edit` com todas as camadas, partes e seleção exatamente como estavam antes de gerar
-- [ ] Ao voltar para `edit`, o canvas Konva preenche corretamente o container (sem `stageSize` congelado no tamanho anterior)
-- [ ] QA manual: montar composição com múltiplas camadas/partes, gerar, voltar, confirmar que nada foi perdido ou resetado
-- [ ] `npm run build` e `npm run lint` limpos (via `docker compose exec -T frontend`)
+- [x] Modo `edit` ocupa toda a área `<main>` do `Layout` (abaixo do header) com canvas + camadas + partes, sem Viewer3D visível
+- [x] Clicar "Gerar 3D" chama o backend como hoje e, ao suceder, alterna automaticamente para o modo `preview`
+- [x] Modo `preview` mostra o Viewer3D nessa mesma área `<main>`, com o botão "Exportar 3MF" ainda disponível
+- [x] Botão "Voltar para o Editor" no modo `preview` retorna ao modo `edit` com todas as camadas, partes e seleção exatamente como estavam antes de gerar
+- [x] Ao voltar para `edit`, o canvas Konva preenche corretamente o container (sem `stageSize` congelado no tamanho anterior)
+- [x] QA manual: montar composição com múltiplas camadas/partes, gerar, voltar, confirmar que nada foi perdido ou resetado
+- [x] `npm run build` e `npm run lint` limpos (via `docker compose exec -T frontend`)
 
 ## Execution Strategy
 
@@ -112,12 +112,12 @@ cobre todo o escopo.
    container mesmo se ele esteve oculto.
 
 **Acceptance Criteria:**
-- [ ] Estando em `edit`, ferramentas + canvas + partes ocupam toda a área `<main>` abaixo do header — Viewer3D oculto (não só estreito, oculto de fato)
-- [ ] Clicar "Gerar 3D" com sucesso troca automaticamente para `preview`; ferramentas/canvas/partes ficam ocultos e o Viewer3D passa a ocupar a largura inteira de `<main>` (troca de `w-[420px]` fixo para `flex-1`), com o botão "Exportar 3MF" disponível (quando a resposta trouxer `tmfUrl`, mesmo padrão já existente)
-- [ ] Clicar "Voltar para o Editor" troca de volta para `edit`, preservando `layers`, `partSettings`, `selectedId` exatamente como estavam
-- [ ] Redimensionar a janela (ou o painel) em `edit`, ir para `preview` e voltar para `edit`: o canvas Konva preenche o container corretamente, sem ficar "encolhido" ou com sobra de espaço em branco
-- [ ] Na primeira transição para `preview` em uma sessão (primeira vez que o `<Canvas>` do Viewer3D fica visível depois de montado oculto), o modelo renderiza no tamanho/aspecto correto — não "espremido" nem em branco
-- [ ] Nenhuma navegação de URL ocorre ao alternar de modo (`/editor-2d` o tempo todo)
+- [x] Estando em `edit`, ferramentas + canvas + partes ocupam toda a área `<main>` abaixo do header — Viewer3D oculto (não só estreito, oculto de fato)
+- [x] Clicar "Gerar 3D" com sucesso troca automaticamente para `preview`; ferramentas/canvas/partes ficam ocultos e o Viewer3D passa a ocupar a largura inteira de `<main>` (troca de `w-[420px]` fixo para `flex-1`), com o botão "Exportar 3MF" disponível (quando a resposta trouxer `tmfUrl`, mesmo padrão já existente)
+- [x] Clicar "Voltar para o Editor" troca de volta para `edit`, preservando `layers`, `partSettings`, `selectedId` exatamente como estavam
+- [x] Redimensionar a janela (ou o painel) em `edit`, ir para `preview` e voltar para `edit`: o canvas Konva preenche o container corretamente, sem ficar "encolhido" ou com sobra de espaço em branco
+- [x] Na primeira transição para `preview` em uma sessão (primeira vez que o `<Canvas>` do Viewer3D fica visível depois de montado oculto), o modelo renderiza no tamanho/aspecto correto — não "espremido" nem em branco
+- [x] Nenhuma navegação de URL ocorre ao alternar de modo (`/editor-2d` o tempo todo)
 
 **Validation:**
 ```bash
@@ -136,10 +136,10 @@ janela do navegador antes e depois da troca de modo para validar a remedição d
 
 _What must be verified on dev after merge. The QA agent tests each criterion._
 
-- [ ] Fluxo completo ponta-a-ponta: montar 2+ camadas, gerar, ver resultado em `preview`, voltar,
+- [x] Fluxo completo ponta-a-ponta: montar 2+ camadas, gerar, ver resultado em `preview`, voltar,
       editar de novo, gerar de novo — sem erros no console e sem perda de estado
-- [ ] Integração: `Exportar 3MF` no modo `preview` continua baixando o arquivo correto
-- [ ] Regressão: as outras 18 páginas de gerador (que usam `Layout.tsx` mas não `Editor2D.tsx`)
+- [x] Integração: `Exportar 3MF` no modo `preview` continua baixando o arquivo correto
+- [x] Regressão: as outras 18 páginas de gerador (que usam `Layout.tsx` mas não `Editor2D.tsx`)
       continuam funcionando normalmente — este wish não deve tocar nada fora de `Editor2D.tsx`
 
 ---
