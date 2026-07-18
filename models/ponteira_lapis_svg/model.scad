@@ -4,14 +4,14 @@ art_width        = 50;
 art_height       = 50;
 
 /*[Dimensions & Settings]*/
-letter_height    = 1.2;     // Height of the raised art (extrusion), mm
-base_height      = 10;      // Height (size) of the base, mm
-outline_margin   = 2.6;     // How far the outline expands beyond the text, mm
+letter_height    = 0.8;     // Height of the raised art (extrusion), mm
+base_height      = 12;      // Height (size) of the base, mm
+outline_margin   = 2.3;     // How far the outline expands beyond the text, mm
 
 /*[Hole Settings]*/
 hole_type        = "CIRCLE";      // ["CIRCLE", "HEXAGON"]
 hole_orientation = "TOPBOTTOM";   // ["FRONTBACK", "TOPBOTTOM", "NONE"]
-hole_diameter    = 7.5;           // mm
+hole_diameter    = 7.6;           // mm
 hole_length      = 500;           // mm
 hole_x           = 0;
 hole_y           = 0;

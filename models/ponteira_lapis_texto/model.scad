@@ -8,7 +8,7 @@ text_line_2    = "";                  // Linha secundária (deixe vazio para des
 text_size_1    = 12;                  // Tamanho da Linha 1, mm
 text_size_2    = 10;                  // Tamanho da Linha 2, mm
 font_name      = "Chewy:style=Regular";
-letter_height  = 1.4;                 // Altura das letras em relevo, mm
+letter_height  = 0.8;                 // Altura das letras em relevo, mm
 base_height    = 12;                  // Altura da base, mm
 outline_margin = 2.3;                 // Margem do contorno além do texto, mm
 spacing        = 1.0;                 // Espaçamento entre letras (1.0 = normal)
@@ -37,7 +37,7 @@ _center_x  = (body_min_x + body_max_x) / 2;
 /*[Furação]*/
 hole_type        = "CIRCLE";          // "CIRCLE" | "HEXAGON"
 hole_orientation = "TOPBOTTOM";       // "TOPBOTTOM" | "FRONTBACK" | "NONE"
-hole_diameter    = 7.8;               // mm
+hole_diameter    = 7.6;               // mm
 hole_length      = 150;               // comprimento do cilindro de corte, mm
 hole_x           = 0;
 hole_y           = 0;

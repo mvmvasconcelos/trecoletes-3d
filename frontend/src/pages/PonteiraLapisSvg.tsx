@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
-import { Upload, Sliders } from 'lucide-react';
+import { Upload, Sliders, ChevronDown } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
 import { SvgPreviewModal } from '../components/ui/SvgPreviewModal';
 import Viewer3D from '../components/ui/Viewer3D';
@@ -40,6 +40,7 @@ export default function PonteiraLapisSvg() {
 
     const [modelConfig, setModelConfig] = useState<any>(null);
     const [dynamicParams, setDynamicParams] = useState<Record<string, any>>({});
+    const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isConvertingPng, setIsConvertingPng] = useState(false);
 
@@ -56,13 +57,20 @@ export default function PonteiraLapisSvg() {
         const fetchConfig = async () => {
             try {
                 const res = await axios.get(`${API_BASE}/api/models/ponteira_lapis_svg/config`);
-                if (isMounted && res.data && res.data.parameters) {
-                    setModelConfig(res.data);
+                if (isMounted && res.data) {
+                    const cfg = res.data;
+                    setModelConfig(cfg);
                     const initialParams: Record<string, any> = {};
-                    res.data.parameters.forEach((param: any) => {
-                        initialParams[param.id] = param.default;
-                    });
+                    const setDefaults = (list: any[]) => list?.forEach((p: any) => { initialParams[p.id] = p.default; });
+                    setDefaults(cfg.parameters);
+                    cfg.sections?.forEach((s: any) => setDefaults(s.parameters));
                     setDynamicParams(initialParams);
+
+                    const initOpen: Record<string, boolean> = {};
+                    cfg.sections?.forEach((s: any) => {
+                        initOpen[s.name] = s.collapsed !== undefined ? !s.collapsed : true;
+                    });
+                    setOpenSections(initOpen);
                 }
             } catch (err) {
                 console.error("Erro ao carregar configuração:", err);
@@ -71,6 +79,8 @@ export default function PonteiraLapisSvg() {
         fetchConfig();
         return () => { isMounted = false; };
     }, []);
+
+    const toggleSection = (name: string) => setOpenSections(prev => ({ ...prev, [name]: !prev[name] }));
 
     const triggerFilePicker = () => {
         if (fileInputRef.current) {
@@ -185,6 +195,66 @@ export default function PonteiraLapisSvg() {
         }
     };
 
+    const renderParam = (param: any) => {
+        const currentValue = dynamicParams[param.id] ?? param.default;
+        switch (param.type) {
+            case 'boolean':
+                return (
+                    <div key={param.id} className="space-y-2 pt-2 pb-1">
+                        <label className="flex items-start gap-3 cursor-pointer group">
+                            <input type="checkbox" checked={Boolean(currentValue)} onChange={e => handleDynamicParamChange(param.id, e.target.checked)} className="w-5 h-5 rounded border-neutral-600 bg-neutral-800 accent-emerald-500" />
+                            <span className="text-sm font-medium text-neutral-200">{param.name}</span>
+                        </label>
+                    </div>
+                );
+            case 'select':
+                return (
+                    <div key={param.id} className="space-y-1">
+                        <label className="text-sm text-neutral-400">{param.name}</label>
+                        <select
+                            value={currentValue}
+                            onChange={e => handleDynamicParamChange(param.id, e.target.value)}
+                            className="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                        >
+                            {param.options?.map((opt: any) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                );
+            default:
+                return (
+                    <div key={param.id} className="space-y-2">
+                        <label className="flex justify-between text-sm"><span>{param.name}</span><span className="text-emerald-400 font-mono">{Number(currentValue).toFixed(1)}{param.unit}</span></label>
+                        <input type="range" min={param.min} max={param.max} step={param.step} value={Number(currentValue)} onChange={e => handleDynamicParamChange(param.id, parseFloat(e.target.value))} className="w-full accent-emerald-500" />
+                    </div>
+                );
+        }
+    };
+
+    const mainSections = modelConfig?.sections?.filter((s: any) => s.name !== 'Cores') ?? [];
+
+    const renderAccordionSection = (section: any) => {
+        const isOpen = openSections[section.name] ?? true;
+        return (
+            <div key={section.name} className={`border border-neutral-800 rounded-lg ${isOpen ? 'overflow-visible' : 'overflow-hidden'}`}>
+                <button
+                    type="button"
+                    onClick={() => toggleSection(section.name)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 bg-neutral-900 hover:bg-neutral-800 transition-colors text-left"
+                >
+                    <span className="text-xs font-semibold text-neutral-400 uppercase tracking-widest">{section.name}</span>
+                    <ChevronDown className={`w-4 h-4 text-neutral-500 transition-transform duration-200 ${isOpen ? 'rotate-0' : '-rotate-90'}`} />
+                </button>
+                {isOpen && (
+                    <div className="px-3 pb-3 pt-2 space-y-4 bg-neutral-950 rounded-b-lg">
+                        {section.parameters?.map(renderParam)}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     return (
         <Layout title="Ponteira Lapis SVG">
             <SvgPreviewModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onConfirm={handleModalConfirm} onLoadAnother={() => { setIsModalOpen(false); triggerFilePicker(); }} svgText={svgText} initialThickness={dynamicParams['line_offset'] ?? 0.5} />
@@ -239,25 +309,11 @@ export default function PonteiraLapisSvg() {
                             </div>
                         </div>
 
-                        {modelConfig?.parameters?.filter((p: any) => p.id !== 'line_offset').map((param: any) => {
-                            const currentValue = dynamicParams[param.id] ?? param.default;
-                            if (param.type === 'boolean') {
-                                return (
-                                    <div key={param.id} className="space-y-2 pt-2 pb-1">
-                                        <label className="flex items-start gap-3 cursor-pointer group">
-                                            <input type="checkbox" checked={Boolean(currentValue)} onChange={e => handleDynamicParamChange(param.id, e.target.checked)} className="w-5 h-5 rounded border-neutral-600 bg-neutral-800 accent-emerald-500" />
-                                            <span className="text-sm font-medium text-neutral-200">{param.name}</span>
-                                        </label>
-                                    </div>
-                                );
-                            }
-                            return (
-                                <div key={param.id} className="space-y-2">
-                                    <label className="flex justify-between text-sm"><span>{param.name}</span><span className="text-emerald-400 font-mono">{Number(currentValue).toFixed(1)}{param.unit}</span></label>
-                                    <input type="range" min={param.min} max={param.max} step={param.step} value={Number(currentValue)} onChange={e => handleDynamicParamChange(param.id, parseFloat(e.target.value))} className="w-full accent-emerald-500" />
-                                </div>
-                            );
-                        })}
+                        {modelConfig?.parameters?.filter((p: any) => p.id !== 'line_offset').map(renderParam)}
+
+                        <div className="space-y-3">
+                            {mainSections.map(renderAccordionSection)}
+                        </div>
 
                         <div className="grid grid-cols-2 gap-4 mt-6">
                             {[
