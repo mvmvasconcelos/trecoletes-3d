@@ -132,24 +132,15 @@ export default function CortadorBolacha() {
             const processed = await processSvgFile(text, currentLineOffset, 3.0);
             setSvgPreview(processed);
 
-            // Read aspect ratio from original SVG dimensions (most reliable).
-            // Paper.js scales content to fit the canvas, distorting content bounds.
+            // Aspect ratio from the traced content's own bounding box (processed.width/height,
+            // computed by svgProcessor.ts from the actual path geometry) — NOT from the source
+            // SVG's viewBox/width/height attributes, which reflect the full image canvas and can
+            // include transparent/white margin around the actual artwork. A square canvas with an
+            // off-center non-square drawing would read as a 1:1 ratio if parsed from the raw SVG
+            // dimensions, even though the real content isn't square.
             let ratio = 1.0;
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(text, 'image/svg+xml');
-            const svgEl = doc.querySelector('svg');
-            if (svgEl) {
-                let w = 0, h = 0;
-                const vb = svgEl.getAttribute('viewBox');
-                if (vb) {
-                    const parts = vb.trim().split(/[\s,]+/).map(Number);
-                    if (parts.length >= 4 && parts[2] > 0 && parts[3] > 0) { w = parts[2]; h = parts[3]; }
-                }
-                if (!w || !h) {
-                    const wa = svgEl.getAttribute('width'), ha = svgEl.getAttribute('height');
-                    if (wa && ha) { w = parseFloat(wa); h = parseFloat(ha); }
-                }
-                if (w > 0 && h > 0) ratio = w / h;
+            if (processed && processed.width > 0 && processed.height > 0) {
+                ratio = processed.width / processed.height;
             }
             setSvgAspectRatio(ratio);
             setArtWidth(70);

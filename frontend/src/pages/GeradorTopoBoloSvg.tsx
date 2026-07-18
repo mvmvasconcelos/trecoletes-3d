@@ -100,26 +100,16 @@ export default function GeradorTopoBoloSvg() {
         try {
             const processed = await processSvgFile(text, 0.5, 3.0);
             setSvgPreview(processed);
-            if (processed) {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(processed.thickenedSvg, 'image/svg+xml');
-                const svgEl = doc.querySelector('svg');
-                let natW = 0, natH = 0;
-                if (svgEl) {
-                    const vb = svgEl.getAttribute('viewBox');
-                    if (vb) {
-                        const parts = vb.split(/[\s,]+/).map(Number);
-                        if (parts.length >= 4) { natW = parts[2]; natH = parts[3]; }
-                    }
-                    if (!natW) natW = parseFloat(svgEl.getAttribute('width') || '0');
-                    if (!natH) natH = parseFloat(svgEl.getAttribute('height') || '0');
-                }
-                if (natW > 0 && natH > 0) {
-                    const ratio = natW / natH;
-                    setSvgAspectRatio(ratio);
-                    setArtHeight(60);
-                    setArtWidth(Math.round(60 * ratio * 10) / 10);
-                }
+            // Proporção a partir do bounding box real do conteúdo traçado (processed.width/height,
+            // calculado pelo svgProcessor.ts a partir da geometria do path) — não do viewBox do SVG
+            // de origem, que reflete o canvas inteiro da imagem e pode incluir margem transparente/
+            // branca ao redor da arte, fazendo uma imagem em canvas quadrado com conteúdo não-quadrado
+            // ser lida como proporção 1:1.
+            if (processed && processed.width > 0 && processed.height > 0) {
+                const ratio = processed.width / processed.height;
+                setSvgAspectRatio(ratio);
+                setArtHeight(60);
+                setArtWidth(Math.round(60 * ratio * 10) / 10);
             }
             setIsModalOpen(true);
         } catch (err) {

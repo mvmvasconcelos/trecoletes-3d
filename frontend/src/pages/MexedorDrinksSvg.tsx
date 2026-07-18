@@ -118,27 +118,17 @@ export default function MexedorDrinksSvg() {
             const lineOffset = 0.5;
             const processed = await processSvgFile(text, lineOffset, 3.0);
             setSvgPreview(processed);
-            if (processed) {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(processed.thickenedSvg, 'image/svg+xml');
-                const svgEl = doc.querySelector('svg');
-                let natW = 0, natH = 0;
-                if (svgEl) {
-                    const vb = svgEl.getAttribute('viewBox');
-                    if (vb) {
-                        const parts = vb.split(/[\s,]+/).map(Number);
-                        if (parts.length >= 4) { natW = parts[2]; natH = parts[3]; }
-                    }
-                    if (!natW) natW = parseFloat(svgEl.getAttribute('width') || '0');
-                    if (!natH) natH = parseFloat(svgEl.getAttribute('height') || '0');
-                }
-                if (natW > 0 && natH > 0) {
-                    const ratio = natW / natH;
-                    setSvgAspectRatio(ratio);
-                    const newArtH = Math.round((35 / ratio) * 10) / 10;
-                    setArtWidth(35);
-                    setArtHeight(newArtH);
-                }
+            // Proporção a partir do bounding box real do conteúdo traçado (processed.width/height,
+            // calculado pelo svgProcessor.ts a partir da geometria do path) — não do viewBox do SVG
+            // de origem, que reflete o canvas inteiro da imagem e pode incluir margem transparente/
+            // branca ao redor da arte, fazendo uma imagem em canvas quadrado com conteúdo não-quadrado
+            // ser lida como proporção 1:1.
+            if (processed && processed.width > 0 && processed.height > 0) {
+                const ratio = processed.width / processed.height;
+                setSvgAspectRatio(ratio);
+                const newArtH = Math.round((35 / ratio) * 10) / 10;
+                setArtWidth(35);
+                setArtHeight(newArtH);
             }
             setIsModalOpen(true);
         } catch (err) {
@@ -193,26 +183,14 @@ export default function MexedorDrinksSvg() {
         try {
             const processed = await processSvgFile(text, 0.5, 3.0);
             setSvgVersoPreview(processed);
-            if (processed) {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(processed.thickenedSvg, 'image/svg+xml');
-                const svgEl = doc.querySelector('svg');
-                let natW = 0, natH = 0;
-                if (svgEl) {
-                    const vb = svgEl.getAttribute('viewBox');
-                    if (vb) {
-                        const parts = vb.split(/[\s,]+/).map(Number);
-                        if (parts.length >= 4) { natW = parts[2]; natH = parts[3]; }
-                    }
-                    if (!natW) natW = parseFloat(svgEl.getAttribute('width') || '0');
-                    if (!natH) natH = parseFloat(svgEl.getAttribute('height') || '0');
-                }
-                if (natW > 0 && natH > 0) {
-                    const ratio = natW / natH;
-                    const newH = Math.round(25 / ratio * 10) / 10;
-                    setParam('verso_width', 25);
-                    setParam('verso_height', Math.min(100, Math.max(5, newH)));
-                }
+            // Proporção a partir do bounding box real do conteúdo traçado (processed.width/height) —
+            // não do viewBox do SVG de origem, que reflete o canvas inteiro da imagem e pode incluir
+            // margem transparente/branca ao redor da arte.
+            if (processed && processed.width > 0 && processed.height > 0) {
+                const ratio = processed.width / processed.height;
+                const newH = Math.round(25 / ratio * 10) / 10;
+                setParam('verso_width', 25);
+                setParam('verso_height', Math.min(100, Math.max(5, newH)));
             }
             setIsVersoModalOpen(true);
         } catch (err) {
