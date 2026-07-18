@@ -331,27 +331,52 @@ export async function processSvgFile(
                         return;
                     }
 
-                    // If the union created a CompoundPath, we only want the outermost boundary (no holes for the cutter base)
+                    // If the union created a CompoundPath, drop only the true holes (no holes
+                    // for the cutter base) and keep every other child.
+                    //
+                    // Paper.js produces a CompoundPath from unite() in two very different
+                    // situations, and this code used to treat them as the same thing:
+                    //   (a) one connected shape with an enclosed counter — e.g. the letter "o"
+                    //       unites into [outer ring, inner hole]. Here we DO want just the outer
+                    //       ring, since the cutter shouldn't also stamp out the inner counter.
+                    //   (b) several disjoint pieces of art that never touch — e.g. separate
+                    //       letters, or a text block plus an unrelated icon like a necktie.
+                    //       Paper.js can't merge non-overlapping shapes into one Path, so they
+                    //       stay siblings in the CompoundPath. None of these is a "hole".
+                    // Picking only the single largest-area child conflated the two cases: for
+                    // multi-element art it silently discarded every other element (all the
+                    // text) and kept just the visually biggest shape (the tie) as the entire
+                    // cutter silhouette. Instead, keep every child that isn't geometrically
+                    // enclosed inside another child — that's the actual hole test.
                     if ((unified as paper.Item).className === 'CompoundPath') {
-                        // Keep only the children with the largest area or clockwise orientation
-                        // A naive approach is to just take the first child (often the outer hull in simple SVGs)
                         const compound = unified as paper.CompoundPath;
-                        if (compound.children.length > 0) {
-                            // Sort by area, largest is likely the bounding hull
-                            let largestHull = compound.children[0] as paper.Path;
-                            let maxArea = Math.abs(largestHull.area);
-
-                            for (let i = 1; i < compound.children.length; i++) {
-                                const child = compound.children[i] as paper.Path;
-                                if (Math.abs(child.area) > maxArea) {
-                                    maxArea = Math.abs(child.area);
-                                    largestHull = child;
+                        const children = compound.children.slice() as paper.Path[];
+                        if (children.length > 0) {
+                            const isHoleOfSibling = (child: paper.Path): boolean => {
+                                for (const other of children) {
+                                    if (other === child) continue;
+                                    if (!other.bounds.contains(child.bounds)) continue;
+                                    if (other.contains(child.bounds.center)) return true;
                                 }
-                            }
-                            const singlePath = new paper.Path(largestHull.segments);
-                            singlePath.closed = true;
+                                return false;
+                            };
+                            const outerChildren = children.filter(c => !isHoleOfSibling(c));
+                            const kept = outerChildren.length > 0 ? outerChildren : children;
+
                             (unified as paper.Item).remove();
-                            unified = singlePath;
+                            if (kept.length === 1) {
+                                const singlePath = new paper.Path(kept[0].segments);
+                                singlePath.closed = true;
+                                unified = singlePath;
+                            } else {
+                                unified = new paper.CompoundPath({
+                                    children: kept.map(c => {
+                                        const p = new paper.Path(c.segments);
+                                        p.closed = true;
+                                        return p;
+                                    })
+                                });
+                            }
                         }
                     }
 
@@ -387,11 +412,14 @@ export async function processSvgFile(
                     // potrace's SVG output inherits the source image's pixel dimensions, which
                     // range from tiny icons (~100px) to large photos (~3000px+) — a fixed
                     // tolerance tuned for one resolution is proportionally way off at another.
-                    if ((unified as paper.Item).className === 'Path') {
+                    {
                         const toleranceBounds = (unified as paper.Item).bounds;
                         const diagonal = Math.sqrt(toleranceBounds.width ** 2 + toleranceBounds.height ** 2);
                         const flattenTolerance = Math.min(8, Math.max(0.5, diagonal * 0.004));
-                        (unified as paper.Path).flatten(flattenTolerance);
+                        // flatten() is defined on both Path and CompoundPath (the latter just
+                        // delegates to each child), so this now also covers silhouettes made of
+                        // several disjoint loops (e.g. separate letters + an icon).
+                        (unified as paper.PathItem).flatten(flattenTolerance);
                     }
 
                     unified.fillColor = new paper.Color('black');

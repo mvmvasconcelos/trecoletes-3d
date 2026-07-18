@@ -15,6 +15,7 @@ wall_height    = 15.0;
 brim_width     = 5.0;
 wall_thickness = 2.4;
 silhouette_exp = 4.0; // [mm] espaçamento entre a borda da arte e a silhueta externa
+gap_close_r    = 6.0; // [mm] raio de fusão para fechar lacunas entre letras/traços próximos
 folga          = 2.0;
 line_offset    = 0.0; // [mm] expande as linhas da arte para fora (efeito de espessura do traço)
 sharp_edge     = true;
@@ -70,16 +71,61 @@ module art_svg() {
 // A silhueta já é o contorno externo unificado da arte, sem buracos internos.
 // Isso é muito mais rápido do que recalcular via offset(r=fill_r) sobre art_svg()
 // (que levava >200s em SVGs complexos com muitos paths).
+//
+// Arte com vários elementos separados (ex.: várias letras de um texto script, ou
+// texto + um ícone à parte como uma gravata) chega aqui como múltiplos subcaminhos
+// DISJUNTOS na silhueta — cada letra/ícone é seu próprio contorno fechado, sem tocar
+// os outros. offset(r=...) só funde dois contornos disjuntos em um só quando o raio
+// é grande o bastante pra fazer as bordas se encostarem.
+//
+// O bug: cada chamador (carimbo, parede do cortador, chanfro, brim) chamava esta
+// função com um extra_r diferente, e cada chamada reoffsetava a arte crua do zero
+// nesse raio total. Isso significa que a "cavidade" da parede (extra_r=0, raio total
+// baixo) podia continuar com uma ilha por letra, enquanto a "borda externa" da mesma
+// parede (extra_r=wall_thickness, raio total maior) já fundia tudo num único contorno.
+// A parede final é a diferença entre as duas — então, onde o raio maior fundiu duas
+// letras e o raio menor não, sobrava uma parede reta cruzando o meio do cortador,
+// exatamente como aparecia no preview (paredes internas cortando o texto ao meio).
+//
+// Correção: computar UMA vez um sólido "fechado" (closing morfológico) crescendo a
+// arte crua por um raio SEMPRE maior que qualquer offset realmente usado abaixo, e
+// derivar todo extra_r por EROSÃO a partir desse mesmo sólido, nunca re-offsetando a
+// arte crua em raios diferentes. Erosão a partir de um sólido já fundido preserva a
+// fusão, então todo formato usado nas diferenças abaixo fica aninhado de forma
+// consistente — sem paredes internas fantasmas surgindo de um raio que fundiu uma
+// lacuna e outro que não fundiu.
+//
+// Quão perto letras/traços precisam estar para se fundir é controlado pelo parâmetro
+// gap_close_r, exposto na UI — NÃO reaproveitamos silhouette_exp pra isso porque o
+// tamanho da lacuna a fechar entre letras de uma fonte script não tem relação com a
+// margem visível desejada entre a arte e a borda do cortador; tentar derivar um dos
+// dois do outro força a escolher entre "sobra parede interna" (margem pequena) e
+// "a arte perde a forma, vira um blob" (margem grande demais só pra fechar lacunas).
+// Cada design pode precisar de um gap_close_r diferente dependendo de quão próximas
+// as letras da fonte usada realmente estão — por isso é um controle, não uma
+// constante.
 // ============================================================
-module silhoueta_shape(extra_r = 0) {
+gap_closing_solid_r = max(silhouette_exp + wall_thickness + brim_width, gap_close_r);
+
+module silhoueta_fused_max() {
     // $fn=32 é suficiente para cortadores de bolacha (erro max ~0.04mm a r=4mm)
     // e é 16x mais rápido que $fn=128, evitando timeout com SVGs complexos.
-    offset(r = silhouette_exp + extra_r, $fn = 32) {
+    offset(r = gap_closing_solid_r, $fn = 32) {
         translate([-art_width / 2, -art_height / 2]) {
             resize([art_width, art_height], auto=[false, false]) {
                 import(svg_silhueta_path);
             }
         }
+    }
+}
+
+module silhoueta_shape(extra_r = 0) {
+    // Raio total desejado a partir da arte crua é (silhouette_exp + extra_r); como já
+    // partimos do sólido fechado em gap_closing_solid_r, a erosão necessária é a
+    // diferença entre os dois.
+    erode = gap_closing_solid_r - (silhouette_exp + extra_r);
+    offset(r = -erode, $fn = 32) {
+        silhoueta_fused_max();
     }
 }
 
