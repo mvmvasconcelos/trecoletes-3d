@@ -225,6 +225,14 @@ export function BatchGenerationModal({
         await onGenerate(normalizedRows);
     };
 
+    const handleClearRows = () => {
+        if (isGenerating) return;
+        const confirmed = window.confirm('Tem certeza que deseja apagar todas as linhas?');
+        if (!confirmed) return;
+        setRows([makeEmptyRow(defaultExtrusorBase, defaultExtrusorLetras)]);
+        setLocalError(null);
+    };
+
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4"
@@ -369,14 +377,25 @@ export function BatchGenerationModal({
                         Carregar arquivo
                     </button>
 
-                    <button
-                        type="button"
-                        onClick={handleGenerate}
-                        disabled={normalizedRows.length === 0 || isGenerating}
-                        className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
-                    >
-                        {isGenerating ? 'Gerando...' : 'Gerar Modelos'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleClearRows}
+                            disabled={isGenerating}
+                            className="px-4 py-2 rounded-lg bg-red-700 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+                        >
+                            Apagar Linhas
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleGenerate}
+                            disabled={normalizedRows.length === 0 || isGenerating}
+                            className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+                        >
+                            {isGenerating ? 'Gerando...' : 'Gerar Modelos'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
