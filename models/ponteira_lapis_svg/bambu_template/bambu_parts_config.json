@@ -1,5 +1,5 @@
 {
-  "model_id": "ponteira_lapis_texto",
+  "model_id": "ponteira_lapis_svg",
   "parts": [
     {
       "scad_name":    "base",
@@ -7,8 +7,8 @@
       "extruder":     1
     },
     {
-      "scad_name":    "letters",
-      "display_name": "Letras",
+      "scad_name":    "svg",
+      "display_name": "Arte",
       "extruder":     2
     }
   ]
