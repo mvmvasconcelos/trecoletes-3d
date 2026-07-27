@@ -668,14 +668,25 @@ def _xml_3dmodel(part_cfgs: list) -> bytes:
     return '\n'.join(out).encode('utf-8')
 
 
-def _xml_model_settings(part_cfgs: list, total_faces: int, model_id: str = "model") -> bytes:
+def _xml_model_settings(
+    part_cfgs: list,
+    total_faces: int,
+    model_id: str = "model",
+    object_name: str | None = None,
+    source_file_name: str | None = None,
+) -> bytes:
     """Gera o conteúdo de Metadata/model_settings.config."""
+    if not object_name:
+        object_name = f"{model_id}_all"
+    if not source_file_name:
+        source_file_name = f"{model_id}_all.3mf"
+
     obj_extruder = part_cfgs[0]['extruder'] if part_cfgs else 1
     out = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<config>',
         '  <object id="4">',
-        f'    <metadata key="name" value="{model_id}_all"/>',
+        f'    <metadata key="name" value="{object_name}"/>',
         f'    <metadata key="extruder" value="{obj_extruder}"/>',
         f'    <metadata face_count="{total_faces}"/>',
     ]
@@ -688,7 +699,7 @@ def _xml_model_settings(part_cfgs: list, total_faces: int, model_id: str = "mode
             f'      <metadata key="name" value="{cfg["display_name"]}"/>',
             f'      <metadata key="extruder" value="{cfg["extruder"]}"/>',
             f'      <metadata key="matrix" value="{matrix}"/>',
-            f'      <metadata key="source_file" value="{model_id}_all.3mf"/>',
+            f'      <metadata key="source_file" value="{source_file_name}"/>',
             f'      <metadata key="source_object_id" value="{cfg["object_id"] - 1}"/>',
             f'      <metadata key="source_volume_id" value="0"/>',
             f'      <metadata key="source_offset_x" value="0"/>',
@@ -728,6 +739,7 @@ def _pack_bambu_3mf(
     job_dir: str,
     mf_filepath: str,
     extruder_overrides: dict = None,  # ex: {"base": 3, "letters": 2}
+    object_name: str | None = None,
 ) -> bool:
     """
     Cria um 3MF com metadados completos do Bambu Studio se existir
@@ -789,7 +801,15 @@ def _pack_bambu_3mf(
     # --- Gera XMLs dinâmicos ---
     obj1_xml     = _xml_object_1_model([(c['object_id'], c['mesh']) for c in part_cfgs])
     model3d_xml  = _xml_3dmodel(part_cfgs)
-    settings_xml = _xml_model_settings(part_cfgs, total_faces, model_id)
+    file_name = os.path.basename(mf_filepath)
+    file_stem = os.path.splitext(file_name)[0]
+    settings_xml = _xml_model_settings(
+        part_cfgs,
+        total_faces,
+        model_id,
+        object_name=object_name or file_stem,
+        source_file_name=file_name,
+    )
 
     # --- Empacota o ZIP (.3mf) ---
     static_dir = os.path.join(template_dir, 'static')
@@ -1454,7 +1474,7 @@ async def convert_png_to_svg(file: UploadFile):
 
 
 @router.post("/tools/image-to-svg")
-async def tools_image_to_svg(file: UploadFile, line_thickness: int = Form(0, ge=0, le=5)):
+async def tools_image_to_svg(file: UploadFile, line_thickness: int = Form(0, ge=0, le=20)):
     """
     Recebe um arquivo de imagem (PNG, JPEG, BMP, GIF, WEBP, TIFF ou SVG) e
     retorna sempre um SVG vetorizado monocromático, com opção de engrossar
@@ -2229,15 +2249,8 @@ async def generate_batch(request: Request, model_id: str):
                         continue
 
                     safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in name).strip()
-                    # 3MF gerado por nome (extrusor pode diferir entre pessoas com mesmo nome)
-                    mf_path = os.path.join(batch_dir, f"{safe_name}_{name_hash[:6]}.3mf")
-                    piece_dir = os.path.join(batch_dir, piece_hash)
-                    ok = _pack_bambu_3mf(model_id, parts_to_render, piece_dir, mf_path,
-                                         extruder_overrides=extruder_ov if extruder_ov else None)
-                    if not ok:
-                        print(f"[BATCH ZIP] _pack_bambu_3mf falhou para '{name}'", flush=True)
-                        continue
-
+                    if not safe_name:
+                        safe_name = model_id
                     # Desambigua nomes iguais *e* nomes que diferem só por caixa
                     # (ex: "KID" e "KId" → conflito em Windows que é case-insensitive).
                     # A chave do contador é sempre lowercase; o nome exibido preserva a caixa original.
@@ -2246,6 +2259,21 @@ async def generate_batch(request: Request, model_id: str):
                     count = arc_name_count.get(arc_key, 0) + 1
                     arc_name_count[arc_key] = count
                     arc_name = f"{arc_base}.3mf" if count == 1 else f"{arc_base}_{count}.3mf"
+
+                    # 3MF gerado por nome final no ZIP (mantém nome interno do objeto alinhado)
+                    mf_path = os.path.join(batch_dir, arc_name)
+                    piece_dir = os.path.join(batch_dir, piece_hash)
+                    ok = _pack_bambu_3mf(
+                        model_id,
+                        parts_to_render,
+                        piece_dir,
+                        mf_path,
+                        extruder_overrides=extruder_ov if extruder_ov else None,
+                        object_name=os.path.splitext(arc_name)[0],
+                    )
+                    if not ok:
+                        print(f"[BATCH ZIP] _pack_bambu_3mf falhou para '{name}'", flush=True)
+                        continue
 
                     zf.write(mf_path, arc_name)
                     print(f"[BATCH ZIP] adicionado: {arc_name}", flush=True)
