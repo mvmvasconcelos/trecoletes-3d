@@ -19,6 +19,7 @@ import MexedorDrinksSvg from './pages/MexedorDrinksSvg';
 import LetreiraSocial from './pages/LetreiraSocial';
 import Editor2D from './pages/Editor2D';
 import ConversorPngSvg from './pages/ConversorPngSvg';
+import CalculadoraPonteiras from './pages/CalculadoraPonteiras';
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
         <Route path="/ferramentas" element={<Ferramentas />} />
         <Route path="/editor-2d" element={<Editor2D />} />
         <Route path="/conversor-png-svg" element={<ConversorPngSvg />} />
+        <Route path="/calculadora-ponteiras" element={<CalculadoraPonteiras />} />
       </Routes>
     </BrowserRouter>
   );

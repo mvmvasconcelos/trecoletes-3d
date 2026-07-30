@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Scissors, Image, Type, PenTool, Sliders, FlaskConical, PenLine, KeyRound, Cake, Stamp, GlassWater, Layers, LayoutTemplate, Wand2 } from 'lucide-react';
+import { Scissors, Image, Type, PenTool, Sliders, FlaskConical, PenLine, KeyRound, Cake, Stamp, GlassWater, Layers, LayoutTemplate, Wand2, Timer } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -191,6 +191,16 @@ export default function Home() {
           <div>
             <h2 className="text-xl font-bold text-neutral-100 group-hover:text-amber-400 transition-colors">Ferramentas de Teste</h2>
             <p className="text-neutral-500 mt-2 text-sm">Calibre furos e outras utilidades técnicas de impressão 3D.</p>
+          </div>
+        </Link>
+
+        <Link to="/calculadora-ponteiras" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-cyan-500 hover:shadow-lg hover:shadow-cyan-900/20 transition-all">
+          <div className="w-12 h-12 rounded-lg bg-cyan-900/30 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform">
+            <Timer className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-cyan-300 transition-colors">Calculadora de Ponteiras</h2>
+            <p className="text-neutral-500 mt-2 text-sm">Estime tempo de impressao, pecas por mesa e consumo de filamento por lote.</p>
           </div>
         </Link>
 
