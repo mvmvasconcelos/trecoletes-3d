@@ -9,6 +9,7 @@ import json
 import uuid
 import zipfile
 import threading
+import unicodedata
 import numpy as np
 import trimesh
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -542,6 +543,18 @@ def _to_scad_assignment(key: str, raw: str) -> str:
         pass
     escaped = v.replace('"', '\\"')
     return f'{key}="{escaped}"'
+
+
+def _safe_object_name(primary_text: str | None, fallback: str) -> str:
+    """Normaliza texto para nome de objeto/arquivo 3MF de forma estável."""
+    if not primary_text:
+        return fallback
+    normalized = unicodedata.normalize("NFD", primary_text)
+    normalized = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+    normalized = normalized.lower()
+    normalized = re.sub(r"[^a-z0-9]+", "_", normalized)
+    normalized = normalized.strip("_")
+    return normalized or fallback
 
 
 def normalize_svg_viewbox(svg_bytes: bytes) -> bytes:
@@ -1144,6 +1157,7 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     global_min_y = 999999.0   # bounds Y reais dos glifos (espaço SCAD)
     global_max_y = -999999.0
     line_actual_w: dict = {}  # total_w real por linha (escala correta de _compute_char_positions)
+    line_bounds_x: dict = {}
 
     for line_key, size_key, chars_param, xs_param in [
         ("text_line_1", "text_size_1", "chars1", "char_xs1"),
@@ -1183,6 +1197,7 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
             global_min_y = min(global_min_y, adj_min_y)
             global_max_y = max(global_max_y, adj_max_y)
             line_actual_w[line_key] = data["total_w"]
+            line_bounds_x[line_key] = (adj_min_x, adj_max_x)
         except Exception as exc:
             print(f"[CHAR_POS] Erro para '{line_key}': {exc}", flush=True)
 
@@ -1196,6 +1211,10 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     if global_min_x != 999999.0:
         args.extend(["-D", f"body_min_x={round(global_min_x, 6)}"])
         args.extend(["-D", f"body_max_x={round(global_max_x, 6)}"])
+    for line_key, bounds in line_bounds_x.items():
+        suffix = line_key.replace("text_line_", "line_")
+        args.extend(["-D", f"{suffix}_min_x={round(bounds[0], 6)}"])
+        args.extend(["-D", f"{suffix}_max_x={round(bounds[1], 6)}"])
     if global_min_y != 999999.0:
         args.extend(["-D", f"body_min_y={round(global_min_y, 6)}"])
         args.extend(["-D", f"body_max_y={round(global_max_y, 6)}"])
@@ -1752,6 +1771,9 @@ async def generate_parametric_model(request: Request, model_id: str):
     # automaticamente quando model.scad/config.json forem alterados.
     hasher = hashlib.md5()
     hasher.update(model_id.encode())
+    # Tampa BIC: invalida artefatos antigos para aplicar novo nome interno do objeto 3MF.
+    if model_id == "tampa_bic":
+        hasher.update(b"tampa_bic_object_name_v1")
     try:
         scad_stat = os.stat(scad_path)
         hasher.update(str(scad_stat.st_mtime_ns).encode())
@@ -1949,7 +1971,18 @@ async def generate_parametric_model(request: Request, model_id: str):
                 try: ov[f"part_{k[-1]}"] = int(v)
                 except ValueError: pass
 
-        bambu_ok = _pack_bambu_3mf(model_id, parts_to_render, job_dir, mf_filepath, extruder_overrides=ov)
+        object_name_3mf = None
+        if model_id == "tampa_bic":
+            object_name_3mf = _safe_object_name(_params_dict.get("text_line_1", ""), f"{model_id}_all")
+
+        bambu_ok = _pack_bambu_3mf(
+            model_id,
+            parts_to_render,
+            job_dir,
+            mf_filepath,
+            extruder_overrides=ov,
+            object_name=object_name_3mf,
+        )
         if bambu_ok:
             generated_urls["3mf"] = f"/static/generated/{job_id}/{mf_filename}"
         else:

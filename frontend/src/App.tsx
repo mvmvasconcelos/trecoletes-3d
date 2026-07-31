@@ -10,6 +10,7 @@ import TesteToleranciaTexto from './pages/TesteToleranciaTexto';
 import TesteToleranciaTextoCQ from './pages/TesteToleranciaTextoCQ';
 import TesteTampaCaneta from './pages/TesteTampaCaneta';
 import TampaCaneta from './pages/TampaCaneta';
+import TampaBic from './pages/TampaBic';
 import CarimboEvaSvg from './pages/CarimboEvaSvg';
 import ChaveiroSindicato from './pages/ChaveiroSindicato';
 import ChaveiroSimplesSvg from './pages/ChaveiroSimplesSvg';
@@ -34,6 +35,7 @@ function App() {
         <Route path="/chaveiro-sindicato" element={<ChaveiroSindicato />} />
         <Route path="/chaveiro-simples-svg" element={<ChaveiroSimplesSvg />} />
         <Route path="/tampa-caneta" element={<TampaCaneta />} />
+        <Route path="/tampa-bic" element={<TampaBic />} />
         <Route path="/carimbo-eva-svg" element={<CarimboEvaSvg />} />
         <Route path="/teste-tampa-caneta" element={<TesteTampaCaneta />} />
         <Route path="/teste-tolerancia-texto" element={<TesteToleranciaTexto />} />

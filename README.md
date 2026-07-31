@@ -15,6 +15,7 @@ Plataforma web para geração parametrizada de modelos 3D personalizados. O usu�
 | `chaveiro_simples` | Chaveiro com texto em relevo e argola |
 | `ponteira_lapis_texto` | Ponteira de lápis com texto (nome topper) |
 | `tampa_caneta` | Tampa de caneta com texto |
+| `tampa_bic` | Tampa BIC com cápsula BOSL2 e texto em duas linhas |
 | `cortador_bolacha` | Cortador de biscoito a partir de SVG |
 | `ponteira_lapis_svg` | Ponteira de lápis a partir de SVG |
 
