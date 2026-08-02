@@ -5,6 +5,7 @@ export type BatchNameEntry = {
     nome: string;
     extrusor_base: number;
     extrusor_letras: number;
+    two_lines?: boolean;
 };
 
 type BatchProgress = {
@@ -25,6 +26,7 @@ interface BatchGenerationModalProps {
     error?: string | null;
     title?: string;
     downloadLabel?: string;
+    enableTwoLineToggle?: boolean;
 }
 
 function makeEmptyRow(defaultExtrusorBase: number, defaultExtrusorLetras: number): BatchNameEntry {
@@ -32,6 +34,7 @@ function makeEmptyRow(defaultExtrusorBase: number, defaultExtrusorLetras: number
         nome: '',
         extrusor_base: defaultExtrusorBase,
         extrusor_letras: defaultExtrusorLetras,
+        two_lines: false,
     };
 }
 
@@ -60,6 +63,7 @@ function normalizeRows(rows: BatchNameEntry[]): BatchNameEntry[] {
             nome: row.nome.trim(),
             extrusor_base: toIntOrDefault(row.extrusor_base, 1),
             extrusor_letras: toIntOrDefault(row.extrusor_letras, 1),
+            two_lines: row.two_lines === true,
         }))
         .filter((row) => row.nome.length > 0);
 }
@@ -79,6 +83,7 @@ function parseJsonRows(content: string, defaultExtrusorBase: number, defaultExtr
                 nome,
                 extrusor_base: defaultExtrusorBase,
                 extrusor_letras: defaultExtrusorLetras,
+                two_lines: false,
             });
             continue;
         }
@@ -91,6 +96,7 @@ function parseJsonRows(content: string, defaultExtrusorBase: number, defaultExtr
                 nome,
                 extrusor_base: toIntOrDefault(obj.extrusor_base, defaultExtrusorBase),
                 extrusor_letras: toIntOrDefault(obj.extrusor_letras, defaultExtrusorLetras),
+                two_lines: obj.two_lines === true || obj.two_lines === 'true' || obj.two_lines === 1 || obj.two_lines === '1' || obj.textLineMode === '2' || obj.line_mode === '2',
             });
             continue;
         }
@@ -110,7 +116,45 @@ function parseTextRows(content: string, defaultExtrusorBase: number, defaultExtr
             nome,
             extrusor_base: defaultExtrusorBase,
             extrusor_letras: defaultExtrusorLetras,
+            two_lines: false,
         }));
+}
+
+function playCompletionBeep() {
+    try {
+        const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!AudioCtx) return;
+
+        const ctx = new AudioCtx();
+        const gainNode = ctx.createGain();
+        const now = ctx.currentTime;
+
+        gainNode.gain.setValueAtTime(0.0001, now);
+        gainNode.gain.linearRampToValueAtTime(0.085, now + 0.012);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+
+        gainNode.connect(ctx.destination);
+
+        const firstTone = ctx.createOscillator();
+        firstTone.type = 'triangle';
+        firstTone.frequency.setValueAtTime(1040, now);
+        firstTone.connect(gainNode);
+        firstTone.start(now);
+        firstTone.stop(now + 0.08);
+
+        const secondTone = ctx.createOscillator();
+        secondTone.type = 'triangle';
+        secondTone.frequency.setValueAtTime(1320, now + 0.11);
+        secondTone.connect(gainNode);
+        secondTone.start(now + 0.11);
+        secondTone.stop(now + 0.2);
+
+        secondTone.onended = () => {
+            void ctx.close();
+        };
+    } catch {
+        // Silently ignore audio playback errors.
+    }
 }
 
 export function BatchGenerationModal({
@@ -126,11 +170,13 @@ export function BatchGenerationModal({
     error,
     title = 'Gerar em Lotes',
     downloadLabel = 'Baixar Lote (ZIP)',
+    enableTwoLineToggle = false,
 }: BatchGenerationModalProps) {
     const [rows, setRows] = useState<BatchNameEntry[]>(() => [makeEmptyRow(defaultExtrusorBase, defaultExtrusorLetras)]);
     const [localError, setLocalError] = useState<string | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
     const snapshotRef = useRef<string>('');
+    const previousDownloadUrlRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -139,6 +185,17 @@ export function BatchGenerationModal({
         setLocalError(null);
         // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only reset snapshot when the modal opens, not on every `rows` change
     }, [isOpen]);
+
+    useEffect(() => {
+        const hadDownloadUrl = Boolean(previousDownloadUrlRef.current);
+        const hasDownloadUrl = Boolean(downloadUrl);
+
+        if (isOpen && !hadDownloadUrl && hasDownloadUrl) {
+            playCompletionBeep();
+        }
+
+        previousDownloadUrlRef.current = downloadUrl;
+    }, [downloadUrl, isOpen]);
 
     const normalizedRows = useMemo(() => normalizeRows(rows), [rows]);
 
@@ -257,38 +314,52 @@ export function BatchGenerationModal({
                 </div>
 
                 <div className="px-4 py-4 sm:px-5 space-y-3 overflow-y-auto min-h-0 flex-1">
-                    <div className="grid grid-cols-12 gap-2 text-[11px] uppercase tracking-wider text-neutral-500 px-1">
-                        <span className="col-span-6">Nome</span>
-                        <span className="col-span-2">Letra</span>
-                        <span className="col-span-2">Base</span>
-                        <span className="col-span-2 text-right">Acao</span>
+                    <div className="grid grid-cols-[minmax(0,1fr)_7.25rem_5.5rem_5.5rem_5.5rem] gap-2 text-[11px] uppercase tracking-wider text-neutral-500 px-1">
+                        <span>Nome</span>
+                        <span>{enableTwoLineToggle ? '2 Linhas' : ''}</span>
+                        <span>Letra</span>
+                        <span>Base</span>
+                        <span className="text-right">Acao</span>
                     </div>
 
                     <div className="space-y-2">
                         {rows.map((row, index) => (
-                            <div key={`batch-row-${index}`} className="grid grid-cols-12 gap-2">
+                            <div key={`batch-row-${index}`} className="grid grid-cols-[minmax(0,1fr)_7.25rem_5.5rem_5.5rem_5.5rem] gap-2">
                                 <input
                                     type="text"
                                     value={row.nome}
                                     onChange={(e) => updateRow(index, { nome: e.target.value })}
                                     placeholder="Digite um nome"
-                                    className="col-span-6 bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                                    className="bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
                                 />
+                                {enableTwoLineToggle ? (
+                                    <label className="h-10 inline-flex items-center justify-center gap-2 rounded border border-neutral-700 bg-neutral-800 px-2 text-xs text-neutral-200 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={row.two_lines === true}
+                                            onChange={(e) => updateRow(index, { two_lines: e.target.checked })}
+                                            className="h-4 w-4 accent-emerald-500"
+                                        />
+                                        2 linhas
+                                    </label>
+                                ) : (
+                                    <div />
+                                )}
                                 <input
                                     type="number"
                                     min={1}
                                     value={row.extrusor_letras}
                                     onChange={(e) => updateRow(index, { extrusor_letras: toIntOrDefault(e.target.value, defaultExtrusorLetras) })}
-                                    className="col-span-2 bg-neutral-800 border border-neutral-700 rounded px-2 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                                    className="bg-neutral-800 border border-neutral-700 rounded px-2 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
                                 />
                                 <input
                                     type="number"
                                     min={1}
                                     value={row.extrusor_base}
                                     onChange={(e) => updateRow(index, { extrusor_base: toIntOrDefault(e.target.value, defaultExtrusorBase) })}
-                                    className="col-span-2 bg-neutral-800 border border-neutral-700 rounded px-2 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                                    className="bg-neutral-800 border border-neutral-700 rounded px-2 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
                                 />
-                                <div className="col-span-2 flex justify-end gap-1">
+                                <div className="flex justify-end gap-1">
                                     <button
                                         type="button"
                                         onClick={() => updateRow(index, { nome: cycleCase(row.nome) })}
