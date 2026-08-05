@@ -41,6 +41,32 @@ Ao invés de deixar o OpenSCAD deduzir a proporção com `auto=true`, informamos
 
 Em seguida, o `translate` pela metade dessas medidas posiciona o centro do desenho em `(0, 0, 0)`. Furos, argolas e elementos que buscam o centro vão atingir exatamente a posição correta.
 
+### De onde vêm `art_width` e `art_height` na prática
+
+Diferente de outros parâmetros, `art_width`/`art_height` **não aparecem em
+`parameters` no `config.json`** — eles não são um slider gerado pelo
+Server-Driven UI. Quem calcula e envia esses valores é o próprio frontend:
+
+1. O usuário faz upload do SVG/PNG; o `svgProcessor.ts` traça o conteúdo e
+   devolve a largura/altura real do desenho vetorizado (`processed.width`/
+   `processed.height` — a bounding box do traçado, não do `viewBox` do
+   arquivo original, que pode ter margem/whitespace).
+2. A página guarda essa proporção (`svgAspectRatio`) e mantém dois campos de
+   input (`artWidth`/`artHeight`, mm) que o usuário pode ajustar — travados
+   por proporção por padrão. Ver o widget "Tamanho da Arte" e os handlers
+   `handleWidthChange`/`handleHeightChange` em
+   `frontend/src/pages/GeradorTopoBoloSvg.tsx` como referência.
+3. No `handleGenerate`, `art_width`/`art_height` são anexados ao
+   `FormData` como campos soltos, junto com o arquivo SVG e os demais
+   parâmetros do `config.json`.
+
+Ou seja: para um `model.scad` novo que importa SVG, sempre declare
+`art_width`/`art_height` como variáveis de topo (com um default qualquer,
+tipicamente 50/50) — o backend as sobrescreve via `-D`, mas elas nunca
+entram no `config.json`. Isso também explica a convenção de eixos do
+projeto (ver `CRIANDO_NOVO_MODELO.md`, "Nomenclatura de dimensões"):
+`art_width` é o eixo X → "Largura"; `art_height` é o eixo Y → "Altura".
+
 ### Modelos que aplicam este padrão
 
 - `models/ponteira_lapis_svg/model.scad` — módulo `art_svg()`

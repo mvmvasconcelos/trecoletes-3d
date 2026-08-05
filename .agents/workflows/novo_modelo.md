@@ -2,6 +2,12 @@
 description: Como criar a estrutura completa para um novo modelo 3D no projeto Trecoletes-3D
 ---
 
+> No Claude Code, prefira a skill `.claude/skills/novo-modelo/SKILL.md` — ela
+> cobre o mesmo fluxo, mas começa com as perguntas de decisão (tipo de arte,
+> single vs multicolor, etc.) e termina com os passos de validação dentro dos
+> containers (render OpenSCAD, checagem trimesh, round-trip da API, `tsc`).
+> Este arquivo continua valendo como referência de campos do `config.json`.
+
 Sempre que o usuário solicitar "Crie um novo modelo", siga rigorosamente os passos abaixo para garantir que a implementação flua perfeitamente na arquitetura (React Modular no Frontend + FastAPI/OpenSCAD no Backend via Docker):
 
 1. **Criar o Diretório do Modelo no Backend:**

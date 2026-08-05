@@ -51,7 +51,7 @@ Implemente a geometria. O arquivo receberá parâmetros via flags `-D key=value`
     },
     {
       "id": "base_height",
-      "name": "Altura da Base",
+      "name": "Espessura da Base",
       "type": "range",
       "min": 1,
       "max": 10,
@@ -65,6 +65,50 @@ Implemente a geometria. O arquivo receberá parâmetros via flags `-D key=value`
 
 Campos obrigatórios: `id`, `title`, `output_format`, `parts`, `parameters`.
 Campo `text_to_svg: true` ativa a injeção automática de posições de glifos pelo backend.
+
+#### Nomenclatura de dimensões (convenção do projeto)
+
+Ao nomear (`name`) qualquer parâmetro dimensional, use sempre o eixo físico
+que ele afeta — nunca "Altura" para algo que na verdade é uma extrusão em Z:
+
+| Termo na UI | Eixo | Exemplos |
+|---|---|---|
+| **Largura** (ou **Comprimento**) | X | `plate_width`, `aba_x` |
+| **Altura** | Y | `plate_depth`, `art_height` |
+| **Espessura** | Z — inclui altura de extrusão/impressão (base, texto/arte em relevo) **e** espessura de parede no plano XY (cortadores/moldes) | `base_height`, `letter_height`, `wall_thickness` |
+
+Todas as medidas do projeto são em milímetros (`unit: "mm"`). Note que o
+exemplo acima usa "Espessura da Base" para `base_height` — é uma extrusão em
+Z, então nunca "Altura da Base", mesmo que o nome da variável no `.scad`
+tenha "height".
+
+#### Upload de arte SVG (`svg_uploads`)
+
+Modelos que recebem uma arte SVG do usuário (em vez de gerá-la por texto)
+declaram no `config.json`:
+
+```json
+"svg_uploads": ["svg_linhas_path"]
+```
+
+O valor é uma lista de nomes de campo — cada nome vira uma variável `-D`
+injetada no `model.scad` com o caminho do arquivo normalizado (ex.:
+`svg_linhas_path="/caminho/job/svg_linhas_path.svg"`). O upload é lido pelo
+form-data do `POST /api/generate_parametric/{id}` com o mesmo nome de campo.
+Veja `CENTRALIZACAO_SVG_OPENSCAD.md` para o padrão de `resize`/`translate`
+que o `.scad` deve usar para consumir esse arquivo.
+
+**Atenção:** `svg_uploads` só é processado no fluxo multipart 3MF do
+backend — exige `"output_format": "3mf"` **e** `"parts"` não vazio (mesmo
+que seja uma lista com um item só). Se o `config.json` declarar
+`"output_format": "stl"` sem `parts`, o backend cai no fluxo de STL único
+antigo, que **não lê nem injeta** os campos de `svg_uploads` — o SVG
+enviado é silenciosamente ignorado.
+
+Se o modelo precisar de duas artes relacionadas (ex.: linhas + silhueta de
+corte, como em `carimbo_eva_svg`), use o endpoint legado dedicado
+`POST /api/generate/{id}` em vez de `svg_uploads` — ver §2.1 para a
+diferença entre os dois fluxos.
 
 ### 1.4 Detecção de paredes finas (recomendado)
 
@@ -120,6 +164,12 @@ O backend possui três mecanismos de detecção de paredes finas que retornam al
 - **Opção 4 — Limiar por parâmetro** (`min_safe_mm` no parâmetro + `min_feature_size_mm`): quando um parâmetro de espessura possui `min_safe_mm` declarado e o usuário envia um valor abaixo desse limiar, o backend inclui um aviso descritivo. Útil para `letter_height`, `base_height` e similares onde o slider UI permite valores abaixo do mínimo de impressão.
 
 - **Opção 1 — Ray casting pós-geração** (`thin_wall_check: true`): após renderizar o STL, lança 300 raios nas faces verticais da parte `letters`/`svg`/`nome` e mede a espessura real por travessia de raio. Se mais de 15% das amostras tiver espessura < `min_feature_size_mm`, um aviso é emitido. Detecta problemas que não são previsíveis por parâmetros (ex.: traços finos em SVG importado).
+  **Atenção:** os nomes de parte verificados são fixos no backend —
+  `letters`, `svg`, `nome` e `verso`, apenas esses. Se a sua parte com a
+  arte/texto em relevo tiver outro nome (ex.: `relevo`, `arte`), o ray
+  casting nunca roda e nenhum aviso é gerado, mesmo com `thin_wall_check:
+  true` no `config.json`. Nesse caso, dependa só das Opções 3/4 acima, que
+  funcionam com qualquer nome de parte.
 
 > **Nota:** todos os avisos são **não-bloqueantes** — o arquivo é gerado normalmente e os alertas aparecem no campo `warnings: []` da resposta JSON. O frontend pode exibir esses avisos ao usuário antes de fazer o download.
 
@@ -128,6 +178,10 @@ O backend possui três mecanismos de detecção de paredes finas que retornam al
 Se o modelo tiver mais de uma parte/extrusor, **o `bambu_template/` é obrigatório**.
 Sem ele, o backend cai no fallback via trimesh, que ignora completamente as atribuições
 de extrusor — o `.3mf` exportado abrirá no Bambu Studio com todas as peças no extrusor 1.
+
+Se o modelo tiver **uma única parte/cor**, não crie `bambu_template/` — não
+há atribuição de extrusor a preservar. O backend detecta a ausência da pasta
+e usa o fallback via trimesh automaticamente, sem erro nem aviso.
 
 #### Estrutura mínima obrigatória
 
@@ -182,9 +236,17 @@ Com o backend configurado, os endpoints já existem automaticamente:
 
 | Tipo de modelo | Endpoint de geração |
 |---|---|
-| Paramétrico (texto, dimensões) | `POST /api/generate_parametric/meu_novo_modelo` |
-| Upload de SVG | `POST /api/generate/meu_novo_modelo` |
+| Paramétrico (texto, dimensões, sem upload) | `POST /api/generate_parametric/meu_novo_modelo` |
+| Upload de 1 arte SVG (`svg_uploads` no config, padrão atual) | `POST /api/generate_parametric/meu_novo_modelo` |
+| Upload de 2 artes SVG (linhas + silhueta, endpoint legado fixo) | `POST /api/generate/meu_novo_modelo` |
 | Config da UI | `GET /api/models/meu_novo_modelo/config` |
+
+Praticamente todo modelo novo com SVG usa o mesmo endpoint genérico
+`generate_parametric` — o que muda é só a declaração `svg_uploads` no
+`config.json` (ver §1.3). O endpoint `POST /api/generate/{id}` é legado,
+com os nomes de campo `linhas_svg`/`silhueta_svg` fixos no backend; só use
+para um modelo novo se ele realmente precisar de duas artes relacionadas
+(uma silhueta de corte derivada da arte principal).
 
 ### 2.1 Crie a página do gerador
 
@@ -288,3 +350,47 @@ import { Star } from 'lucide-react'; // escolha o ícone adequado
 ```
 
 Para a seção "Testes & Ferramentas", substitua `emerald` por `sky` nas classes.
+
+---
+
+## 3. Testando antes de integrar o frontend
+
+Nunca rode `openscad`/`npm`/`tsc` no host — sempre via `docker exec` (a
+stack dev já sobe com `docker compose up`, com `./models`, `./backend` e
+`./frontend` montados ao vivo). Checklist mínimo antes de considerar o
+modelo pronto:
+
+1. **Render isolado do `.scad`** — pega erro de sintaxe/geometria sem
+   precisar da API:
+   ```bash
+   docker exec trecoletes_backend openscad -o /tmp/test.stl \
+     -D 'art_width=60' -D 'art_height=20' -D 'part="minha_parte"' \
+     /models/meu_novo_modelo/model.scad
+   ```
+   Tem que terminar em `Simple: yes` (malha manifold), sem `ERROR`.
+
+2. **Checar a malha com trimesh** (bounding box condiz com os parâmetros
+   passados, é watertight, número de componentes faz sentido):
+   ```bash
+   docker exec trecoletes_backend python3 -c "
+   import trimesh
+   m = trimesh.load('/tmp/test.stl')
+   print(m.bounds, m.is_watertight)
+   "
+   ```
+
+3. **Round-trip real via `curl`**, simulando o multipart que o frontend vai
+   mandar (mesmos nomes de campo do `svg_uploads`/`parameters`):
+   ```bash
+   curl -s -X POST http://localhost:8000/api/generate_parametric/meu_novo_modelo \
+     -F "art_width=60" -F "art_height=20" | python3 -m json.tool
+   ```
+   Confirme que `files` tem as chaves esperadas e que não veio `error`.
+
+4. **TypeScript limpo** depois de mexer no frontend:
+   ```bash
+   docker exec trecoletes_frontend npx tsc --noEmit
+   ```
+
+Para o fluxo completo de perguntas + decisão de arquitetura + este
+checklist, use a skill `novo-modelo` (`.claude/skills/novo-modelo/SKILL.md`).
