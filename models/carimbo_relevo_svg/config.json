@@ -1,0 +1,155 @@
+{
+    "id": "carimbo_relevo_svg",
+    "title": {
+        "pt": "Carimbo em Relevo - SVG",
+        "en": "SVG Relief Stamp"
+    },
+    "output_format": "3mf",
+    "parts": ["carimbo"],
+    "svg_uploads": ["svg_linhas_path"],
+    "min_feature_size_mm": 0.8,
+    "parameters": [],
+    "sections": [
+        {
+            "name": "Dimensões da Placa",
+            "collapsed": false,
+            "parameters": [
+                {
+                    "id": "aba_x",
+                    "name": "Largura da Aba",
+                    "help_text": "Largura total de cada lado do carimbo, independente do tamanho da arte.",
+                    "type": "range",
+                    "min": 30,
+                    "max": 150,
+                    "step": 1,
+                    "default": 70,
+                    "unit": "mm"
+                },
+                {
+                    "id": "gap_x",
+                    "name": "Fresta entre Placas",
+                    "help_text": "Espaço horizontal entre as duas placas, no eixo da dobradiça.",
+                    "type": "range",
+                    "min": 0.2,
+                    "max": 3.0,
+                    "step": 0.1,
+                    "default": 0.8,
+                    "unit": "mm"
+                },
+                {
+                    "id": "margem_xy",
+                    "name": "Margem da Arte",
+                    "help_text": "Margem entre a arte e a borda externa da placa.",
+                    "type": "range",
+                    "min": 1.0,
+                    "max": 15.0,
+                    "step": 0.5,
+                    "default": 5.0,
+                    "unit": "mm"
+                }
+            ]
+        },
+        {
+            "name": "Relevo",
+            "collapsed": false,
+            "parameters": [
+                {
+                    "id": "plate_z",
+                    "name": "Espessura da Base",
+                    "type": "range",
+                    "min": 2.0,
+                    "max": 10.0,
+                    "step": 0.5,
+                    "default": 4.0,
+                    "unit": "mm",
+                    "min_safe_mm": 1.6
+                },
+                {
+                    "id": "relevo_z",
+                    "name": "Altura do Relevo Positivo",
+                    "help_text": "Altura do relevo saliente (lado macho), acima da placa.",
+                    "type": "range",
+                    "min": 0.4,
+                    "max": 5.0,
+                    "step": 0.1,
+                    "default": 2.0,
+                    "unit": "mm",
+                    "min_safe_mm": 0.4
+                },
+                {
+                    "id": "femea_z",
+                    "name": "Profundidade da Cavidade",
+                    "help_text": "Profundidade da cavidade negativa (lado fêmea).",
+                    "type": "range",
+                    "min": 0.4,
+                    "max": 6.0,
+                    "step": 0.1,
+                    "default": 2.5,
+                    "unit": "mm",
+                    "min_safe_mm": 0.4
+                },
+                {
+                    "id": "folga_xy",
+                    "name": "Folga da Cavidade",
+                    "help_text": "Folga radial da cavidade fêmea ao redor do contorno da arte.",
+                    "type": "range",
+                    "min": 0.0,
+                    "max": 1.5,
+                    "step": 0.05,
+                    "default": 0.35,
+                    "unit": "mm"
+                }
+            ]
+        },
+        {
+            "name": "Dobradiça",
+            "collapsed": true,
+            "parameters": [
+                {
+                    "id": "hinge_axis_z",
+                    "name": "Altura do Eixo",
+                    "help_text": "Altura do eixo da dobradiça acima da base da placa.",
+                    "type": "range",
+                    "min": 2.0,
+                    "max": 10.0,
+                    "step": 0.5,
+                    "default": 4.0,
+                    "unit": "mm"
+                },
+                {
+                    "id": "hinge_r",
+                    "name": "Raio dos Nós",
+                    "help_text": "Raio dos nós cilíndricos da dobradiça.",
+                    "type": "range",
+                    "min": 2.0,
+                    "max": 8.0,
+                    "step": 0.5,
+                    "default": 4.0,
+                    "unit": "mm"
+                },
+                {
+                    "id": "pin_r",
+                    "name": "Raio do Pino",
+                    "help_text": "Raio do pino/eixo da dobradiça.",
+                    "type": "range",
+                    "min": 1.0,
+                    "max": 4.0,
+                    "step": 0.1,
+                    "default": 1.8,
+                    "unit": "mm"
+                },
+                {
+                    "id": "tol",
+                    "name": "Folga de Montagem",
+                    "help_text": "Folga genérica de montagem, reaproveitada em vários encaixes da dobradiça.",
+                    "type": "range",
+                    "min": 0.1,
+                    "max": 1.5,
+                    "step": 0.05,
+                    "default": 0.6,
+                    "unit": "mm"
+                }
+            ]
+        }
+    ]
+}
