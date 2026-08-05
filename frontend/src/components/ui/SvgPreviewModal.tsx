@@ -22,6 +22,12 @@ export function SvgPreviewModal({
     const [preserveFill, setPreserveFill] = useState(true);
 
     React.useEffect(() => {
+        if (!isOpen) return;
+        setThickness(initialThickness);
+        setPreserveFill(true);
+    }, [isOpen, initialThickness]);
+
+    React.useEffect(() => {
         if (!isOpen || !svgText) return;
         let isActive = true;
         const process = async () => {
