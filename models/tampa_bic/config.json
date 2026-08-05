@@ -26,7 +26,7 @@
             "min": 5,
             "max": 50,
             "step": 1,
-            "default": 10,
+            "default": 8,
             "unit": "mm"
         },
         {
@@ -71,7 +71,7 @@
                     "name": "Linha Secundária",
                     "type": "text",
                     "placeholder": "Ex: Secretária",
-                    "default": "Secretária"
+                    "default": ""
                 },
                 {
                     "id": "text_size_2",
@@ -80,7 +80,7 @@
                     "min": 5,
                     "max": 50,
                     "step": 1,
-                    "default": 10,
+                    "default": 7,
                     "unit": "mm"
                 }
             ]
@@ -142,7 +142,7 @@
                     "min": 0.5,
                     "max": 2.0,
                     "step": 0.05,
-                    "default": 1.0
+                    "default": 1.3
                 },
                 {
                     "id": "line_spacing",

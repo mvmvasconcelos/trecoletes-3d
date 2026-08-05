@@ -2102,6 +2102,7 @@ async def generate_batch(request: Request, model_id: str):
         names = [str(item.get("nome", "")).strip() for item in names_list if item.get("nome")]
         # extrusor_overrides: lista paralela a names, cada item é {} ou {"base":N, "letters":N}
         names_extruders = []
+        names_two_lines = []
         for item in names_list:
             if not item.get("nome"):
                 continue
@@ -2116,6 +2117,12 @@ async def generate_batch(request: Request, model_id: str):
             if "extrusor_borda" in item:
                 ov["borda"] = int(item["extrusor_borda"])
             names_extruders.append(ov)
+
+            raw_two_lines = item.get("two_lines", None)
+            if raw_two_lines is None:
+                raw_two_lines = item.get("line_mode", item.get("textLineMode", False))
+            two_lines = raw_two_lines is True or str(raw_two_lines).strip().lower() in {"1", "true", "yes", "sim", "on"}
+            names_two_lines.append(two_lines)
     except Exception:
         return JSONResponse(status_code=400, content={"error": "Campo 'names' inválido. Esperado JSON array de objetos com 'nome'."})
 
@@ -2124,12 +2131,19 @@ async def generate_batch(request: Request, model_id: str):
 
     # Parâmetros base (sem 'names' e sem 'text_line_1' — será injetado por nome)
     skip_keys = {"names", "text_line_1"}
+    # No lote da tampa_bic, text_line_2 também é controlado por linha via toggle.
+    # Se vier no form global, ele sobrescreve o split por nome e invalida o recurso.
+    if model_id == "tampa_bic":
+        skip_keys.add("text_line_2")
     base_params = {k: v for k, v in form_data.items()
                    if isinstance(v, str) and k not in skip_keys}
 
     # Gera batch_id único para este job
     hasher = hashlib.md5()
     hasher.update(model_id.encode())
+    if model_id == "tampa_bic":
+        # Invalida batches antigos para garantir novo comportamento do toggle 2 linhas.
+        hasher.update(b"tampa_bic_batch_two_lines_v2")
     hasher.update(raw_names.encode())
     for k, v in sorted(base_params.items()):
         hasher.update(f"{k}={v}".encode())
@@ -2169,34 +2183,51 @@ async def generate_batch(request: Request, model_id: str):
         render_tasks = []
         seen: dict = {}  # nome_hash → job_subdir
 
-        for name, extruder_ov in zip(names, names_extruders):
+        for name, extruder_ov, two_lines in zip(names, names_extruders, names_two_lines):
             # Hash individual para cache de peça (apenas geometria, não extrusor)
             h = hashlib.md5()
             h.update(model_id.encode())
             h.update(name.encode())
+            h.update(f"two_lines={int(two_lines)}".encode())
             for k, v in sorted(base_params.items()):
                 h.update(f"{k}={v}".encode())
             name_hash = h.hexdigest()[:12]
 
             if name_hash in seen:
                 # Duplicado — STLs reutilizados, mas 3MF gerado por nome (extrusor pode diferir)
-                render_tasks.append((name, name_hash, seen[name_hash], True, extruder_ov))
+                render_tasks.append((name, name_hash, seen[name_hash], True, extruder_ov, two_lines))
             else:
                 seen[name_hash] = name_hash
-                render_tasks.append((name, name_hash, name_hash, False, extruder_ov))
+                render_tasks.append((name, name_hash, name_hash, False, extruder_ov, two_lines))
 
         # Diretórios individuais de cache dentro de batch_dir
-        def render_one(name: str, name_hash: str, src_hash: str, is_dup: bool, extruder_ov: dict = None):
+        def render_one(name: str, name_hash: str, src_hash: str, is_dup: bool, extruder_ov: dict = None, two_lines: bool = False):
             piece_dir = os.path.join(batch_dir, name_hash)
             os.makedirs(piece_dir, exist_ok=True)
 
             stl_paths = {}
 
             # Monta os args SCAD uma única vez para todas as partes
-            # split_name_on_space: divide no primeiro espaço (ex: "João Batista" → linha1 + linha2)
-            if model_config.get("split_name_on_space"):
-                name_parts = name.split(" ", 1)
-                line1 = name_parts[0]
+            if model_id == "tampa_bic":
+                # Modo 2 linhas (toggle marcado):
+                # linha secundária (cima) recebe a primeira palavra,
+                # linha primária (baixo) recebe o restante.
+                trimmed = name.strip()
+                if two_lines and len(trimmed.split()) > 1:
+                    name_parts = trimmed.split(None, 1)
+                    line2 = name_parts[0]
+                    line1 = name_parts[1]
+                else:
+                    line1, line2 = name, ""
+                print(
+                    f"[BATCH DEBUG tampa_bic] nome='{name}' two_lines={two_lines} "
+                    f"secundaria(top)='{line2}' primaria(bottom)='{line1}'",
+                    flush=True,
+                )
+            # split_name_on_space legado: divide no primeiro espaço
+            elif model_config.get("split_name_on_space"):
+                name_parts = name.strip().split(None, 1)
+                line1 = name_parts[0] if name_parts else ""
                 line2 = name_parts[1] if len(name_parts) > 1 else ""
             else:
                 line1, line2 = name, ""
@@ -2209,7 +2240,7 @@ async def generate_batch(request: Request, model_id: str):
             if model_config.get("text_to_svg"):
                 scad_args = _inject_char_positions(
                     scad_args,
-                    {"text_line_1": line1, "text_line_2": line2, **base_params},
+                    {**base_params, "text_line_1": line1, "text_line_2": line2},
                     font_path
                 )
 
@@ -2235,15 +2266,15 @@ async def generate_batch(request: Request, model_id: str):
             return name, stl_paths, None
 
         # Submete todas as tarefas únicas em paralelo (máx 4 workers)
-        unique_tasks = [(n, nh, sh, d, ov) for n, nh, sh, d, ov in render_tasks if not d]
-        dup_tasks    = [(n, nh, sh, d, ov) for n, nh, sh, d, ov in render_tasks if d]
+        unique_tasks = [(n, nh, sh, d, ov, tl) for n, nh, sh, d, ov, tl in render_tasks if not d]
+        dup_tasks    = [(n, nh, sh, d, ov, tl) for n, nh, sh, d, ov, tl in render_tasks if d]
 
         results: dict = {}  # name_hash → stl_paths
         MAX_WORKERS = 4
 
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-            futures = {pool.submit(render_one, n, nh, sh, False): nh
-                       for n, nh, sh, _, _ov in unique_tasks}
+            futures = {pool.submit(render_one, n, nh, sh, False, ov, tl): nh
+                       for n, nh, sh, _, ov, tl in unique_tasks}
             for future in as_completed(futures):
                 name_hash = futures[future]
                 name, stl_paths, err = future.result()
@@ -2257,7 +2288,7 @@ async def generate_batch(request: Request, model_id: str):
                 print(f"[BATCH] {name} done ({_batch_jobs[batch_id]['done']}/{len(unique_tasks)})", flush=True)
 
         # Duplicados: apenas incrementa contagem
-        for n, nh, sh, _, _ov in dup_tasks:
+        for n, nh, sh, _, _ov, _tl in dup_tasks:
             results[nh] = results.get(sh, {})
             with _batch_jobs_lock:
                 _batch_jobs[batch_id]["done"] += 1
@@ -2275,7 +2306,7 @@ async def generate_batch(request: Request, model_id: str):
             zip_path = os.path.join(batch_dir, f"{model_id}_batch.zip")
             with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
                 arc_name_count: dict = {}
-                for name, name_hash, src_hash, is_dup, extruder_ov in render_tasks:
+                for name, name_hash, src_hash, is_dup, extruder_ov, _two_lines in render_tasks:
                     piece_hash = src_hash if is_dup else name_hash
                     stl_paths = results.get(piece_hash)
                     if not stl_paths:

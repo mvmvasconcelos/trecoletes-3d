@@ -346,6 +346,7 @@ export default function TampaBic() {
                 progress={batchProgress}
                 downloadUrl={batchTmfUrl}
                 error={error}
+                enableTwoLineToggle={true}
             />
         </Layout>
     );
