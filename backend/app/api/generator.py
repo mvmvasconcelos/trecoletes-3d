@@ -501,6 +501,15 @@ GENERATED_DIR = os.path.join(BASE_DIR, "static", "generated")
 OPENSCAD_TIMEOUT = 300  # segundos por parte
 JOB_MAX_AGE_HOURS = 24
 
+# Modelos em teste com o binário nightly do OpenSCAD (backend Manifold, muito
+# mais rápido em booleanas). Ver backend/compare_openscad_backends.py para
+# checagem de divergência geométrica antes de expandir esta lista.
+OPENSCAD_NIGHTLY_MODELS = {"ponteira_lapis_texto", "tampa_bic"}
+
+
+def _openscad_bin(model_id: str) -> str:
+    return "openscad-nightly" if model_id in OPENSCAD_NIGHTLY_MODELS else "openscad"
+
 
 def _cleanup_old_jobs():
     """Remove diretórios de job com mais de JOB_MAX_AGE_HOURS horas."""
@@ -1889,7 +1898,7 @@ async def generate_parametric_model(request: Request, model_id: str):
             if os.path.exists(output_path):
                 return part, output_path
             cmd = [
-                "openscad", "-o", output_path,
+                _openscad_bin(model_id), "-o", output_path,
                 *scad_args_base,
                 "-D", f'part="{part}"',
                 scad_path,
@@ -2251,7 +2260,7 @@ async def generate_batch(request: Request, model_id: str):
                 if os.path.exists(out):
                     continue  # cache hit da peça
 
-                cmd = ["openscad", "-o", out,
+                cmd = [_openscad_bin(model_id), "-o", out,
                        *scad_args,
                        "-D", f'part="{part}"',
                        scad_path]
