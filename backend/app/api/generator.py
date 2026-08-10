@@ -1996,16 +1996,16 @@ async def generate_parametric_model(request: Request, model_id: str):
             generated_urls["3mf"] = f"/static/generated/{job_id}/{mf_filename}"
         else:
             try:
-                meshes = []
+                scene = trimesh.Scene()
                 for part in parts_to_render:
                     stl_path = os.path.join(job_dir, f"{model_id}_{part}.stl")
                     if os.path.exists(stl_path):
                         loaded = trimesh.load(stl_path)
                         mesh = (trimesh.util.concatenate(list(loaded.geometry.values()))
                                 if isinstance(loaded, trimesh.Scene) else loaded)
-                        meshes.append(mesh)
-                if meshes:
-                    trimesh.Scene(meshes).export(mf_filepath, file_type='3mf')
+                        scene.add_geometry(mesh, geom_name=part)
+                if len(scene.geometry):
+                    scene.export(mf_filepath, file_type='3mf')
                     generated_urls["3mf"] = f"/static/generated/{job_id}/{mf_filename}"
             except Exception as e:
                 print(f"[PARAMETRIC FALLBACK] Erro ao exportar 3MF via trimesh: {repr(e)}")

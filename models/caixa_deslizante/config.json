@@ -1,0 +1,62 @@
+{
+    "id": "caixa_deslizante",
+    "title": {
+        "pt": "Caixa com Tampa Deslizante",
+        "en": "Sliding Lid Box"
+    },
+    "output_format": "3mf",
+    "parts": ["caixa", "tampa"],
+    "parameters": [
+        {
+            "id": "ix",
+            "name": "Largura Interna",
+            "type": "range",
+            "min": 30,
+            "max": 250,
+            "step": 1,
+            "default": 78,
+            "unit": "mm"
+        },
+        {
+            "id": "iy",
+            "name": "Comprimento Interno",
+            "type": "range",
+            "min": 30,
+            "max": 300,
+            "step": 1,
+            "default": 100,
+            "unit": "mm"
+        },
+        {
+            "id": "iz",
+            "name": "Altura Interna",
+            "type": "range",
+            "min": 10,
+            "max": 150,
+            "step": 1,
+            "default": 35,
+            "unit": "mm"
+        },
+        {
+            "id": "wall",
+            "name": "Espessura da Parede",
+            "type": "range",
+            "min": 1.6,
+            "max": 6.0,
+            "step": 0.2,
+            "default": 2.8,
+            "unit": "mm"
+        },
+        {
+            "id": "tol",
+            "name": "Tolerância de Encaixe",
+            "type": "range",
+            "min": 0.05,
+            "max": 0.4,
+            "step": 0.05,
+            "default": 0.1,
+            "unit": "mm"
+        }
+    ],
+    "sections": []
+}
