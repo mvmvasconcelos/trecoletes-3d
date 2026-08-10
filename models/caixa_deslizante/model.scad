@@ -30,7 +30,7 @@ bottom_chamfer = top_chamfer; // chanfro de 45° na aresta inferior externa da B
 // --- trava (detent): saliência no piso da canaleta + rebaixo na tampa ---
 detent_len    = 4.0;  // comprimento da trava no sentido do deslizamento (Y)
 detent_width  = 0.8;  // largura da trava (X)
-detent_height = 1.0;  // altura do disco acima do piso da canaleta
+detent_height = 0.8;  // altura do disco acima do piso da canaleta
 detent_y      = 12.0; // distância da frente onde fica a trava (aprox.)
 
 // --- pega (meia-lua) atravessando a tampa ---
