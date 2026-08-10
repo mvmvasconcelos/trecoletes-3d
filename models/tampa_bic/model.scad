@@ -83,6 +83,29 @@ module text_base_2d() {
         draw_text_2d();
 }
 
+module capsule_body(capsula_start_x, base_height, tamanho_capsula, raio_ext) {
+    translate([capsula_start_x + (tamanho_capsula / 2), 0, base_height / 2])
+        rotate([0, 90, 0])
+            cyl(l = tamanho_capsula, r = raio_ext, rounding2 = raio_ext, $fn = 64);
+}
+
+module capsule_cutout(capsula_start_x, capsula_end_x, base_height, raio_bic, raio_ponta, parede_capsula, prof_cone, outline_margin) {
+    fim_do_furo = capsula_end_x - parede_capsula;
+    cone_start = fim_do_furo - prof_cone;
+    furo_start_x = min(primary_left_bound() - outline_margin, capsula_start_x, 0) - 100.0;
+    furo_length = cone_start - furo_start_x;
+
+    translate([0, 0, base_height / 2]) {
+        translate([furo_start_x, 0, 0])
+            rotate([0, 90, 0])
+                cylinder(r = raio_bic, h = furo_length + eps, $fn = 64);
+
+        translate([cone_start, 0, 0])
+            rotate([0, 90, 0])
+                cylinder(r1 = raio_bic, r2 = raio_ponta, h = prof_cone, $fn = 64);
+    }
+}
+
 module base_with_tunnel() {
     margem_fixa_capsula = 2.5;
     capsula_end_x = primary_right_bound() + margem_fixa_capsula;
@@ -96,25 +119,10 @@ module base_with_tunnel() {
                 offset(r = outline_margin, $fn = 64)
                     text_base_2d();
 
-            translate([capsula_start_x + (tamanho_capsula / 2), 0, base_height / 2])
-                rotate([0, 90, 0])
-                    cyl(l = tamanho_capsula, r = raio_ext, rounding2 = raio_ext, $fn = 64);
+            capsule_body(capsula_start_x, base_height, tamanho_capsula, raio_ext);
         }
 
-        fim_do_furo = capsula_end_x - parede_capsula;
-        cone_start = fim_do_furo - prof_cone;
-        furo_start_x = min(primary_left_bound() - outline_margin, capsula_start_x, 0) - 100.0;
-        furo_length = cone_start - furo_start_x;
-
-        translate([0, 0, base_height / 2]) {
-            translate([furo_start_x, 0, 0])
-                rotate([0, 90, 0])
-                    cylinder(r = raio_bic, h = furo_length + eps, $fn = 64);
-
-            translate([cone_start, 0, 0])
-                rotate([0, 90, 0])
-                    cylinder(r1 = raio_bic, r2 = raio_ponta, h = prof_cone, $fn = 64);
-        }
+        capsule_cutout(capsula_start_x, capsula_end_x, base_height, raio_bic, raio_ponta, parede_capsula, prof_cone, outline_margin);
     }
 }
 
