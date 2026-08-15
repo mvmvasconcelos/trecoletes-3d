@@ -1,4 +1,8 @@
-include <BOSL2/std.scad>
+// Path absoluto necessário: openscad-nightly (usado por este modelo, ver
+// OPENSCAD_NIGHTLY_MODELS em backend/app/api/generator.py) não resolve o
+// include relativo <BOSL2/...> — falha silenciosamente (só warning) e cyl()
+// vira module indefinido, sumindo com a cápsula sem erro visível.
+include </usr/share/openscad/libraries/BOSL2/std.scad>
 
 /*[Texto]*/
 text_line_1    = "Catiele";
