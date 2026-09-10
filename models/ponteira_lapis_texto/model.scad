@@ -33,6 +33,7 @@ scale_x   = 1.0;   // injetado pelo backend quando max_width é atingido
 body_min_x = 0;  // injetado pelo backend
 body_max_x = 0;  // injetado pelo backend
 body_span_x = 0; // injetado pelo backend (fallback)
+body_span_y = 0; // injetado pelo backend (fallback)
 _center_x  = (body_min_x + body_max_x) / 2;
 
 /*[Furação]*/
@@ -115,7 +116,10 @@ module base_with_tunnel() {
     text_span_x = (body_max_x != body_min_x)
         ? (body_max_x - body_min_x)
         : max(0, body_span_x - 2 * outline_margin);
-    inner_len = max(0.1, text_span_x);
+    capsule_len = max(0.1, text_span_x + 2 * outline_margin);
+    base_span_y = body_span_y > 0
+        ? body_span_y
+        : max(text_size_1, text_size_2) + 2 * outline_margin;
     outer_d = hole_diameter + 2 * wall_thickness;
 
     module capsule_x(total_len, diameter) {
@@ -131,23 +135,34 @@ module base_with_tunnel() {
         }
     }
 
+    module capsule_inside_base(total_len, diameter) {
+        intersection() {
+            capsule_x(total_len, diameter);
+            cube([total_len, base_span_y, base_height], center = true);
+        }
+    }
+
+    module base_outline_3d() {
+        linear_extrude(height = base_height)
+            offset(r = outline_margin, $fn = 60)
+                base_2d();
+    }
+
     difference() {
         union() {
-            linear_extrude(height = base_height)
-                offset(r = outline_margin, $fn = 60)
-                    base_2d();
+            base_outline_3d();
 
             // FRONTBACK: reforço estrutural com cápsula externa concêntrica ao furo.
             if (hole_orientation == "FRONTBACK") {
                 translate([0, hole_y, hole_z])
-                    capsule_x(inner_len, outer_d);
+                    capsule_inside_base(capsule_len, outer_d);
             }
         }
 
         if (hole_orientation == "FRONTBACK") {
             translate([0, hole_y, hole_z])
                 rotate([0, 90, 0])
-                    cylinder(d = hole_diameter, h = max(hole_length, inner_len + 2), center = true,
+                    cylinder(d = hole_diameter, h = max(hole_length, capsule_len + 2), center = true,
                              $fn = (hole_type == "HEXAGON") ? 6 : 100);
         } else if (hole_orientation == "TOPBOTTOM") {
             translate([hole_x, 0, hole_z])
