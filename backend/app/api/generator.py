@@ -648,14 +648,17 @@ def _xml_object_1_model(meshes: list) -> bytes:
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<model unit="millimeter" xml:lang="en-US"'
         ' xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"'
-        ' xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06">',
+        ' xmlns:BambuStudio="http://schemas.bambulab.com/package/2021"'
+        ' xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06"'
+        ' requiredextensions="p">',
         ' <metadata name="BambuStudio:3mfVersion">1</metadata>',
         ' <resources>',
     ]
     for obj_id, mesh in meshes:
         verts = mesh.vertices
         faces = mesh.faces
-        out.append(f'  <object id="{obj_id}" type="model">')
+        obj_uuid = str(uuid.uuid4())
+        out.append(f'  <object id="{obj_id}" p:UUID="{obj_uuid}" type="model">')
         out.append('   <mesh>')
         out.append('    <vertices>')
         for v in verts:
