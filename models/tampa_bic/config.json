@@ -80,7 +80,7 @@
                     "min": 5,
                     "max": 50,
                     "step": 1,
-                    "default": 7,
+                    "default": 8,
                     "unit": "mm"
                 }
             ]

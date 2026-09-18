@@ -26,7 +26,7 @@
             "min": 5,
             "max": 50,
             "step": 1,
-            "default": 9,
+            "default": 8,
             "unit": "mm"
         },
         {
@@ -80,7 +80,7 @@
                     "min": 5,
                     "max": 50,
                     "step": 1,
-                    "default": 10,
+                    "default": 8,
                     "unit": "mm"
                 }
             ]
@@ -195,10 +195,6 @@
                         {
                             "value": "TOPBOTTOM",
                             "label": "Vertical (Chaveiro/Topper)"
-                        },
-                        {
-                            "value": "NONE",
-                            "label": "Sem Furo"
                         }
                     ],
                     "default": "FRONTBACK"

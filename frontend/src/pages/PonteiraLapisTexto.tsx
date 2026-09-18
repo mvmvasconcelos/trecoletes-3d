@@ -109,7 +109,7 @@ export default function PonteiraLapisTexto() {
             const form = new FormData();
             form.append('names', JSON.stringify(rows));
             Object.entries(params)
-                .filter(([k]) => k !== 'text_line_1')
+                .filter(([k]) => k !== 'text_line_1' && k !== 'text_line_2' && k !== 'hole_orientation')
                 .forEach(([k, v]) => form.append(k, String(v ?? '')));
             const res = await axios.post(`${API_BASE}/api/generate_batch/ponteira_lapis_texto`, form);
             const id: string = res.data.batch_id;
@@ -335,6 +335,16 @@ export default function PonteiraLapisTexto() {
                 progress={batchProgress}
                 downloadUrl={batchTmfUrl}
                 error={error}
+                enableTwoLineToggle={true}
+                secondaryToggle={{
+                    field: 'hole_orientation',
+                    toggleLabel: 'Furo',
+                    options: [
+                        { value: 'FRONTBACK', label: 'Horizontal' },
+                        { value: 'TOPBOTTOM', label: 'Vertical' },
+                    ],
+                    defaultValue: 'FRONTBACK',
+                }}
             />
         </Layout>
     );

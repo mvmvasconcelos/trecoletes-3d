@@ -7,175 +7,9 @@ import { ParameterLabel } from '../components/ui/ParameterLabel';
 import Viewer3D from '../components/ui/Viewer3D';
 import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
-import { Preview2D } from '../components/ui/Preview2D';
-import { useGoogleFont } from '../hooks/useGoogleFont';
 import { FontPicker } from '../components/ui/FontPicker';
 import { BatchGenerationModal, type BatchNameEntry } from '../components/ui/BatchGenerationModal';
 import { ThinWallWarnings } from '../components/ui/ThinWallWarnings';
-
-function ChaveiroPreviewRenderer({ params }: { params: Record<string, any> }) {
-    const text = params['text_line_1'] || 'Verônica';
-    const text2 = params['text_line_2'] || '';
-    const rawFontName = params['font_name'] || 'Chewy:style=Regular';
-    const fontFamily = rawFontName.split(':')[0];
-    const textSize = Number(params['text_size_1']) || 12;
-    const textSize2 = Number(params['text_size_2']) || 8;
-    const lineSpacing = Number(params['line_spacing']) || 1.0;
-    const margin = Number(params['outline_margin']) || 2.3;
-    const spacing = Number(params['spacing']) || 1.0;
-    const ringOuter = (Number(params['ring_outer_diameter']) || 6) / 2;
-    const ringInner = (Number(params['ring_inner_diameter']) || 3) / 2;
-    const ringOffsetX = Number(params['ring_offset_x']) || -1;
-    const ringOffsetY = Number(params['ring_offset_y']) || 6;
-    const baseColor = params['base_color'] || '#1B40D1';
-    const lettersColor = params['letters_color'] || '#FFFFFF';
-
-    // Posição Y de cada linha (espelhando lógica do SCAD — SVG tem Y invertido)
-    const hasLine2 = text2.trim() !== '';
-    const lineY1 = hasLine2 ? -(textSize2 * lineSpacing * 0.6) : 0;
-    const lineY2 = hasLine2 ? (textSize * lineSpacing * 0.6) : 0;
-
-    const [textBBox, setTextBBox] = useState({ width: 0, x: 0, y: 0, height: 0 });
-    const [text2BBox, setText2BBox] = useState({ width: 0, x: 0, y: 0, height: 0 });
-    const textRef = useRef<SVGTextElement>(null);
-    const text2Ref = useRef<SVGTextElement>(null);
-
-    useGoogleFont(fontFamily);
-
-    useEffect(() => {
-        let isActive = true;
-        let timeoutId: any;
-        const measure = () => {
-            if (!isActive) return;
-            if (textRef.current) {
-                const bbox = textRef.current.getBBox();
-                setTextBBox({ width: bbox.width, x: bbox.x, y: bbox.y, height: bbox.height });
-            }
-            if (text2Ref.current) {
-                const bbox = text2Ref.current.getBBox();
-                setText2BBox({ width: bbox.width, x: bbox.x, y: bbox.y, height: bbox.height });
-            }
-        };
-
-        measure();
-
-        if (document.fonts && fontFamily) {
-            document.fonts.load(`12px "${fontFamily.split(':')[0]}"`).then(() => {
-                measure();
-                timeoutId = setTimeout(measure, 150);
-            });
-        }
-
-        const observer = new ResizeObserver(measure);
-        if (textRef.current) observer.observe(textRef.current);
-        if (text2Ref.current) observer.observe(text2Ref.current);
-
-        return () => {
-            isActive = false;
-            clearTimeout(timeoutId);
-            observer.disconnect();
-        };
-    }, [text, text2, fontFamily, textSize, textSize2, spacing, lineSpacing]);
-
-    // Bounds combinando as duas linhas
-    const allBBoxes = [textBBox, ...(hasLine2 ? [text2BBox] : [])];
-    const minX = Math.min(...allBBoxes.map(b => b.x));
-    const minY = Math.min(...allBBoxes.map(b => b.y));
-    const maxX = Math.max(...allBBoxes.map(b => b.x + b.width));
-    const maxY = Math.max(...allBBoxes.map(b => b.y + b.height));
-
-    const outlineLeftEdge = (minX || textBBox.x) - margin;
-    const ringCx = outlineLeftEdge + ringOffsetX;
-    const contentCy = (minY + maxY) / 2;
-    const ringCy = contentCy - ringOffsetY;
-
-    const leftBound = Math.min(outlineLeftEdge, ringCx - ringOuter) - 2;
-    const rightBound = Math.max(maxX + margin, ringCx + ringOuter) + 2;
-    const topBound = Math.min(minY - margin, ringCy - ringOuter) - 2;
-    const bottomBound = Math.max(maxY + margin, ringCy + ringOuter) + 2;
-    
-    const vBoxW = Math.max(rightBound - leftBound, 10);
-    const vBoxH = Math.max(bottomBound - topBound, 10);
-
-    return (
-        <svg viewBox={`${leftBound} ${topBound} ${vBoxW} ${vBoxH}`} className="w-full h-full" style={{ fontFamily }}>
-            <defs>
-                <mask id="chaveiro-hole">
-                    <rect x="-5000" y="-5000" width="10000" height="10000" fill="white" />
-                    <circle cx={ringCx} cy={ringCy} r={ringInner} fill="black" />
-                </mask>
-            </defs>
-            <g>
-                <g mask="url(#chaveiro-hole)">
-                    {/* Base outline: stroke imita offset(r) do OpenSCAD */}
-                    <text 
-                        x="0" 
-                        y={lineY1}
-                        dominantBaseline="central" 
-                        textAnchor="middle"
-                        fontSize={textSize}
-                        letterSpacing={spacing > 1.0 ? spacing : 0} 
-                        fill={baseColor}
-                        stroke={baseColor}
-                        strokeWidth={margin * 2}
-                        strokeLinejoin="round"
-                        strokeLinecap="round"
-                    >
-                        {text}
-                    </text>
-                    {hasLine2 && (
-                        <text 
-                            x="0" 
-                            y={lineY2}
-                            dominantBaseline="central" 
-                            textAnchor="middle"
-                            fontSize={textSize2}
-                            letterSpacing={spacing > 1.0 ? spacing : 0} 
-                            fill={baseColor}
-                            stroke={baseColor}
-                            strokeWidth={margin * 2}
-                            strokeLinejoin="round"
-                            strokeLinecap="round"
-                        >
-                            {text2}
-                        </text>
-                    )}
-                    <circle cx={ringCx} cy={ringCy} r={ringOuter} fill={baseColor} />
-                </g>
-                <g>
-                    {/* Letras em relevo */}
-                    <text 
-                        ref={textRef}
-                        x="0" 
-                        y={lineY1}
-                        dominantBaseline="central" 
-                        textAnchor="middle"
-                        fontSize={textSize}
-                        letterSpacing={spacing > 1.0 ? spacing : 0} 
-                        fill={lettersColor}
-                    >
-                        {text}
-                    </text>
-                    {hasLine2 && (
-                        <text 
-                            ref={text2Ref}
-                            x="0" 
-                            y={lineY2}
-                            dominantBaseline="central" 
-                            textAnchor="middle"
-                            fontSize={textSize2}
-                            letterSpacing={spacing > 1.0 ? spacing : 0} 
-                            fill={lettersColor}
-                        >
-                            {text2}
-                        </text>
-                    )}
-                </g>
-                <circle cx={ringCx} cy={ringCy} r={ringInner} fill="transparent" stroke="rgba(255,255,255,0.2)" strokeWidth={0.5} />
-            </g>
-        </svg>
-    );
-}
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -276,7 +110,7 @@ export default function ChaveiroSimples() {
             const form = new FormData();
             form.append('names', JSON.stringify(rows));
             Object.entries(params)
-                .filter(([k]) => k !== 'text_line_1')
+                .filter(([k]) => k !== 'text_line_1' && k !== 'text_line_2' && k !== 'ring_position_mode')
                 .forEach(([k, v]) => form.append(k, String(v ?? '')));
             const res = await axios.post(`${API_BASE}/api/generate_batch/chaveiro_simples`, form);
             const id: string = res.data.batch_id;
@@ -360,6 +194,31 @@ export default function ChaveiroSimples() {
                 if (p.id === 'font_name') {
                     return <FontPicker key={p.id} parameter={p} value={val} onChange={setParam} />;
                 }
+                if (p.id === 'ring_position_mode') {
+                    return (
+                        <div key={p.id} className="space-y-1">
+                            <label className="text-sm text-neutral-400">
+                                <ParameterLabel name={p.name} helpText={p.help_text} />
+                            </label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {p.options?.map((opt: any) => (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => setParam(p.id, opt.value)}
+                                        className={`py-2 rounded border text-xs font-semibold transition-colors ${
+                                            val === opt.value
+                                                ? 'bg-emerald-600 border-emerald-500 text-white'
+                                                : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:bg-neutral-700'
+                                        }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                }
                 return (
                     <div key={p.id} className="space-y-1">
                         <label className="text-sm text-neutral-400">
@@ -410,7 +269,10 @@ export default function ChaveiroSimples() {
                 </button>
                 {isOpen && (
                     <div className="px-3 pb-3 pt-2 space-y-4 bg-neutral-950 rounded-b-lg">
-                        {section.parameters?.map(renderParam)}
+                        {(section.name === 'Furação' && (params['ring_position_mode'] ?? 'left') !== 'custom'
+                            ? section.parameters?.filter((p: any) => p.id !== 'ring_offset_x' && p.id !== 'ring_offset_y')
+                            : section.parameters
+                        )?.map(renderParam)}
                     </div>
                 )}
             </div>
@@ -475,9 +337,6 @@ export default function ChaveiroSimples() {
                             modelType="default"
                             highlightArte={thinWallParts.length > 0}
                         />
-                        <Preview2D>
-                            <ChaveiroPreviewRenderer params={params} />
-                        </Preview2D>
                     </div>
                 </div>
                 {tmfUrl && (
@@ -507,6 +366,16 @@ export default function ChaveiroSimples() {
                 progress={batchProgress}
                 downloadUrl={batchTmfUrl}
                 error={error}
+                enableTwoLineToggle={true}
+                secondaryToggle={{
+                    field: 'ring_position',
+                    toggleLabel: 'Furo',
+                    options: [
+                        { value: 'left', label: 'Esq' },
+                        { value: 'top', label: 'Topo' },
+                    ],
+                    defaultValue: 'left',
+                }}
             />
         </Layout>
     );

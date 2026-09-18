@@ -504,7 +504,26 @@ JOB_MAX_AGE_HOURS = 24
 # Modelos em teste com o binário nightly do OpenSCAD (backend Manifold, muito
 # mais rápido em booleanas). Ver backend/compare_openscad_backends.py para
 # checagem de divergência geométrica antes de expandir esta lista.
-OPENSCAD_NIGHTLY_MODELS = {"ponteira_lapis_texto", "tampa_bic"}
+OPENSCAD_NIGHTLY_MODELS = {"ponteira_lapis_texto", "tampa_bic", "chaveiro_simples"}
+
+# Modelos com toggle "2 linhas" no lote (BatchGenerationModal): a primeira
+# palavra do nome vira uma linha, o restante vira a outra.
+TWO_LINE_TOGGLE_MODELS = {"tampa_bic", "chaveiro_simples", "ponteira_lapis_texto"}
+
+# Modelos com um segundo toggle por-linha no lote (BatchGenerationModal
+# secondaryToggle): campo recebido do frontend em cada item de `names`
+# (json_field), variável SCAD equivalente (scad_var, pode ter nome diferente
+# do campo JSON) e os valores aceitos.
+SECONDARY_TOGGLE_FIELDS = {
+    "chaveiro_simples": {
+        "json_field": "ring_position", "scad_var": "ring_position_mode",
+        "valid": {"left", "top"}, "default": "left",
+    },
+    "ponteira_lapis_texto": {
+        "json_field": "hole_orientation", "scad_var": "hole_orientation",
+        "valid": {"FRONTBACK", "TOPBOTTOM"}, "default": "FRONTBACK",
+    },
+}
 
 
 def _openscad_bin(model_id: str) -> str:
@@ -1167,6 +1186,21 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     global_max_y = -999999.0
     line_actual_w: dict = {}  # total_w real por linha (escala correta de _compute_char_positions)
     line_bounds_x: dict = {}
+    word_gap_rects: list = []  # bridges horizontais entre palavras (dentro da mesma linha)
+
+    try:
+        outline_margin = float(params.get("outline_margin", 2.3))
+    except ValueError:
+        outline_margin = 2.3
+    fill_word_gaps_raw = params.get("fill_word_gaps", "true")
+    fill_word_gaps = str(fill_word_gaps_raw).lower() in ("true", "1", "yes", "on")
+    has_line2 = bool(params.get("text_line_2", ""))
+    try:
+        _size1_for_gaps = float(params.get("text_size_1", 12))
+        _size2_for_gaps = float(params.get("text_size_2", 10))
+        _line_spacing_for_gaps = float(params.get("line_spacing", 1.0))
+    except ValueError:
+        _size1_for_gaps, _size2_for_gaps, _line_spacing_for_gaps = 12.0, 10.0, 1.0
 
     for line_key, size_key, chars_param, xs_param in [
         ("text_line_1", "text_size_1", "chars1", "char_xs1"),
@@ -1192,6 +1226,34 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
             xs_str = "[" + ",".join(f"{x}" for x in centered_positions) + "]"
             args.extend(["-D", f'{chars_param}="{text_val}"'])
             args.extend(["-D", f'{xs_param}={xs_str}'])
+
+            # ── Bridge horizontal entre palavras (gap causado pelo espaço) ──
+            # offset(r=outline_margin) só une caracteres vizinhos se o vão
+            # entre eles pra offset() unir de verdade; teste com "Samuel H."
+            # mostrou que um vão de 1.9mm (menor que 2*outline_margin=2mm)
+            # ainda ficava desconectado na prática — o merge teórico do
+            # offset() não é confiável perto do limiar, então preenche
+            # sempre que há espaço, com folga extra pra garantir sobreposição
+            # real com as letras vizinhas (bridge redundante é inofensivo).
+            if fill_word_gaps and line_key in ("text_line_1", "text_line_2"):
+                line_idx = 0 if line_key == "text_line_1" else 1
+                line_y = 0 if not has_line2 else (
+                    _size2_for_gaps * _line_spacing_for_gaps * 0.6 if line_idx == 0
+                    else -(_size1_for_gaps * _line_spacing_for_gaps * 0.6)
+                )
+                baseline = line_y - size_mm / 2
+                for i, ch in enumerate(text_val):
+                    if ch != " " or i == 0 or i + 1 >= len(centered_positions):
+                        continue
+                    gap_start = centered_positions[i]
+                    gap_end = centered_positions[i + 1]
+                    pad = max(outline_margin, 1.0)
+                    word_gap_rects.append((
+                        round((gap_start + gap_end) / 2, 4),
+                        round(baseline + size_mm * 0.375, 4),
+                        round((gap_end - gap_start) + 2 * pad, 4),
+                        round(size_mm * 0.75, 4),
+                    ))
             adj_min_x = data["min_x"] + center_offset
             adj_max_x = data["max_x"] + center_offset
             # Y: BoundsPen retorna coords no espaço da fonte (baseline=0).
@@ -1266,8 +1328,6 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     # ── Preencher gap VERTICAL entre linha 1 e linha 2 ─────────────────────────
     # O gap existe quando as duas linhas de texto ficam com espaço entre elas
     # e o offset() não consegue uni-las com uma margem pequena.
-    fill_word_gaps_raw = params.get("fill_word_gaps", "true")
-    fill_word_gaps = str(fill_word_gaps_raw).lower() in ("true", "1", "yes", "on")
     print(f"[FILL_GAPS_DEBUG] raw={repr(fill_word_gaps_raw)}, parsed={fill_word_gaps}", flush=True)
 
     if fill_word_gaps:
@@ -1316,10 +1376,8 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
                     x_center = 0.0   # ambas as linhas estão centralizadas em x=0
                     y_center = (bottom_line1 + top_line2) / 2
 
-                    rects_str = f"[[{round(x_center,4)},{round(y_center,4)},{round(bridge_w,4)},{round(bridge_h,4)}]]"
-                    args.extend(["-D", f"fill_gap_rects={rects_str}"])
-                    print(f"[FILL_GAPS] Bridge injected: y_center={y_center:.2f}, w={bridge_w:.2f}, h={bridge_h:.2f}", flush=True)
-                    print(f"[FILL_GAPS] SCAD arg: fill_gap_rects={rects_str}", flush=True)
+                    word_gap_rects.append((round(x_center, 4), round(y_center, 4), round(bridge_w, 4), round(bridge_h, 4)))
+                    print(f"[FILL_GAPS] Bridge vertical: y_center={y_center:.2f}, w={bridge_w:.2f}, h={bridge_h:.2f}", flush=True)
                 else:
                     print(f"[FILL_GAPS] Lines overlap {-vertical_gap:.2f}mm > threshold, no bridge needed", flush=True)
 
@@ -1329,6 +1387,11 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
                 print(traceback.format_exc(), flush=True)
         else:
             print(f"[FILL_GAPS] Skipped: need both lines ('{text_1}' / '{text_2}')", flush=True)
+
+    if word_gap_rects:
+        rects_str = "[" + ",".join(f"[{x},{y},{w},{h}]" for x, y, w, h in word_gap_rects) + "]"
+        args.extend(["-D", f"fill_gap_rects={rects_str}"])
+        print(f"[FILL_GAPS] {len(word_gap_rects)} bridge(s) injetados: {rects_str}", flush=True)
 
     import sys
     print(f"[FILL_GAPS_FINAL] Returning args with {len(args)} elements", flush=True)
@@ -2106,12 +2169,14 @@ async def generate_batch(request: Request, model_id: str):
 
     # Lê e valida a lista de nomes
     raw_names = form_data.get("names", "[]")
+    secondary_cfg = SECONDARY_TOGGLE_FIELDS.get(model_id)
     try:
         names_list = json.loads(raw_names)
         names = [str(item.get("nome", "")).strip() for item in names_list if item.get("nome")]
         # extrusor_overrides: lista paralela a names, cada item é {} ou {"base":N, "letters":N}
         names_extruders = []
         names_two_lines = []
+        names_secondary = []
         for item in names_list:
             if not item.get("nome"):
                 continue
@@ -2132,27 +2197,34 @@ async def generate_batch(request: Request, model_id: str):
                 raw_two_lines = item.get("line_mode", item.get("textLineMode", False))
             two_lines = raw_two_lines is True or str(raw_two_lines).strip().lower() in {"1", "true", "yes", "sim", "on"}
             names_two_lines.append(two_lines)
+
+            if secondary_cfg:
+                raw_secondary = str(item.get(secondary_cfg["json_field"], secondary_cfg["default"])).strip()
+                match = next((v for v in secondary_cfg["valid"] if v.lower() == raw_secondary.lower()), secondary_cfg["default"])
+                names_secondary.append(match)
+            else:
+                names_secondary.append(None)
     except Exception:
         return JSONResponse(status_code=400, content={"error": "Campo 'names' inválido. Esperado JSON array de objetos com 'nome'."})
 
     if not names:
         return JSONResponse(status_code=400, content={"error": "Lista de nomes vazia."})
 
-    # Parâmetros base (sem 'names' e sem 'text_line_1' — será injetado por nome)
-    skip_keys = {"names", "text_line_1"}
-    # No lote da tampa_bic, text_line_2 também é controlado por linha via toggle.
-    # Se vier no form global, ele sobrescreve o split por nome e invalida o recurso.
-    if model_id == "tampa_bic":
-        skip_keys.add("text_line_2")
+    # Parâmetros base (sem 'names', 'text_line_1' e 'text_line_2' — sempre
+    # recalculados por nome em render_one, nunca herdados da view principal).
+    skip_keys = {"names", "text_line_1", "text_line_2"}
+    if secondary_cfg:
+        # Esse campo também é escolhido por linha no lote (ver names_secondary).
+        skip_keys.add(secondary_cfg["scad_var"])
     base_params = {k: v for k, v in form_data.items()
                    if isinstance(v, str) and k not in skip_keys}
 
     # Gera batch_id único para este job
     hasher = hashlib.md5()
     hasher.update(model_id.encode())
-    if model_id == "tampa_bic":
+    if model_id in TWO_LINE_TOGGLE_MODELS:
         # Invalida batches antigos para garantir novo comportamento do toggle 2 linhas.
-        hasher.update(b"tampa_bic_batch_two_lines_v2")
+        hasher.update(b"two_lines_toggle_v3")
     hasher.update(raw_names.encode())
     for k, v in sorted(base_params.items()):
         hasher.update(f"{k}={v}".encode())
@@ -2192,25 +2264,26 @@ async def generate_batch(request: Request, model_id: str):
         render_tasks = []
         seen: dict = {}  # nome_hash → job_subdir
 
-        for name, extruder_ov, two_lines in zip(names, names_extruders, names_two_lines):
+        for name, extruder_ov, two_lines, secondary_value in zip(names, names_extruders, names_two_lines, names_secondary):
             # Hash individual para cache de peça (apenas geometria, não extrusor)
             h = hashlib.md5()
             h.update(model_id.encode())
             h.update(name.encode())
             h.update(f"two_lines={int(two_lines)}".encode())
+            h.update(f"secondary_value={secondary_value}".encode())
             for k, v in sorted(base_params.items()):
                 h.update(f"{k}={v}".encode())
             name_hash = h.hexdigest()[:12]
 
             if name_hash in seen:
                 # Duplicado — STLs reutilizados, mas 3MF gerado por nome (extrusor pode diferir)
-                render_tasks.append((name, name_hash, seen[name_hash], True, extruder_ov, two_lines))
+                render_tasks.append((name, name_hash, seen[name_hash], True, extruder_ov, two_lines, secondary_value))
             else:
                 seen[name_hash] = name_hash
-                render_tasks.append((name, name_hash, name_hash, False, extruder_ov, two_lines))
+                render_tasks.append((name, name_hash, name_hash, False, extruder_ov, two_lines, secondary_value))
 
         # Diretórios individuais de cache dentro de batch_dir
-        def render_one(name: str, name_hash: str, src_hash: str, is_dup: bool, extruder_ov: dict = None, two_lines: bool = False):
+        def render_one(name: str, name_hash: str, src_hash: str, is_dup: bool, extruder_ov: dict = None, two_lines: bool = False, secondary_value: str = None):
             piece_dir = os.path.join(batch_dir, name_hash)
             os.makedirs(piece_dir, exist_ok=True)
 
@@ -2233,6 +2306,15 @@ async def generate_batch(request: Request, model_id: str):
                     f"secundaria(top)='{line2}' primaria(bottom)='{line1}'",
                     flush=True,
                 )
+            elif model_id in ("chaveiro_simples", "ponteira_lapis_texto"):
+                # Modo 2 linhas (toggle marcado): linha 1 (cima) recebe a
+                # primeira palavra, linha 2 (baixo) recebe o restante.
+                trimmed = name.strip()
+                if two_lines and len(trimmed.split()) > 1:
+                    name_parts = trimmed.split(None, 1)
+                    line1, line2 = name_parts[0], name_parts[1]
+                else:
+                    line1, line2 = name, ""
             # split_name_on_space legado: divide no primeiro espaço
             elif model_config.get("split_name_on_space"):
                 name_parts = name.strip().split(None, 1)
@@ -2242,6 +2324,8 @@ async def generate_batch(request: Request, model_id: str):
                 line1, line2 = name, ""
             scad_args = ["-D", _to_scad_assignment("text_line_1", line1),
                          "-D", _to_scad_assignment("text_line_2", line2)]
+            if secondary_cfg:
+                scad_args.extend(["-D", _to_scad_assignment(secondary_cfg["scad_var"], secondary_value)])
             for k, v in base_params.items():
                 scad_args.extend(["-D", _to_scad_assignment(k, v)])
 
@@ -2275,15 +2359,15 @@ async def generate_batch(request: Request, model_id: str):
             return name, stl_paths, None
 
         # Submete todas as tarefas únicas em paralelo (máx 4 workers)
-        unique_tasks = [(n, nh, sh, d, ov, tl) for n, nh, sh, d, ov, tl in render_tasks if not d]
-        dup_tasks    = [(n, nh, sh, d, ov, tl) for n, nh, sh, d, ov, tl in render_tasks if d]
+        unique_tasks = [(n, nh, sh, d, ov, tl, sv) for n, nh, sh, d, ov, tl, sv in render_tasks if not d]
+        dup_tasks    = [(n, nh, sh, d, ov, tl, sv) for n, nh, sh, d, ov, tl, sv in render_tasks if d]
 
         results: dict = {}  # name_hash → stl_paths
         MAX_WORKERS = 4
 
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-            futures = {pool.submit(render_one, n, nh, sh, False, ov, tl): nh
-                       for n, nh, sh, _, ov, tl in unique_tasks}
+            futures = {pool.submit(render_one, n, nh, sh, False, ov, tl, sv): nh
+                       for n, nh, sh, _, ov, tl, sv in unique_tasks}
             for future in as_completed(futures):
                 name_hash = futures[future]
                 name, stl_paths, err = future.result()
@@ -2297,7 +2381,7 @@ async def generate_batch(request: Request, model_id: str):
                 print(f"[BATCH] {name} done ({_batch_jobs[batch_id]['done']}/{len(unique_tasks)})", flush=True)
 
         # Duplicados: apenas incrementa contagem
-        for n, nh, sh, _, _ov, _tl in dup_tasks:
+        for n, nh, sh, _, _ov, _tl, _sv in dup_tasks:
             results[nh] = results.get(sh, {})
             with _batch_jobs_lock:
                 _batch_jobs[batch_id]["done"] += 1
@@ -2315,7 +2399,7 @@ async def generate_batch(request: Request, model_id: str):
             zip_path = os.path.join(batch_dir, f"{model_id}_batch.zip")
             with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
                 arc_name_count: dict = {}
-                for name, name_hash, src_hash, is_dup, extruder_ov, _two_lines in render_tasks:
+                for name, name_hash, src_hash, is_dup, extruder_ov, _two_lines, _secondary_value in render_tasks:
                     piece_hash = src_hash if is_dup else name_hash
                     stl_paths = results.get(piece_hash)
                     if not stl_paths:

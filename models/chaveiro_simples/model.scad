@@ -15,10 +15,11 @@ spacing        = 1.0;                 // Espaçamento entre letras (1.0 = normal
 line_spacing   = 1.0;                 // Fator de distância entre linhas
 
 /*[Argola]*/
+ring_position_mode  = "left"; // "left" | "top" | "custom"
 ring_outer_diameter = 6.0;
 ring_inner_diameter = 3.0;
-ring_offset_x = -0.6;
-ring_offset_y = 6.0;
+ring_offset_x = -0.6; // usado só no modo "custom"
+ring_offset_y = 6.0;  // usado só no modo "custom"
 
 /*[Cores]*/
 base_color    = "#1B40D1";
@@ -35,6 +36,11 @@ char_xs2 = [];
 body_min_x = 0; // Injetado pelo backend
 body_max_x = 0; // Injetado pelo backend
 body_span_x = 0; // Injetado pelo backend
+body_max_y = 0; // Injetado pelo backend — SUBestima a altura real (testado:
+                // sempre igual ou abaixo do topo real da tinta), por isso só
+                // serve como âncora "com certeza dentro do texto", nunca pra
+                // decidir a folga de segurança do furo (isso usa a tabela por
+                // fonte, que precisa SOBREestimar).
 
 /*[Preenchimento de Gaps]*/
 fill_gap_rects = [];  // Retângulos para preencher gaps entre linhas, injetado pelo backend
@@ -49,9 +55,59 @@ function _line_y(i) =
     (i == 0) ?  (_sizes[1] * line_spacing * 0.6) :
                -(_sizes[0] * line_spacing * 0.6);
 
-// Cálculo automático da argola: se temos a largura total, ela vai para a borda esquerda
-final_ring_x = (body_min_x != 0 || body_max_x != 0) ? body_min_x - outline_margin + ring_offset_x : ((body_span_x > 0) ? -(body_span_x / 2) + ring_offset_x : ring_offset_x);
-final_ring_y = 0 + ring_offset_y; // Inicia em 0 conforme solicitado
+// ── Posição da argola ──────────────────────────────────────────────────────
+// "left" é o preset já existente (borda esquerda, centralizado em Y).
+// "top" fica centralizado em X (texto já é centralizado em x=0 pelo backend)
+// e usa uma estimativa de altura baseada só em text_size_1 — NÃO nos bounds
+// físicos da fonte (body_min/max_y, injetados pelo backend), porque medição
+// mostrou erro de ~3mm no topo pra fontes decorativas como Chewy (a análise
+// de fonte em Python não bate com o que o OpenSCAD renderiza; a base bate,
+// só o topo diverge — bug pré-existente, fora de escopo consertar aqui).
+// A argola fica centrada em (topo estimado + raio interno): a borda do furo
+// interno para exatamente na folga de segurança (não corta letra), e a borda
+// externa da argola necessariamente mergulha na base por 1x a espessura do
+// anel (raio externo - raio interno) — union() só gera peça conectada de
+// verdade se as formas se sobrepõem; só "encostar" sem sobrepor deixa a
+// argola solta, flutuando (testado e comprovado insuficiente).
+// "custom" usa os offsets manuais a partir da borda esquerda (comportamento
+// anterior, preservado para quem já ajustava manualmente).
+//
+// A folga usa 3 faixas por caractere (testei alfabeto + acentos nas 6
+// fontes): minúscula comum (baixa) < maiúscula/ascendente/dígito (média) <
+// acentuada (alta, pior caso — Pacifico chega a 1.14x o tamanho). Usar só o
+// pior caso da fonte inteira (ex.: nomes sem acento) deixava a argola muito
+// mais alta do que precisava, e o conector até ela ficava comprido/feio —
+// olhar os caracteres reais do nome encolhe a folga no caso comum.
+_tier1_chars    = "acemnorsuvwxz";                     // minúscula baixa
+_accented_chars = "ÁÉÍÓÚÂÊÔÃÕÀÜáéíóúâêôãõàü";           // acentuada
+
+function _char_tier(ch) =
+    (len(search(ch, _accented_chars)) > 0) ? 3 :
+    (len(search(ch, _tier1_chars)) > 0) ? 1 :
+    2; // maiúscula, dígito, ascendente (b,d,f,h,k,l,t) ou pontuação: assume médio
+
+function _text_max_tier(t, i = 0, acc = 1) =
+    (i >= len(t)) ? acc :
+    _text_max_tier(t, i + 1, max(acc, _char_tier(t[i])));
+
+function _ring_top_factor(fname, tier) =
+    (fname == "Chewy:style=Regular")        ? (tier == 3 ? 0.95 : tier == 2 ? 0.70 : 0.45) :
+    (fname == "Bangers:style=Regular")      ? (tier == 3 ? 1.20 : tier == 2 ? 0.70 : 0.65) :
+    (fname == "Leckerli One:style=Regular") ? (tier == 3 ? 1.10 : tier == 2 ? 0.70 : 0.35) :
+    (fname == "Pacifico:style=Regular")     ? (tier == 3 ? 1.30 : tier == 2 ? 0.95 : 0.30) :
+    (fname == "Comic Neue:style=Regular")   ? (tier == 3 ? 0.90 : tier == 2 ? 0.60 : 0.30) :
+    (fname == "Oswald:style=Regular")       ? (tier == 3 ? 1.10 : tier == 2 ? 0.75 : 0.45) :
+    1.30; // fonte desconhecida: pior caso medido (tier 3 do Pacifico)
+
+_ring_left_x = (body_min_x != 0 || body_max_x != 0) ? body_min_x - outline_margin : ((body_span_x > 0) ? -(body_span_x / 2) : 0);
+_ring_top_y  = _line_y(0) + text_size_1 * _ring_top_factor(font_name, _text_max_tier(text_line_1)); // topo estimado da linha 1, com folga
+
+final_ring_x = (ring_position_mode == "top")  ? 0
+             : (ring_position_mode == "left") ? _ring_left_x
+             : _ring_left_x + ring_offset_x; // custom
+final_ring_y = (ring_position_mode == "top")  ? (_ring_top_y + ring_inner_diameter / 2)
+             : (ring_position_mode == "left") ? 0
+             : ring_offset_y; // custom
 
 /*[Direção]*/
 text_halign = "left";
@@ -116,6 +172,23 @@ module ring_2d() {
         circle(d = ring_outer_diameter, $fn = 50);
 }
 
+// Conecta fisicamente a argola do preset "top" à base. Sem isso a argola só
+// "quase encosta" no contorno (testado e comprovado insuficiente — a folga
+// de segurança contra letras varia demais por fonte pra confiar num toque
+// exato). A ponte desce até o baseline da linha 1, que está sempre dentro/
+// abaixo da tinta real, garantindo sobreposição de verdade com o contorno.
+module ring_top_connector_2d() {
+    // body_max_y (subestimado, ver comentário acima) encosta a base da haste
+    // bem mais perto do texto do que o baseline. Sem injeção (fallback raro,
+    // preview sem backend), cai pro baseline — mais longo, mas ainda seguro.
+    conn_bottom = (body_max_y != 0) ? body_max_y : (_line_y(0) - text_size_1 / 2);
+    stem_r = ring_inner_diameter / 2;
+    hull() {
+        translate([0, final_ring_y, 0]) circle(r = stem_r, $fn = 30);
+        translate([0, conn_bottom, 0])  circle(r = stem_r, $fn = 30);
+    }
+}
+
 module base_with_hole() {
     difference() {
         linear_extrude(height = base_height) {
@@ -123,6 +196,8 @@ module base_with_hole() {
                 offset(r = outline_margin, $fn = 60)
                     base_2d();
                 ring_2d();
+                if (ring_position_mode == "top")
+                    ring_top_connector_2d();
             }
         }
         hole();

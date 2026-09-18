@@ -1,11 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Trash2, Upload, X } from 'lucide-react';
+import { ArrowLeftRight, Plus, Trash2, Upload, X } from 'lucide-react';
+
+export type SecondaryToggleOption = { value: string; label: string };
+
+// Toggle genérico de 2 estados por linha do lote (ex: posição do furo do
+// chaveiro "Esq/Topo", orientação do furo da ponteira "Horizontal/Vertical").
+// O valor fica guardado em row[field], mesmo nome de campo esperado pelo backend.
+export type SecondaryToggleConfig = {
+    field: string;
+    toggleLabel: string;
+    options: [SecondaryToggleOption, SecondaryToggleOption];
+    defaultValue: string;
+};
 
 export type BatchNameEntry = {
     nome: string;
     extrusor_base: number;
     extrusor_letras: number;
     two_lines?: boolean;
+    [key: string]: any;
 };
 
 type BatchProgress = {
@@ -27,15 +40,18 @@ interface BatchGenerationModalProps {
     title?: string;
     downloadLabel?: string;
     enableTwoLineToggle?: boolean;
+    secondaryToggle?: SecondaryToggleConfig;
 }
 
-function makeEmptyRow(defaultExtrusorBase: number, defaultExtrusorLetras: number): BatchNameEntry {
-    return {
+function makeEmptyRow(defaultExtrusorBase: number, defaultExtrusorLetras: number, secondaryToggle?: SecondaryToggleConfig): BatchNameEntry {
+    const row: BatchNameEntry = {
         nome: '',
         extrusor_base: defaultExtrusorBase,
         extrusor_letras: defaultExtrusorLetras,
         two_lines: false,
     };
+    if (secondaryToggle) row[secondaryToggle.field] = secondaryToggle.defaultValue;
+    return row;
 }
 
 function toTitleCase(text: string): string {
@@ -57,18 +73,27 @@ function toIntOrDefault(value: unknown, fallback: number): number {
     return Number.isInteger(n) && n > 0 ? n : fallback;
 }
 
-function normalizeRows(rows: BatchNameEntry[]): BatchNameEntry[] {
+function normalizeRows(rows: BatchNameEntry[], secondaryToggle?: SecondaryToggleConfig): BatchNameEntry[] {
     return rows
-        .map((row) => ({
-            nome: row.nome.trim(),
-            extrusor_base: toIntOrDefault(row.extrusor_base, 1),
-            extrusor_letras: toIntOrDefault(row.extrusor_letras, 1),
-            two_lines: row.two_lines === true,
-        }))
+        .map((row) => {
+            const normalized: BatchNameEntry = {
+                nome: row.nome.trim(),
+                extrusor_base: toIntOrDefault(row.extrusor_base, 1),
+                extrusor_letras: toIntOrDefault(row.extrusor_letras, 1),
+                two_lines: row.two_lines === true,
+            };
+            if (secondaryToggle) {
+                const values = secondaryToggle.options.map((o) => o.value);
+                normalized[secondaryToggle.field] = values.includes(row[secondaryToggle.field])
+                    ? row[secondaryToggle.field]
+                    : secondaryToggle.defaultValue;
+            }
+            return normalized;
+        })
         .filter((row) => row.nome.length > 0);
 }
 
-function parseJsonRows(content: string, defaultExtrusorBase: number, defaultExtrusorLetras: number): BatchNameEntry[] {
+function parseJsonRows(content: string, defaultExtrusorBase: number, defaultExtrusorLetras: number, secondaryToggle?: SecondaryToggleConfig): BatchNameEntry[] {
     const parsed = JSON.parse(content) as unknown;
     if (!Array.isArray(parsed)) {
         throw new Error('JSON deve ser uma lista.');
@@ -84,6 +109,7 @@ function parseJsonRows(content: string, defaultExtrusorBase: number, defaultExtr
                 extrusor_base: defaultExtrusorBase,
                 extrusor_letras: defaultExtrusorLetras,
                 two_lines: false,
+                ...(secondaryToggle ? { [secondaryToggle.field]: secondaryToggle.defaultValue } : {}),
             });
             continue;
         }
@@ -92,12 +118,18 @@ function parseJsonRows(content: string, defaultExtrusorBase: number, defaultExtr
             const obj = item as Record<string, unknown>;
             const nome = String(obj.nome ?? '').trim();
             if (!nome) continue;
-            rows.push({
+            const row: BatchNameEntry = {
                 nome,
                 extrusor_base: toIntOrDefault(obj.extrusor_base, defaultExtrusorBase),
                 extrusor_letras: toIntOrDefault(obj.extrusor_letras, defaultExtrusorLetras),
                 two_lines: obj.two_lines === true || obj.two_lines === 'true' || obj.two_lines === 1 || obj.two_lines === '1' || obj.textLineMode === '2' || obj.line_mode === '2',
-            });
+            };
+            if (secondaryToggle) {
+                const values = secondaryToggle.options.map((o) => o.value);
+                const raw = obj[secondaryToggle.field];
+                row[secondaryToggle.field] = values.includes(raw as string) ? raw : secondaryToggle.defaultValue;
+            }
+            rows.push(row);
             continue;
         }
 
@@ -107,16 +139,17 @@ function parseJsonRows(content: string, defaultExtrusorBase: number, defaultExtr
     return rows;
 }
 
-function parseTextRows(content: string, defaultExtrusorBase: number, defaultExtrusorLetras: number): BatchNameEntry[] {
+function parseTextRows(content: string, defaultExtrusorBase: number, defaultExtrusorLetras: number, secondaryToggle?: SecondaryToggleConfig): BatchNameEntry[] {
     return content
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter((line) => line.length > 0)
-        .map((nome) => ({
+        .map((nome): BatchNameEntry => ({
             nome,
             extrusor_base: defaultExtrusorBase,
             extrusor_letras: defaultExtrusorLetras,
             two_lines: false,
+            ...(secondaryToggle ? { [secondaryToggle.field]: secondaryToggle.defaultValue } : {}),
         }));
 }
 
@@ -171,19 +204,16 @@ export function BatchGenerationModal({
     title = 'Gerar em Lotes',
     downloadLabel = 'Baixar Lote (ZIP)',
     enableTwoLineToggle = false,
+    secondaryToggle,
 }: BatchGenerationModalProps) {
-    const [rows, setRows] = useState<BatchNameEntry[]>(() => [makeEmptyRow(defaultExtrusorBase, defaultExtrusorLetras)]);
+    const [rows, setRows] = useState<BatchNameEntry[]>(() => [makeEmptyRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)]);
     const [localError, setLocalError] = useState<string | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
-    const snapshotRef = useRef<string>('');
     const previousDownloadUrlRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (!isOpen) return;
-        const normalized = normalizeRows(rows);
-        snapshotRef.current = JSON.stringify(normalized);
         setLocalError(null);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only reset snapshot when the modal opens, not on every `rows` change
     }, [isOpen]);
 
     useEffect(() => {
@@ -197,7 +227,7 @@ export function BatchGenerationModal({
         previousDownloadUrlRef.current = downloadUrl;
     }, [downloadUrl, isOpen]);
 
-    const normalizedRows = useMemo(() => normalizeRows(rows), [rows]);
+    const normalizedRows = useMemo(() => normalizeRows(rows, secondaryToggle), [rows, secondaryToggle]);
 
     const duplicateInfo = useMemo(() => {
         const counter = new Map<string, number>();
@@ -216,29 +246,16 @@ export function BatchGenerationModal({
         };
     }, [normalizedRows]);
 
-    const hasChanges = useMemo(() => {
-        const current = JSON.stringify(normalizedRows);
-        return current !== snapshotRef.current;
-    }, [normalizedRows]);
-
     if (!isOpen) return null;
 
-    const requestClose = () => {
-        if (hasChanges) {
-            const confirmed = window.confirm('Existem alteracoes nao salvas. Deseja fechar mesmo assim?');
-            if (!confirmed) return;
-        }
-        onClose();
-    };
-
     const addRow = () => {
-        setRows((prev) => [...prev, makeEmptyRow(defaultExtrusorBase, defaultExtrusorLetras)]);
+        setRows((prev) => [...prev, makeEmptyRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)]);
     };
 
     const removeRow = (index: number) => {
         setRows((prev) => {
             if (prev.length <= 1) {
-                return [makeEmptyRow(defaultExtrusorBase, defaultExtrusorLetras)];
+                return [makeEmptyRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)];
             }
             return prev.filter((_, i) => i !== index);
         });
@@ -246,6 +263,22 @@ export function BatchGenerationModal({
 
     const updateRow = (index: number, patch: Partial<BatchNameEntry>) => {
         setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    };
+
+    const toggleAllTwoLines = () => {
+        setRows((prev) => {
+            const allOn = prev.every((row) => row.two_lines === true);
+            return prev.map((row) => ({ ...row, two_lines: !allOn }));
+        });
+    };
+
+    const toggleAllSecondary = () => {
+        if (!secondaryToggle) return;
+        const [optA, optB] = secondaryToggle.options;
+        setRows((prev) => {
+            const allB = prev.every((row) => row[secondaryToggle.field] === optB.value);
+            return prev.map((row) => ({ ...row, [secondaryToggle.field]: allB ? optA.value : optB.value }));
+        });
     };
 
     const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -258,8 +291,8 @@ export function BatchGenerationModal({
             try {
                 const content = String(ev.target?.result ?? '');
                 const imported = fileNameLower.endsWith('.json')
-                    ? parseJsonRows(content, defaultExtrusorBase, defaultExtrusorLetras)
-                    : parseTextRows(content, defaultExtrusorBase, defaultExtrusorLetras);
+                    ? parseJsonRows(content, defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)
+                    : parseTextRows(content, defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle);
 
                 if (imported.length === 0) {
                     setLocalError('Arquivo vazio ou sem nomes validos.');
@@ -286,15 +319,24 @@ export function BatchGenerationModal({
         if (isGenerating) return;
         const confirmed = window.confirm('Tem certeza que deseja apagar todas as linhas?');
         if (!confirmed) return;
-        setRows([makeEmptyRow(defaultExtrusorBase, defaultExtrusorLetras)]);
+        setRows([makeEmptyRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)]);
         setLocalError(null);
     };
+
+    const gridCols = [
+        'minmax(0,1fr)',
+        enableTwoLineToggle && '7.25rem',
+        secondaryToggle && '7.25rem',
+        '5.5rem',
+        '5.5rem',
+        '5.5rem',
+    ].filter(Boolean).join(' ');
 
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4"
             onClick={(e) => {
-                if (e.target === e.currentTarget) requestClose();
+                if (e.target === e.currentTarget) onClose();
             }}
         >
             <div className="w-full max-w-4xl max-h-[90vh] bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl flex flex-col overflow-hidden">
@@ -305,7 +347,7 @@ export function BatchGenerationModal({
                     </div>
                     <button
                         type="button"
-                        onClick={requestClose}
+                        onClick={onClose}
                         className="w-9 h-9 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white flex items-center justify-center transition-colors"
                         aria-label="Fechar modal"
                     >
@@ -314,9 +356,28 @@ export function BatchGenerationModal({
                 </div>
 
                 <div className="px-4 py-4 sm:px-5 space-y-3 overflow-y-auto min-h-0 flex-1">
-                    <div className="grid grid-cols-[minmax(0,1fr)_7.25rem_5.5rem_5.5rem_5.5rem] gap-2 text-[11px] uppercase tracking-wider text-neutral-500 px-1">
+                    <div className="grid gap-2 text-[11px] uppercase tracking-wider text-neutral-500 px-1" style={{ gridTemplateColumns: gridCols }}>
                         <span>Nome</span>
-                        <span>{enableTwoLineToggle ? '2 Linhas' : ''}</span>
+                        {enableTwoLineToggle && (
+                            <button
+                                type="button"
+                                onClick={toggleAllTwoLines}
+                                className="flex items-center justify-center gap-1 hover:text-emerald-400 transition-colors"
+                                title="Alternar 2 Linhas em todas as linhas"
+                            >
+                                2 Linhas <ArrowLeftRight className="w-3 h-3" />
+                            </button>
+                        )}
+                        {secondaryToggle && (
+                            <button
+                                type="button"
+                                onClick={toggleAllSecondary}
+                                className="flex items-center justify-center gap-1 hover:text-emerald-400 transition-colors"
+                                title={`Alternar ${secondaryToggle.toggleLabel.toLowerCase()} em todas as linhas`}
+                            >
+                                {secondaryToggle.toggleLabel} <ArrowLeftRight className="w-3 h-3" />
+                            </button>
+                        )}
                         <span>Letra</span>
                         <span>Base</span>
                         <span className="text-right">Acao</span>
@@ -324,7 +385,7 @@ export function BatchGenerationModal({
 
                     <div className="space-y-2">
                         {rows.map((row, index) => (
-                            <div key={`batch-row-${index}`} className="grid grid-cols-[minmax(0,1fr)_7.25rem_5.5rem_5.5rem_5.5rem] gap-2">
+                            <div key={`batch-row-${index}`} className="grid gap-2" style={{ gridTemplateColumns: gridCols }}>
                                 <input
                                     type="text"
                                     value={row.nome}
@@ -332,7 +393,7 @@ export function BatchGenerationModal({
                                     placeholder="Digite um nome"
                                     className="bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
                                 />
-                                {enableTwoLineToggle ? (
+                                {enableTwoLineToggle && (
                                     <label className="h-10 inline-flex items-center justify-center gap-2 rounded border border-neutral-700 bg-neutral-800 px-2 text-xs text-neutral-200 cursor-pointer select-none">
                                         <input
                                             type="checkbox"
@@ -342,8 +403,20 @@ export function BatchGenerationModal({
                                         />
                                         2 linhas
                                     </label>
-                                ) : (
-                                    <div />
+                                )}
+                                {secondaryToggle && (
+                                    <div className="h-10 inline-flex rounded border border-neutral-700 overflow-hidden text-xs">
+                                        {secondaryToggle.options.map((opt) => (
+                                            <button
+                                                key={opt.value}
+                                                type="button"
+                                                onClick={() => updateRow(index, { [secondaryToggle.field]: opt.value })}
+                                                className={`flex-1 font-medium transition-colors ${row[secondaryToggle.field] === opt.value ? 'bg-emerald-600 text-white' : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'}`}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
                                 )}
                                 <input
                                     type="number"
