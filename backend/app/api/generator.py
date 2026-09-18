@@ -289,15 +289,13 @@ def _png_bytes_to_svg(png_bytes: bytes, dilate_px: int = 0) -> bytes:
     import io
     import tempfile
     try:
-        from PIL import Image
-        if dilate_px > 0:
-            from PIL import ImageFilter
+        from PIL import Image, ImageFilter
     except ImportError:
         raise RuntimeError("Pillow não está instalado. Adicione 'Pillow' ao requirements.txt.")
 
     # Pré-processa: achata transparência sobre fundo branco (senão pixels
     # transparentes com RGB preto por baixo viram preto ao perder o alpha),
-    # depois grayscale → threshold → 1-bit para potrace
+    # depois grayscale → blur leve → threshold → 1-bit para potrace
     img = Image.open(io.BytesIO(png_bytes))
     if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
         img = img.convert("RGBA")
@@ -305,6 +303,12 @@ def _png_bytes_to_svg(png_bytes: bytes, dilate_px: int = 0) -> bytes:
         background.paste(img, mask=img.split()[-1])
         img = background
     img = img.convert("L")
+    # Suaviza ruído de compressão/antialiasing antes de binarizar, senão o
+    # threshold duro traça esse ruído como serrilhado no contorno vetorizado.
+    # ponytail: raio fixo, não escala com a resolução da imagem; se imagens
+    # muito grandes ou muito pequenas voltarem a serrilhar, calcular o raio
+    # proporcional ao tamanho (ex.: min(w,h)/400) em vez de um valor fixo.
+    img = img.filter(ImageFilter.GaussianBlur(1.5))
     img = img.point(lambda p: 0 if p < 128 else 255, "L")
     if dilate_px > 0:
         img = img.filter(ImageFilter.MinFilter(size=2 * dilate_px + 1))
@@ -324,6 +328,8 @@ def _png_bytes_to_svg(png_bytes: bytes, dilate_px: int = 0) -> bytes:
             [
                 "potrace", "--svg", "-o", "-",
                 "--turdsize", "2",
+                "--opttolerance", "0.6",
+                "--alphamax", "1.3",
                 tf_path,
             ],
             capture_output=True,

@@ -104,48 +104,54 @@ export default function ConversorPngSvg() {
                             ctx.fillRect(0, 0, width, height);
                             ctx.drawImage(img, 0, 0, width, height);
 
-                            const source = ctx.getImageData(0, 0, width, height);
-                            const size = width * height;
-                            let mask = new Uint8Array(size);
-
-                            for (let i = 0, px = 0; i < source.data.length; i += 4, px++) {
-                                const r = source.data[i];
-                                const g = source.data[i + 1];
-                                const b = source.data[i + 2];
-                                const a = source.data[i + 3];
-                                const luminance = (r * 0.299) + (g * 0.587) + (b * 0.114);
-                                mask[px] = a > 32 && luminance < 245 ? 1 : 0;
-                            }
-
                             const passes = Math.max(0, Math.min(20, Math.round(thickness)));
-                            for (let pass = 0; pass < passes; pass++) {
-                                const next = new Uint8Array(size);
-                                for (let y = 0; y < height; y++) {
-                                    const row = y * width;
-                                    for (let x = 0; x < width; x++) {
-                                        const idx = row + x;
-                                        if (!mask[idx]) continue;
-                                        for (let ny = Math.max(0, y - 1); ny <= Math.min(height - 1, y + 1); ny++) {
-                                            const nRow = ny * width;
-                                            for (let nx = Math.max(0, x - 1); nx <= Math.min(width - 1, x + 1); nx++) {
-                                                next[nRow + nx] = 1;
+                            // Sem espessura extra, mantém o canvas com antialiasing original —
+                            // binarizar aqui destrói o degradê da borda e o backend traça o
+                            // serrilhado resultante. A máscara binária só é necessária para
+                            // "engordar" o traço (passes > 0).
+                            if (passes > 0) {
+                                const source = ctx.getImageData(0, 0, width, height);
+                                const size = width * height;
+                                let mask = new Uint8Array(size);
+
+                                for (let i = 0, px = 0; i < source.data.length; i += 4, px++) {
+                                    const r = source.data[i];
+                                    const g = source.data[i + 1];
+                                    const b = source.data[i + 2];
+                                    const a = source.data[i + 3];
+                                    const luminance = (r * 0.299) + (g * 0.587) + (b * 0.114);
+                                    mask[px] = a > 32 && luminance < 245 ? 1 : 0;
+                                }
+
+                                for (let pass = 0; pass < passes; pass++) {
+                                    const next = new Uint8Array(size);
+                                    for (let y = 0; y < height; y++) {
+                                        const row = y * width;
+                                        for (let x = 0; x < width; x++) {
+                                            const idx = row + x;
+                                            if (!mask[idx]) continue;
+                                            for (let ny = Math.max(0, y - 1); ny <= Math.min(height - 1, y + 1); ny++) {
+                                                const nRow = ny * width;
+                                                for (let nx = Math.max(0, x - 1); nx <= Math.min(width - 1, x + 1); nx++) {
+                                                    next[nRow + nx] = 1;
+                                                }
                                             }
                                         }
                                     }
+                                    mask = next;
                                 }
-                                mask = next;
-                            }
 
-                            const output = ctx.createImageData(width, height);
-                            for (let px = 0, i = 0; px < size; px++, i += 4) {
-                                const on = mask[px] === 1;
-                                const value = on ? 0 : 255;
-                                output.data[i] = value;
-                                output.data[i + 1] = value;
-                                output.data[i + 2] = value;
-                                output.data[i + 3] = 255;
+                                const output = ctx.createImageData(width, height);
+                                for (let px = 0, i = 0; px < size; px++, i += 4) {
+                                    const on = mask[px] === 1;
+                                    const value = on ? 0 : 255;
+                                    output.data[i] = value;
+                                    output.data[i + 1] = value;
+                                    output.data[i + 2] = value;
+                                    output.data[i + 3] = 255;
+                                }
+                                ctx.putImageData(output, 0, 0);
                             }
-                            ctx.putImageData(output, 0, 0);
 
                             canvas.toBlob((blob) => {
                                 URL.revokeObjectURL(objectUrl);
