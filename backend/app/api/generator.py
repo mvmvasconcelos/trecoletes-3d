@@ -1397,6 +1397,29 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     return args
 
 
+def _render_part(part: str, scad_args: list[str], scad_path: str, output_path: str, font_path: str) -> str | Exception:
+    """
+    Renderiza uma parte via openscad-nightly com timeout. Reaproveita o STL
+    existente (cache de peça). Não levanta — devolve output_path em sucesso
+    ou a Exception (TimeoutError/RuntimeError) em falha, para o chamador
+    decidir o que fazer com peças que falham sem derrubar as demais.
+    """
+    if os.path.exists(output_path):
+        return output_path
+    cmd = ["openscad-nightly", "-o", output_path, *scad_args, "-D", f'part="{part}"', scad_path]
+    env = os.environ.copy()
+    env["OPENSCAD_FONT_PATH"] = font_path
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True, env=env, timeout=OPENSCAD_TIMEOUT)
+        return output_path
+    except subprocess.TimeoutExpired:
+        return TimeoutError(f"OpenSCAD timeout ({OPENSCAD_TIMEOUT}s) na parte '{part}'")
+    except subprocess.CalledProcessError as e:
+        return RuntimeError(e.stderr)
+    except Exception as e:
+        return RuntimeError(f"Erro inesperado na parte '{part}': {repr(e)}")
+
+
 @router.post("/clear_cache")
 async def clear_cache():
     """Remove todos os arquivos e diretórios gerados em static/generated."""
@@ -1572,32 +1595,8 @@ async def generate_model(
 
     def render_part(part: str) -> tuple[str, str] | tuple[str, Exception]:
         """Renderiza uma parte via OpenSCAD. Retorna (part, output_path) ou (part, exceção)."""
-        output_filename = f"{model_id}_{part}.stl"
-        output_path = os.path.join(job_dir, output_filename)
-
-        # Reutiliza STL existente (pode ocorrer quando o 3MF anterior falhou)
-        if os.path.exists(output_path):
-            return part, output_path
-
-        cmd = [
-            "openscad-nightly",
-            "-o", output_path,
-            *scad_variables_base,
-            "-D", f'part="{part}"',
-            scad_path,
-        ]
-        env = os.environ.copy()
-        env["OPENSCAD_FONT_PATH"] = font_path
-        try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True,
-                           env=env, timeout=OPENSCAD_TIMEOUT)
-            return part, output_path
-        except subprocess.TimeoutExpired:
-            return part, TimeoutError(f"OpenSCAD timeout ({OPENSCAD_TIMEOUT}s) na parte '{part}'")
-        except subprocess.CalledProcessError as e:
-            return part, RuntimeError(e.stderr)
-        except Exception as e:
-            return part, RuntimeError(f"Erro inesperado na parte '{part}': {repr(e)}")
+        output_path = os.path.join(job_dir, f"{model_id}_{part}.stl")
+        return part, _render_part(part, scad_variables_base, scad_path, output_path, font_path)
 
     # Renderiza as 3 partes em paralelo
     generated_urls = {}
@@ -1805,28 +1804,8 @@ async def generate_parametric_model(request: Request, model_id: str):
             )
 
         def render_part(part: str) -> tuple:
-            output_filename = f"{model_id}_{part}.stl"
-            output_path = os.path.join(job_dir, output_filename)
-            if os.path.exists(output_path):
-                return part, output_path
-            cmd = [
-                "openscad-nightly", "-o", output_path,
-                *scad_args_base,
-                "-D", f'part="{part}"',
-                scad_path,
-            ]
-            env = os.environ.copy()
-            env["OPENSCAD_FONT_PATH"] = font_path
-            try:
-                subprocess.run(cmd, check=True, capture_output=True, text=True,
-                               env=env, timeout=OPENSCAD_TIMEOUT)
-                return part, output_path
-            except subprocess.TimeoutExpired:
-                return part, TimeoutError(f"OpenSCAD timeout ({OPENSCAD_TIMEOUT}s) na parte '{part}'")
-            except subprocess.CalledProcessError as e:
-                return part, RuntimeError(e.stderr)
-            except Exception as e:
-                return part, RuntimeError(repr(e))
+            output_path = os.path.join(job_dir, f"{model_id}_{part}.stl")
+            return part, _render_part(part, scad_args_base, scad_path, output_path, font_path)
 
         generated_urls = {}
         errors = {}
@@ -2162,20 +2141,9 @@ async def generate_batch(request: Request, model_id: str):
                 out = os.path.join(piece_dir, f"{model_id}_{part}.stl")
                 stl_paths[part] = out
 
-                if os.path.exists(out):
-                    continue  # cache hit da peça
-
-                cmd = ["openscad-nightly", "-o", out,
-                       *scad_args,
-                       "-D", f'part="{part}"',
-                       scad_path]
-                env = os.environ.copy()
-                env["OPENSCAD_FONT_PATH"] = font_path
-                try:
-                    subprocess.run(cmd, check=True, capture_output=True,
-                                   text=True, env=env, timeout=OPENSCAD_TIMEOUT)
-                except Exception as exc:
-                    return name, None, str(exc)
+                result = _render_part(part, scad_args, scad_path, out, font_path)
+                if isinstance(result, Exception):
+                    return name, None, str(result)
 
             return name, stl_paths, None
 
