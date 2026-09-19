@@ -10,8 +10,6 @@
         "svg"
     ],
     "svg_uploads": ["svg_linhas_path"],
-    "min_feature_size_mm": 0.8,
-    "thin_wall_check": true,
     "parameters": [],
     "sections": [
         {
@@ -43,8 +41,7 @@
                     "max": 5.0,
                     "step": 0.2,
                     "default": 0.8,
-                    "unit": "mm",
-                    "min_safe_mm": 0.4
+                    "unit": "mm"
                 },
                 {
                     "id": "letter_height",
@@ -54,8 +51,7 @@
                     "max": 3.0,
                     "step": 0.2,
                     "default": 0.8,
-                    "unit": "mm",
-                    "min_safe_mm": 0.4
+                    "unit": "mm"
                 }
             ]
         },

@@ -7,8 +7,6 @@
   "output_format": "3mf",
   "parts": ["base", "borda", "letras"],
   "text_to_svg": true,
-  "min_feature_size_mm": 0.8,
-  "thin_wall_check": true,
   "parameters": [
     {
       "id": "text_line_1",
@@ -54,8 +52,7 @@
           "max": 5.0,
           "step": 0.2,
           "default": 2.0,
-          "unit": "mm",
-          "min_safe_mm": 0.4
+          "unit": "mm"
         },
         {
           "id": "border_height",

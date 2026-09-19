@@ -9,7 +9,6 @@ import Viewer3D from '../components/ui/Viewer3D';
 import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 import { FontPicker } from '../components/ui/FontPicker';
-import { ThinWallWarnings } from '../components/ui/ThinWallWarnings';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -34,8 +33,6 @@ export default function LetreiraSocial() {
     const [letrasUrl, setLetrasUrl] = useState<string | null>(null);
     const [tmfUrl, setTmfUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [warnings, setWarnings] = useState<string[]>([]);
-    const [thinWallParts, setThinWallParts] = useState<string[]>([]);
 
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
@@ -79,7 +76,7 @@ export default function LetreiraSocial() {
 
     const handleGenerate = async () => {
         setIsGenerating(true);
-        setError(null); setWarnings([]); setBaseUrl(null); setBordaUrl(null); setLetrasUrl(null); setTmfUrl(null); setFromCache(null);
+        setError(null); setBaseUrl(null); setBordaUrl(null); setLetrasUrl(null); setTmfUrl(null); setFromCache(null);
         try {
             const form = new FormData();
             Object.entries(params).forEach(([k, v]) => form.append(k, String(v ?? '')));
@@ -90,8 +87,6 @@ export default function LetreiraSocial() {
                 if (res.data.files.letras) setLetrasUrl(`${API_BASE}${res.data.files.letras}`);
                 if (res.data.files['3mf']) setTmfUrl(`${API_BASE}${res.data.files['3mf']}`);
                 setFromCache(res.data.from_cache ?? false);
-                setWarnings(res.data.warnings ?? []);
-                setThinWallParts(res.data.thin_wall_parts ?? []);
             }
         } catch (err: any) {
             setError(err?.response?.data?.error ?? 'Erro desconhecido');
@@ -264,7 +259,6 @@ export default function LetreiraSocial() {
                     {error && (
                         <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-sm text-red-300">{error}</div>
                     )}
-                    <ThinWallWarnings warnings={warnings} />
                 </div>
                 <div className="p-4 border-t border-neutral-800 bg-neutral-950 space-y-3">
                     <div className="flex gap-2">
@@ -299,7 +293,6 @@ export default function LetreiraSocial() {
                             artColor={(params['letters_color'] as string) ?? '#FFFFFF'}
                             modelColor={(params['base_color'] as string) ?? '#C8A46E'}
                             modelType="default"
-                            highlightArte={thinWallParts.length > 0}
                             extraMeshes={bordaUrl ? [{ url: bordaUrl, color: bordaColor }] : []}
                         />
                     </div>

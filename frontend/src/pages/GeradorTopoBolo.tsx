@@ -9,7 +9,6 @@ import Viewer3D from '../components/ui/Viewer3D';
 import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 import { FontPicker } from '../components/ui/FontPicker';
-import { ThinWallWarnings } from '../components/ui/ThinWallWarnings';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -39,8 +38,6 @@ export default function GeradorTopoBolo() {
     const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
     const [batchProgress, setBatchProgress] = useState<{done: number, total: number} | null>(null);
     const [batchTmfUrl, setBatchTmfUrl] = useState<string | null>(null);
-    const [warnings, setWarnings] = useState<string[]>([]);
-    const [thinWallParts, setThinWallParts] = useState<string[]>([]);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const { fromCache, setFromCache, isClearingCache, clearCache } = useCacheManagement();
 
@@ -77,7 +74,7 @@ export default function GeradorTopoBolo() {
 
     const handleGenerate = async () => {
         setIsGenerating(true);
-        setError(null); setWarnings([]); setBaseUrl(null); setLettersUrl(null); setTmfUrl(null); setFromCache(null);
+        setError(null); setBaseUrl(null); setLettersUrl(null); setTmfUrl(null); setFromCache(null);
         try {
             const form = new FormData();
             Object.entries(params).forEach(([k, v]) => form.append(k, String(v ?? '')));
@@ -87,8 +84,6 @@ export default function GeradorTopoBolo() {
                 if (res.data.files.letters) setLettersUrl(`${API_BASE}${res.data.files.letters}`);
                 if (res.data.files['3mf']) setTmfUrl(`${API_BASE}${res.data.files['3mf']}`);
                 setFromCache(res.data.from_cache ?? false);
-                setWarnings(res.data.warnings ?? []);
-                setThinWallParts(res.data.thin_wall_parts ?? []);
             }
         } catch (err: any) {
             setError(err?.response?.data?.error ?? 'Erro desconhecido');
@@ -256,7 +251,6 @@ export default function GeradorTopoBolo() {
                     {error && (
                         <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-sm text-red-300">{error}</div>
                     )}
-                    <ThinWallWarnings warnings={warnings} />
                 </div>
                 <div className="p-4 border-t border-neutral-800 bg-neutral-950 space-y-3">
                     <div className="flex gap-2">
@@ -292,7 +286,6 @@ export default function GeradorTopoBolo() {
                             artColor={(params['letters_color'] as string) ?? '#FF0000'}
                             modelColor={(params['base_color'] as string) ?? '#FFFFFF'}
                             modelType="default"
-                            highlightArte={thinWallParts.length > 0}
                         />
                     </div>
                 </div>

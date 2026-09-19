@@ -6,7 +6,6 @@
     },
     "output_format": "stl",
     "parts": ["cortador"],
-    "min_feature_size_mm": 0.8,
     "parameters": [
         {
             "id": "wall_height",
@@ -28,8 +27,7 @@
             "min": 1.2,
             "max": 5.0,
             "step": 0.2,
-            "unit": "mm",
-            "min_safe_mm": 1.2
+            "unit": "mm"
         },
         {
             "id": "brim_width",

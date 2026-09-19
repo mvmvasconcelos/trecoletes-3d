@@ -62,8 +62,8 @@ Frontend: duplique a página mais próxima em `frontend/src/pages/` (ex.:
 ## Passo 2 — Backend (`models/<id>/`)
 
 Siga `docs/CRIANDO_NOVO_MODELO.md` §1 — inclui `svg_uploads`, o gotcha do
-fluxo 3MF multipart, quando `bambu_template/` é dispensável, a whitelist de
-nomes do `thin_wall_check` e a convenção de nomenclatura de eixos
+fluxo 3MF multipart, quando `bambu_template/` é dispensável e a convenção de
+nomenclatura de eixos
 (**Largura/Comprimento = X, Altura = Y, Espessura = Z**, tudo em mm — nunca
 rotule uma extrusão em Z como "Altura"). Não repita esse conteúdo aqui; só o
 que ainda não está documentado:

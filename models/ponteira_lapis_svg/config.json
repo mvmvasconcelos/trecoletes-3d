@@ -9,8 +9,6 @@
         "base",
         "svg"
     ],
-    "min_feature_size_mm": 0.8,
-    "thin_wall_check": true,
     "parameters": [],
     "sections": [
         {
@@ -41,8 +39,7 @@
                     "max": 10.0,
                     "step": 0.1,
                     "default": 0.8,
-                    "unit": "mm",
-                    "min_safe_mm": 0.4
+                    "unit": "mm"
                 },
                 {
                     "id": "base_height",

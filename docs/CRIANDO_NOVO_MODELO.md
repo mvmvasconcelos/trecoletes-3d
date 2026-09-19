@@ -110,70 +110,7 @@ corte, como em `carimbo_eva_svg`), use o endpoint legado dedicado
 `POST /api/generate/{id}` em vez de `svg_uploads` — ver §2.1 para a
 diferença entre os dois fluxos.
 
-### 1.4 Detecção de paredes finas (recomendado)
-
-O backend possui três mecanismos de detecção de paredes finas que retornam alertas no campo `warnings` da resposta. Para ativá-los, adicione os campos abaixo no `config.json`:
-
-| Campo | Tipo | Quando usar |
-|---|---|---|
-| `min_feature_size_mm` | `number` | Sempre que o modelo tiver texto ou arte SVG. Valor recomendado: `0.8` (2 perímetros com bico 0.4 mm). |
-| `thin_wall_check` | `boolean` | Modelos com texto (`text_to_svg: true`) ou partes SVG. Ativa o ray casting pós-geração na parte `letters`, `svg` ou `nome`. |
-| `min_safe_mm` | `number` (por parâmetro) | Parâmetros de espessura cujo valor mínimo permitido pela UI é menor que o mínimo seguro de impressão. |
-
-**Exemplo completo de config.json com detecção ativada:**
-
-```json
-{
-  "id": "meu_novo_modelo",
-  "title": { "pt": "Meu Novo Modelo", "en": "My New Model" },
-  "output_format": "3mf",
-  "parts": ["base", "letters"],
-  "text_to_svg": true,
-  "min_feature_size_mm": 0.8,
-  "thin_wall_check": true,
-  "parameters": [
-    {
-      "id": "text_size_1",
-      "name": "Tamanho do Texto",
-      "type": "range",
-      "min": 5,
-      "max": 50,
-      "step": 1,
-      "default": 10,
-      "unit": "mm"
-    },
-    {
-      "id": "letter_height",
-      "name": "Altura do Relevo",
-      "type": "range",
-      "min": 0.2,
-      "max": 5.0,
-      "step": 0.1,
-      "default": 1.2,
-      "unit": "mm",
-      "min_safe_mm": 0.4
-    }
-  ]
-}
-```
-
-**Como os três mecanismos funcionam:**
-
-- **Opção 3 — Estimativa de espessura do traço** (`text_to_svg: true` + `min_feature_size_mm`): antes de gerar, o backend estima a espessura mínima do traço como `text_size × 0.12` (conservador para fontes cursivas/display). Se essa estimativa ficar abaixo de `min_feature_size_mm`, um aviso é adicionado indicando o tamanho mínimo seguro. Executa também em cache hits (sem custo extra).
-
-- **Opção 4 — Limiar por parâmetro** (`min_safe_mm` no parâmetro + `min_feature_size_mm`): quando um parâmetro de espessura possui `min_safe_mm` declarado e o usuário envia um valor abaixo desse limiar, o backend inclui um aviso descritivo. Útil para `letter_height`, `base_height` e similares onde o slider UI permite valores abaixo do mínimo de impressão.
-
-- **Opção 1 — Ray casting pós-geração** (`thin_wall_check: true`): após renderizar o STL, lança 300 raios nas faces verticais da parte `letters`/`svg`/`nome` e mede a espessura real por travessia de raio. Se mais de 15% das amostras tiver espessura < `min_feature_size_mm`, um aviso é emitido. Detecta problemas que não são previsíveis por parâmetros (ex.: traços finos em SVG importado).
-  **Atenção:** os nomes de parte verificados são fixos no backend —
-  `letters`, `svg`, `nome` e `verso`, apenas esses. Se a sua parte com a
-  arte/texto em relevo tiver outro nome (ex.: `relevo`, `arte`), o ray
-  casting nunca roda e nenhum aviso é gerado, mesmo com `thin_wall_check:
-  true` no `config.json`. Nesse caso, dependa só das Opções 3/4 acima, que
-  funcionam com qualquer nome de parte.
-
-> **Nota:** todos os avisos são **não-bloqueantes** — o arquivo é gerado normalmente e os alertas aparecem no campo `warnings: []` da resposta JSON. O frontend pode exibir esses avisos ao usuário antes de fazer o download.
-
-### 1.5 Adicione o template Bambu Studio (**obrigatório para modelos multicolor**)
+### 1.4 Adicione o template Bambu Studio (**obrigatório para modelos multicolor**)
 
 Se o modelo tiver mais de uma parte/extrusor, **o `bambu_template/` é obrigatório**.
 Sem ele, o backend cai no fallback via trimesh, que ignora completamente as atribuições
@@ -251,7 +188,7 @@ para um modelo novo se ele realmente precisar de duas artes relacionadas
 ### 2.1 Crie a página do gerador
 
 Duplique uma página existente em `frontend/src/pages/` que se assemelhe ao novo modelo:
-- Modelos com texto → copiar `PonteiraLapisTexto.tsx` ou `TampaCaneta.tsx`
+- Modelos com texto → copiar `PonteiraLapisTexto.tsx` ou `TampaBic.tsx`
 - Modelos com SVG → copiar `PonteiraLapisSvg.tsx` ou `CortadorBolacha.tsx`
 
 Renomeie para `MeuNovoModelo.tsx` e troque todas as referências ao `model_id` antigo pelo novo.

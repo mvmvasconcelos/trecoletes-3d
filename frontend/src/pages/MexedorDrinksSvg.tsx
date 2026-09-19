@@ -9,7 +9,6 @@ import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 import { SvgPreviewModal } from '../components/ui/SvgPreviewModal';
 import { processSvgFile } from '../svgProcessor';
-import { ThinWallWarnings } from '../components/ui/ThinWallWarnings';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -35,8 +34,6 @@ export default function MexedorDrinksSvg() {
     const [versoUrl, setVersoUrl] = useState<string | null>(null);
     const [tmfUrl, setTmfUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [warnings, setWarnings] = useState<string[]>([]);
-    const [thinWallParts, setThinWallParts] = useState<string[]>([]);
 
     // SVG / PNG upload
     const [svgFile, setSvgFile] = useState<File | null>(null);
@@ -242,7 +239,7 @@ export default function MexedorDrinksSvg() {
     const handleGenerate = async () => {
         if (!svgPreview) return;
         setIsGenerating(true);
-        setError(null); setWarnings([]); setBaseUrl(null); setSvgUrl(null); setVersoUrl(null); setTmfUrl(null); setFromCache(null);
+        setError(null); setBaseUrl(null); setSvgUrl(null); setVersoUrl(null); setTmfUrl(null); setFromCache(null);
         try {
             const form = new FormData();
             form.append(
@@ -280,8 +277,6 @@ export default function MexedorDrinksSvg() {
                 if (res.data.files.verso) setVersoUrl(`${API_BASE}${res.data.files.verso}`);
                 if (res.data.files['3mf']) setTmfUrl(`${API_BASE}${res.data.files['3mf']}`);
                 setFromCache(res.data.from_cache ?? false);
-                setWarnings(res.data.warnings ?? []);
-                setThinWallParts(res.data.thin_wall_parts ?? []);
             }
         } catch (err: any) {
             setError(err?.response?.data?.error ?? 'Erro desconhecido');
@@ -586,7 +581,6 @@ export default function MexedorDrinksSvg() {
                     {error && (
                         <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-sm text-red-300">{error}</div>
                     )}
-                    <ThinWallWarnings warnings={warnings} />
                 </div>
 
                 <div className="p-4 border-t border-neutral-800 bg-neutral-950">
@@ -614,7 +608,6 @@ export default function MexedorDrinksSvg() {
                             artColor={(params['letters_color'] as string) ?? '#FF0000'}
                             modelColor={(params['base_color'] as string) ?? '#FFFFFF'}
                             modelType="default"
-                            highlightArte={thinWallParts.length > 0}
                             extraMeshes={versoUrl ? [{ url: versoUrl, color: (params['verso_color'] as string) ?? '#FFFFFF' }] : []}
                         />
                     </div>
