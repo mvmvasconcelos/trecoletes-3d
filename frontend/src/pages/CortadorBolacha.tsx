@@ -1,14 +1,15 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 import { Upload, Sliders } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
 import { SvgPreviewModal } from '../components/ui/SvgPreviewModal';
 import Viewer3D from '../components/ui/Viewer3D';
-import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
-import { ParameterLabel } from '../components/ui/ParameterLabel';
-import { processSvgFile } from '../svgProcessor';
+import { ParameterField } from '../components/ui/ParameterField';
+import { useModelGenerate } from '../hooks/useModelGenerate';
+import { useSvgUpload } from '../hooks/useSvgUpload';
 
+const MODEL_ID = 'cortador_bolacha';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 async function downloadBlob(url: string, filename: string) {
@@ -23,32 +24,19 @@ async function downloadBlob(url: string, filename: string) {
 }
 
 export default function CortadorBolacha() {
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [carimbBaseUrl, setCarimbBaseUrl] = useState<string | null>(null);
-    const [carimbArteUrl, setCarimbArteUrl] = useState<string | null>(null);
-    const [cortadorUrl, setCortadorUrl] = useState<string | null>(null);
-    const [tmfUrl, setTmfUrl] = useState<string | null>(null);
-    const { fromCache, setFromCache, isClearingCache, clearCache } = useCacheManagement();
-
-    const handleClearCache = () => clearCache(() => {
-        setCarimbBaseUrl(null); setCarimbArteUrl(null); setCortadorUrl(null); setTmfUrl(null);
-    });
+    const { config, params, setParam, isGenerating, error, files, fromCache, isClearingCache, clearCache, generate } =
+        useModelGenerate(MODEL_ID);
 
     const [artColor, setArtColor] = useState('#f5f0e8');
     const [modelColor, setModelColor] = useState('#34d399');
 
-    const [svgFile, setSvgFile] = useState<File | null>(null);
-    const [svgText, setSvgText] = useState<string | null>(null);
-
-    const [modelConfig, setModelConfig] = useState<any>(null);
-    const [dynamicParams, setDynamicParams] = useState<Record<string, any>>({});
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isConvertingPng, setIsConvertingPng] = useState(false);
-
-    const [artHeight, setArtHeight] = useState(70);
-    const [artWidth, setArtWidth] = useState(70);
-    const [lockAspectRatio, setLockAspectRatio] = useState(true);
-    const [svgAspectRatio, setSvgAspectRatio] = useState(1.0);
+    const {
+        svgFile, svgText, svgPreview, setSvgPreview,
+        artWidth, artHeight,
+        lockAspectRatio, setLockAspectRatio,
+        isModalOpen, setIsModalOpen, isConvertingPng, fileInputRef,
+        triggerFilePicker, handleHeightChange, handleWidthChange, handleSvgUpload,
+    } = useSvgUpload({ initialWidth: 70, initialHeight: 70, lineThickness: () => params['line_offset'] ?? 0.5 });
 
     type CutterShape = 'silhouette' | 'square' | 'circle' | 'rectangle' | 'hexagon' | 'ellipse';
     const [cutterShape, setCutterShape] = useState<CutterShape>('silhouette');
@@ -57,7 +45,7 @@ export default function CortadorBolacha() {
     const [cutterWDraft, setCutterWDraft] = useState('78');
     const [cutterHDraft, setCutterHDraft] = useState('78');
 
-    const currentSilhouetteExp = dynamicParams['silhouette_exp'] ?? 4.0;
+    const currentSilhouetteExp = params['silhouette_exp'] ?? 4.0;
     const minCutterW = artWidth + currentSilhouetteExp * 2;
     const minCutterH = artHeight + currentSilhouetteExp * 2;
 
@@ -84,118 +72,15 @@ export default function CortadorBolacha() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [cutterShape]);
 
-    const [svgPreview, setSvgPreview] = useState<{ originalSvg: string; thickenedSvg: string; silhouetteSvg: string; } | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    React.useEffect(() => {
-        let isMounted = true;
-        const fetchConfig = async () => {
-            try {
-                const res = await axios.get(`${API_BASE}/api/models/cortador_bolacha/config`);
-                if (isMounted && res.data && res.data.parameters) {
-                    setModelConfig(res.data);
-                    const initialParams: Record<string, any> = {};
-                    res.data.parameters.forEach((param: any) => {
-                        initialParams[param.id] = param.default;
-                    });
-                    setDynamicParams(initialParams);
-                }
-            } catch (err) {
-                console.error("Erro ao carregar configuração:", err);
-            }
-        };
-        fetchConfig();
-        return () => { isMounted = false; };
-    }, []);
-
-    const triggerFilePicker = () => {
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-            fileInputRef.current.click();
-        }
-    };
-
-    const handleDynamicParamChange = (id: string, value: any) => setDynamicParams(prev => ({ ...prev, [id]: value }));
-    const handleHeightChange = (val: number) => {
-        setArtHeight(val);
-        if (lockAspectRatio) setArtWidth(Math.round(val * svgAspectRatio * 10) / 10);
-    };
-    const handleWidthChange = (val: number) => {
-        setArtWidth(val);
-        if (lockAspectRatio) setArtHeight(Math.round(val / svgAspectRatio * 10) / 10);
-    };
-
-    const _processSvgText = async (text: string) => {
-        setSvgText(text);
-        try {
-            const currentLineOffset = dynamicParams['line_offset'] ?? 0.5;
-            const processed = await processSvgFile(text, currentLineOffset, 3.0);
-            setSvgPreview(processed);
-
-            // Aspect ratio from the traced content's own bounding box (processed.width/height,
-            // computed by svgProcessor.ts from the actual path geometry) — NOT from the source
-            // SVG's viewBox/width/height attributes, which reflect the full image canvas and can
-            // include transparent/white margin around the actual artwork. A square canvas with an
-            // off-center non-square drawing would read as a 1:1 ratio if parsed from the raw SVG
-            // dimensions, even though the real content isn't square.
-            let ratio = 1.0;
-            if (processed && processed.width > 0 && processed.height > 0) {
-                ratio = processed.width / processed.height;
-            }
-            setSvgAspectRatio(ratio);
-            setArtWidth(70);
-            setArtHeight(Math.round((70 / ratio) * 10) / 10);
-
-            setIsModalOpen(true);
-        } catch (err) {
-            console.error("SVG Processing Error:", err);
-            alert("Erro ao processar o arquivo SVG.");
-        }
-    };
-
-    const handleSvgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setSvgFile(file);
-        const fileIsPng = file.name.toLowerCase().endsWith('.png') || file.type === 'image/png';
-        if (fileIsPng) {
-            setIsConvertingPng(true);
-            try {
-                const form = new FormData();
-                form.append('file', file, file.name);
-                const res = await axios.post<string>(
-                    `${API_BASE}/api/convert/png-to-svg`,
-                    form,
-                    { responseType: 'text' }
-                );
-                await _processSvgText(res.data);
-            } catch (err: any) {
-                alert(`Erro ao converter PNG: ${err?.response?.data?.error ?? 'Falha desconhecida'}`);
-            } finally {
-                setIsConvertingPng(false);
-            }
-            return;
-        }
-        const reader = new FileReader();
-        reader.onload = async (evt) => {
-            const text = evt.target?.result as string;
-            if (!text) return;
-            await _processSvgText(text);
-        };
-        reader.readAsText(file);
-    };
-
     const handleModalConfirm = (processed: any, finalThickness: number) => {
         setSvgPreview(processed);
-        handleDynamicParamChange('line_offset', finalThickness);
+        setParam('line_offset', finalThickness);
         setIsModalOpen(false);
     };
 
-    const handleGenerateClick = async () => {
+    const handleGenerateClick = () => {
         if (!svgPreview) return;
-        setIsGenerating(true);
-        setCarimbBaseUrl(null); setCarimbArteUrl(null); setCortadorUrl(null); setTmfUrl(null); setFromCache(null);
-        try {
+        generate(params => {
             const formData = new FormData();
             formData.append('linhas_svg', new Blob([svgPreview.thickenedSvg], { type: 'image/svg+xml' }), 'linhas.svg');
             formData.append('silhueta_svg', new Blob([svgPreview.silhouetteSvg], { type: 'image/svg+xml' }), 'silhueta.svg');
@@ -206,34 +91,22 @@ export default function CortadorBolacha() {
             formData.append('cutter_width', effectiveCutterW.toString());
             formData.append('cutter_height', effectiveCutterH.toString());
 
-            if (modelConfig && modelConfig.parameters) {
-                modelConfig.parameters.forEach((param: any) => {
-                    let val = dynamicParams[param.id] ?? param.default;
+            if (config && config.parameters) {
+                config.parameters.forEach((param: any) => {
+                    let val = params[param.id] ?? param.default;
                     if (param.scad_multiplier) val = val * param.scad_multiplier;
                     formData.append(param.id, val.toString());
                 });
             }
 
-            const res = await axios.post(`${API_BASE}/api/generate/cortador_bolacha`, formData);
-            if (res.data?.files) {
-                if (res.data.files.carimbo_base) setCarimbBaseUrl(`${API_BASE}${res.data.files.carimbo_base}`);
-                if (res.data.files.carimbo_arte) setCarimbArteUrl(`${API_BASE}${res.data.files.carimbo_arte}`);
-                if (res.data.files.cortador) setCortadorUrl(`${API_BASE}${res.data.files.cortador}`);
-                if (res.data.files['3mf']) setTmfUrl(`${API_BASE}${res.data.files['3mf']}`);
-                setFromCache(res.data.from_cache ?? false);
-            }
-        } catch (err) {
-            console.error("Error generating pieces:", err);
-            alert("Falha ao gerar o modelo 3D.");
-        } finally {
-            setIsGenerating(false);
-        }
+            return axios.post(`${API_BASE}/api/generate/${MODEL_ID}`, formData);
+        });
     };
 
     return (
         <Layout title="Cortador de Bolacha">
-            <SvgPreviewModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onConfirm={handleModalConfirm} onLoadAnother={() => { setIsModalOpen(false); triggerFilePicker(); }} svgText={svgText} initialThickness={dynamicParams['line_offset'] ?? 0.5} />
-            
+            <SvgPreviewModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onConfirm={handleModalConfirm} onLoadAnother={() => { setIsModalOpen(false); triggerFilePicker(); }} svgText={svgText} initialThickness={params['line_offset'] ?? 0.5} />
+
             <aside className="w-[400px] flex-shrink-0 bg-neutral-900 border-r border-neutral-800 flex flex-col overflow-y-auto">
                 <div className="p-6 space-y-8">
                     <div className="space-y-3">
@@ -284,28 +157,9 @@ export default function CortadorBolacha() {
                             </div>
                         </div>
 
-                        {modelConfig?.parameters?.filter((p: any) => p.id !== 'line_offset').map((param: any) => {
-                            const currentValue = dynamicParams[param.id] ?? param.default;
-                            if (param.type === 'boolean') {
-                                return (
-                                    <div key={param.id} className="space-y-2 pt-2 pb-1">
-                                        <label className="flex items-start gap-3 cursor-pointer group">
-                                            <input type="checkbox" checked={Boolean(currentValue)} onChange={e => handleDynamicParamChange(param.id, e.target.checked)} className="w-5 h-5 rounded border-neutral-600 bg-neutral-800 accent-emerald-500" />
-                                            <ParameterLabel name={param.name} helpText={param.help_text} className="text-sm font-medium text-neutral-200" />
-                                        </label>
-                                    </div>
-                                );
-                            }
-                            return (
-                                <div key={param.id} className="space-y-2">
-                                    <label className="flex justify-between text-sm">
-                                        <ParameterLabel name={param.name} helpText={param.help_text} />
-                                        <span className="text-emerald-400 font-mono">{Number(currentValue).toFixed(1)}{param.unit}</span>
-                                    </label>
-                                    <input type="range" min={param.min} max={param.max} step={param.step} value={Number(currentValue)} onChange={e => handleDynamicParamChange(param.id, parseFloat(e.target.value))} className="w-full accent-emerald-500" />
-                                </div>
-                            );
-                        })}
+                        {config?.parameters?.filter((p: any) => p.id !== 'line_offset').map((param: any) => (
+                            <ParameterField key={param.id} parameter={param} value={params[param.id] ?? param.default} onChange={setParam} accent="emerald" />
+                        ))}
 
                         <div className="space-y-2">
                             <label className="text-sm text-neutral-300 font-medium">Formato do Cortador</label>
@@ -322,7 +176,7 @@ export default function CortadorBolacha() {
                                 <div className="grid grid-cols-2 gap-3 mt-2">
                                     <div className="space-y-1">
                                         <span className="text-xs text-neutral-500">
-                                            {cutterShape === 'ellipse' ? 'Largura' : 'Largura'}
+                                            Largura
                                             <span className="text-amber-500/80"> (mín. {minCutterW.toFixed(0)} mm)</span>
                                         </span>
                                         <div className="flex items-center gap-1">
@@ -347,7 +201,7 @@ export default function CortadorBolacha() {
                                     </div>
                                     <div className="space-y-1">
                                         <span className="text-xs text-neutral-500">
-                                            {cutterShape === 'ellipse' ? 'Altura' : 'Altura'}
+                                            Altura
                                             <span className="text-amber-500/80"> (mín. {minCutterH.toFixed(0)} mm)</span>
                                         </span>
                                         <div className="flex items-center gap-1">
@@ -386,6 +240,10 @@ export default function CortadorBolacha() {
                             ))}
                         </div>
                     </div>
+
+                    {error && (
+                        <div className="bg-red-950 border border-red-800 rounded-lg p-3 text-sm text-red-300">{error}</div>
+                    )}
                 </div>
 
                 <div className="mt-auto p-4 border-t border-neutral-800 bg-neutral-950">
@@ -393,7 +251,7 @@ export default function CortadorBolacha() {
                         <button onClick={handleGenerateClick} disabled={!svgFile || isGenerating} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold rounded shadow-lg transition-all">
                             {isGenerating ? 'Gerando OpenSCAD...' : 'Gerar Peças 3D'}
                         </button>
-                        <ClearCacheButton isClearingCache={isClearingCache} isGenerating={isGenerating} onClick={handleClearCache} />
+                        <ClearCacheButton isClearingCache={isClearingCache} isGenerating={isGenerating} onClick={clearCache} />
                     </div>
                 </div>
             </aside>
@@ -401,13 +259,13 @@ export default function CortadorBolacha() {
             <section className="flex-1 p-4 relative min-w-0 min-h-0 flex flex-col gap-3">
                 <div className="flex-1 relative min-h-0">
                     <div className="absolute inset-0">
-                        <Viewer3D carimbBaseUrl={carimbBaseUrl} carimbArteUrl={carimbArteUrl} cortadorUrl={cortadorUrl} isGenerating={isGenerating} artColor={artColor} modelColor={modelColor} modelType="cortador" />
+                        <Viewer3D carimbBaseUrl={files.carimbo_base ?? null} carimbArteUrl={files.carimbo_arte ?? null} cortadorUrl={files.cortador ?? null} isGenerating={isGenerating} artColor={artColor} modelColor={modelColor} modelType="cortador" />
                     </div>
                 </div>
-                {tmfUrl && (
+                {files['3mf'] && (
                     <div className="flex-shrink-0 flex flex-col items-center gap-1">
                         <CacheBadge fromCache={fromCache} />
-                        <button onClick={() => downloadBlob(tmfUrl!, 'cortador_bolacha_all.3mf')} className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-lg text-sm transition-colors">
+                        <button onClick={() => downloadBlob(files['3mf'], 'cortador_bolacha_all.3mf')} className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-lg text-sm transition-colors">
                             Baixar 3MF
                         </button>
                     </div>

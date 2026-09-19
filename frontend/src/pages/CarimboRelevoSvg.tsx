@@ -1,14 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Upload, Sliders, ChevronDown } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
-import { ParameterLabel } from '../components/ui/ParameterLabel';
+import { ParameterField } from '../components/ui/ParameterField';
 import Viewer3D from '../components/ui/Viewer3D';
-import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 import { SvgPreviewModal } from '../components/ui/SvgPreviewModal';
-import { processSvgFile } from '../svgProcessor';
+import { useModelGenerate } from '../hooks/useModelGenerate';
+import { useSvgUpload } from '../hooks/useSvgUpload';
 
+const MODEL_ID = 'carimbo_relevo_svg';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 async function downloadBlob(url: string, filename: string) {
@@ -23,180 +23,35 @@ async function downloadBlob(url: string, filename: string) {
 }
 
 export default function CarimboRelevoSvg() {
-    const [config, setConfig] = useState<any>(null);
-    const [params, setParams] = useState<Record<string, any>>({});
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+    const {
+        config, params, setParam, openSections, toggleSection,
+        isGenerating, error, files, fromCache, isClearingCache, clearCache, generate,
+    } = useModelGenerate(MODEL_ID);
 
-    const [carimboUrl, setCarimboUrl] = useState<string | null>(null);
-    const [tmfUrl, setTmfUrl] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-
-    // SVG upload
-    const [svgFile, setSvgFile] = useState<File | null>(null);
-    const [svgText, setSvgText] = useState<string | null>(null);
-    const [svgPreview, setSvgPreview] = useState<{ originalSvg: string; thickenedSvg: string; silhouetteSvg: string } | null>(null);
-    const [svgAspectRatio, setSvgAspectRatio] = useState(1.0);
-    const [lockAspectRatio, setLockAspectRatio] = useState(true);
-    const [artWidth, setArtWidth] = useState(60);
-    const [artHeight, setArtHeight] = useState(20);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isConvertingPng, setIsConvertingPng] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const { fromCache, setFromCache, isClearingCache, clearCache } = useCacheManagement();
-
-    const handleClearCache = () => clearCache(() => {
-        setTmfUrl(null); setCarimboUrl(null);
-    });
-
-    useEffect(() => {
-        axios.get(`${API_BASE}/api/models/carimbo_relevo_svg/config`)
-            .then(res => {
-                const cfg = res.data;
-                setConfig(cfg);
-                const initial: Record<string, any> = {};
-                const setDefaults = (list: any[]) => list?.forEach((p: any) => { initial[p.id] = p.default; });
-                cfg.sections?.forEach((s: any) => setDefaults(s.parameters));
-                setParams(initial);
-                const initOpen: Record<string, boolean> = {};
-                cfg.sections?.forEach((s: any) => {
-                    initOpen[s.name] = s.collapsed !== undefined ? !s.collapsed : true;
-                });
-                setOpenSections(initOpen);
-            })
-            .catch(() => {});
-    }, []);
-
-    const setParam = (id: string, val: any) => setParams(prev => ({ ...prev, [id]: val }));
-    const toggleSection = (name: string) => setOpenSections(prev => ({ ...prev, [name]: !prev[name] }));
-
-    const triggerFilePicker = () => {
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-            fileInputRef.current.click();
-        }
-    };
-
-    const handleHeightChange = (val: number) => {
-        setArtHeight(val);
-        if (lockAspectRatio) setArtWidth(Math.round(val * svgAspectRatio * 10) / 10);
-    };
-
-    const handleWidthChange = (val: number) => {
-        setArtWidth(val);
-        if (lockAspectRatio) setArtHeight(Math.round(val / svgAspectRatio * 10) / 10);
-    };
-
-    const _processSvgText = async (text: string) => {
-        setSvgText(text);
-        try {
-            const processed = await processSvgFile(text, 0.5, 3.0);
-            setSvgPreview(processed);
-            if (processed && processed.width > 0 && processed.height > 0) {
-                const ratio = processed.width / processed.height;
-                setSvgAspectRatio(ratio);
-                setArtWidth(60);
-                setArtHeight(Math.round(60 / ratio * 10) / 10);
-            }
-            setIsModalOpen(true);
-        } catch (err) {
-            console.error('SVG Processing Error:', err);
-            alert('Erro ao processar o arquivo SVG.');
-        }
-    };
-
-    const handleSvgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setSvgFile(file);
-        const fileIsPng = file.name.toLowerCase().endsWith('.png') || file.type === 'image/png';
-        if (fileIsPng) {
-            setIsConvertingPng(true);
-            try {
-                const form = new FormData();
-                form.append('file', file, file.name);
-                const res = await axios.post<string>(
-                    `${API_BASE}/api/convert/png-to-svg`,
-                    form,
-                    { responseType: 'text' }
-                );
-                await _processSvgText(res.data);
-            } catch (err: any) {
-                alert(`Erro ao converter PNG: ${err?.response?.data?.error ?? 'Falha desconhecida'}`);
-            } finally {
-                setIsConvertingPng(false);
-            }
-            return;
-        }
-        const reader = new FileReader();
-        reader.onload = async (evt) => {
-            const text = evt.target?.result as string;
-            if (!text) return;
-            await _processSvgText(text);
-        };
-        reader.readAsText(file);
-    };
+    const {
+        svgFile, svgText, svgPreview, setSvgPreview,
+        lockAspectRatio, setLockAspectRatio, artWidth, artHeight,
+        isModalOpen, setIsModalOpen, isConvertingPng, fileInputRef,
+        triggerFilePicker, handleHeightChange, handleWidthChange, handleSvgUpload,
+    } = useSvgUpload({ initialWidth: 60, initialHeight: 20 });
 
     const handleModalConfirm = (processed: any) => {
         setSvgPreview(processed);
         setIsModalOpen(false);
     };
 
-    const handleGenerate = async () => {
+    const handleGenerate = () => {
         if (!svgPreview) return;
-        setIsGenerating(true);
-        setError(null); setCarimboUrl(null); setTmfUrl(null); setFromCache(null);
-        try {
+        generate(params => {
             const form = new FormData();
-            form.append(
-                'svg_linhas_path',
-                new Blob([svgPreview.thickenedSvg], { type: 'image/svg+xml' }),
-                'linhas.svg'
-            );
+            form.append('svg_linhas_path', new Blob([svgPreview.thickenedSvg], { type: 'image/svg+xml' }), 'linhas.svg');
             form.append('art_width', String(artWidth));
             form.append('art_height', String(artHeight));
             Object.entries(params).forEach(([k, v]) => {
                 if (v !== undefined && v !== null) form.append(k, String(v));
             });
-
-            const res = await axios.post(
-                `${API_BASE}/api/generate_parametric/carimbo_relevo_svg`,
-                form
-            );
-            if (res.data?.files) {
-                if (res.data.files.carimbo) setCarimboUrl(`${API_BASE}${res.data.files.carimbo}`);
-                if (res.data.files['3mf']) setTmfUrl(`${API_BASE}${res.data.files['3mf']}`);
-                setFromCache(res.data.from_cache ?? false);
-            }
-        } catch (err: any) {
-            setError(err?.response?.data?.error ?? 'Erro desconhecido');
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-
-    const renderParam = (p: any) => {
-        const val = params[p.id] ?? p.default;
-        switch (p.type) {
-            case 'range':
-                return (
-                    <div key={p.id} className="space-y-1">
-                        <label className="flex justify-between text-sm">
-                            <ParameterLabel name={p.name} helpText={p.help_text} className="text-neutral-400" />
-                            <span className="text-violet-400 font-mono">
-                                {Number(val).toFixed(p.step < 1 ? 2 : 0)}{p.unit ? ` ${p.unit}` : ''}
-                            </span>
-                        </label>
-                        <input
-                            type="range" min={p.min} max={p.max} step={p.step} value={val}
-                            onChange={e => setParam(p.id, parseFloat(e.target.value))}
-                            className="w-full accent-violet-500"
-                        />
-                    </div>
-                );
-            default: return null;
-        }
+            return axios.post(`${API_BASE}/api/generate_parametric/${MODEL_ID}`, form);
+        });
     };
 
     const renderAccordionSection = (section: any) => {
@@ -213,7 +68,9 @@ export default function CarimboRelevoSvg() {
                 </button>
                 {isOpen && (
                     <div className="px-3 pb-3 pt-2 space-y-4 bg-neutral-950 rounded-b-lg">
-                        {section.parameters?.map(renderParam)}
+                        {section.parameters?.map((p: any) => (
+                            <ParameterField key={p.id} parameter={p} value={params[p.id] ?? p.default} onChange={setParam} accent="violet" />
+                        ))}
                     </div>
                 )}
             </div>
@@ -350,7 +207,7 @@ export default function CarimboRelevoSvg() {
                         >
                             {isGenerating ? 'Gerando...' : 'Gerar Carimbo 3D'}
                         </button>
-                        <ClearCacheButton isClearingCache={isClearingCache} isGenerating={isGenerating} onClick={handleClearCache} />
+                        <ClearCacheButton isClearingCache={isClearingCache} isGenerating={isGenerating} onClick={clearCache} />
                     </div>
                 </div>
             </aside>
@@ -359,7 +216,7 @@ export default function CarimboRelevoSvg() {
                 <div className="flex-1 relative min-h-0">
                     <div className="absolute inset-0">
                         <Viewer3D
-                            carimbBaseUrl={carimboUrl}
+                            carimbBaseUrl={files.carimbo ?? null}
                             carimbArteUrl={null}
                             cortadorUrl={null}
                             isGenerating={isGenerating}
@@ -369,11 +226,11 @@ export default function CarimboRelevoSvg() {
                         />
                     </div>
                 </div>
-                {tmfUrl && (
+                {files['3mf'] && (
                     <div className="flex-shrink-0 flex flex-col items-center gap-1">
                         <CacheBadge fromCache={fromCache} />
                         <button
-                            onClick={() => downloadBlob(tmfUrl!, 'carimbo_relevo_svg_all.3mf')}
+                            onClick={() => downloadBlob(files['3mf'], 'carimbo_relevo_svg_all.3mf')}
                             className="flex items-center gap-2 px-6 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-lg shadow-lg text-sm transition-colors"
                         >
                             Baixar 3MF

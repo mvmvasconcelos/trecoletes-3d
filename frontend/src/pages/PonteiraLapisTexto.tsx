@@ -1,15 +1,14 @@
-import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Sliders, ChevronDown } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
-import { BatchGenerationModal, type BatchNameEntry } from '../components/ui/BatchGenerationModal';
-import { BambuColorPicker } from '../components/ui/BambuColorPicker';
-import { ParameterLabel } from '../components/ui/ParameterLabel';
+import { BatchGenerationModal } from '../components/ui/BatchGenerationModal';
+import { ParameterField } from '../components/ui/ParameterField';
 import Viewer3D from '../components/ui/Viewer3D';
-import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
-import { FontPicker } from '../components/ui/FontPicker';
+import { useModelGenerate } from '../hooks/useModelGenerate';
+import { useBatchGeneration } from '../hooks/useBatchGeneration';
 
+const MODEL_ID = 'ponteira_lapis_texto';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 async function downloadBlob(url: string, filename: string) {
@@ -24,202 +23,22 @@ async function downloadBlob(url: string, filename: string) {
 }
 
 export default function PonteiraLapisTexto() {
-    const [config, setConfig] = useState<any>(null);
-    const [params, setParams] = useState<Record<string, any>>({});
-    const [isGenerating, setIsGenerating] = useState(false);
-    
-    const [baseUrl, setBaseUrl] = useState<string | null>(null);
-    const [lettersUrl, setLettersUrl] = useState<string | null>(null);
-    const [tmfUrl, setTmfUrl] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    
-    const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+    const {
+        config, params, setParam, openSections, toggleSection,
+        isGenerating, error, setError, files, fromCache, isClearingCache, clearCache, generate,
+    } = useModelGenerate(MODEL_ID, { initialOverrides: { extrusor_base: 1, extrusor_letras: 4 } });
 
-    const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-    const [batchProgress, setBatchProgress] = useState<{done: number, total: number} | null>(null);
-    const [batchTmfUrl, setBatchTmfUrl] = useState<string | null>(null);
-    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const { fromCache, setFromCache, isClearingCache, clearCache } = useCacheManagement();
+    const { isBatchModalOpen, setIsBatchModalOpen, batchProgress, batchTmfUrl, handleBatchGenerate } =
+        useBatchGeneration(MODEL_ID, params, {
+            skipKeys: ['text_line_1', 'text_line_2', 'hole_orientation'],
+            setError,
+        });
 
-    const handleClearCache = () => clearCache(() => {
-        setTmfUrl(null); setBaseUrl(null); setLettersUrl(null);
-        setBatchTmfUrl(null); setBatchProgress(null);
+    const handleGenerate = () => generate(params => {
+        const form = new FormData();
+        Object.entries(params).forEach(([k, v]) => form.append(k, String(v ?? '')));
+        return axios.post(`${API_BASE}/api/generate_parametric/${MODEL_ID}`, form);
     });
-
-    useEffect(() => {
-        axios.get(`${API_BASE}/api/models/ponteira_lapis_texto/config`)
-            .then(res => {
-                const cfg = res.data;
-                setConfig(cfg);
-                const initial: Record<string, any> = {};
-                const setDefaults = (list: any[]) => list?.forEach((p: any) => { initial[p.id] = p.default; });
-                setDefaults(cfg.parameters);
-                cfg.sections?.forEach((s: any) => setDefaults(s.parameters));
-                
-                initial['extrusor_base'] = 1;
-                initial['extrusor_letras'] = 4;
-                
-                setParams(initial);
-                const initOpen: Record<string, boolean> = {};
-                cfg.sections?.forEach((s: any) => {
-                    initOpen[s.name] = s.collapsed !== undefined ? !s.collapsed : !s.name.includes('Linha 2');
-                });
-                setOpenSections(initOpen);
-            })
-            .catch(() => {});
-    }, []);
-
-    const toggleSection = (name: string) => setOpenSections(prev => ({ ...prev, [name]: !prev[name] }));
-    const setParam = (id: string, val: any) => setParams(prev => ({ ...prev, [id]: val }));
-
-    const handleGenerate = async () => {
-        setIsGenerating(true);
-        setError(null); setBaseUrl(null); setLettersUrl(null); setTmfUrl(null); setFromCache(null);
-        try {
-            const form = new FormData();
-            Object.entries(params).forEach(([k, v]) => form.append(k, String(v ?? '')));
-            const res = await axios.post(`${API_BASE}/api/generate_parametric/ponteira_lapis_texto`, form);
-            if (res.data?.files) {
-                if (res.data.files.base) setBaseUrl(`${API_BASE}${res.data.files.base}`);
-                if (res.data.files.letters) setLettersUrl(`${API_BASE}${res.data.files.letters}`);
-                if (res.data.files['3mf']) setTmfUrl(`${API_BASE}${res.data.files['3mf']}`);
-                setFromCache(res.data.from_cache ?? false);
-            }
-        } catch (err: any) {
-            setError(err?.response?.data?.error ?? 'Erro desconhecido');
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-
-    useEffect(() => {
-        return () => { if (pollRef.current) clearInterval(pollRef.current); };
-    }, []);
-
-    const handleBatchGenerate = async (rows: BatchNameEntry[]) => {
-        if (rows.length === 0) return;
-        if (pollRef.current) clearInterval(pollRef.current);
-        setBatchProgress({ done: 0, total: rows.length }); setBatchTmfUrl(null); setError(null);
-        try {
-            const form = new FormData();
-            form.append('names', JSON.stringify(rows));
-            Object.entries(params)
-                .filter(([k]) => k !== 'text_line_1' && k !== 'text_line_2' && k !== 'hole_orientation')
-                .forEach(([k, v]) => form.append(k, String(v ?? '')));
-            const res = await axios.post(`${API_BASE}/api/generate_batch/ponteira_lapis_texto`, form);
-            const id: string = res.data.batch_id;
-            setBatchProgress({ done: res.data.done ?? 0, total: res.data.total });
-
-            if (res.data.status === 'done') {
-                setBatchProgress({ done: res.data.total, total: res.data.total });
-                setBatchTmfUrl(`${API_BASE}${res.data.file}`);
-                return;
-            }
-
-            pollRef.current = setInterval(async () => {
-                try {
-                    const status = await axios.get(`${API_BASE}/api/batch_status/${id}`);
-                    const job = status.data;
-                    setBatchProgress({ done: job.done, total: job.total });
-                    if (job.status === 'done') {
-                        clearInterval(pollRef.current!);
-                        pollRef.current = null;
-                        setBatchTmfUrl(`${API_BASE}${job.file}`);
-                    } else if (job.status === 'error') {
-                        clearInterval(pollRef.current!);
-                        pollRef.current = null;
-                        setError(job.error ?? 'Erro na geração em lote');
-                    }
-                } catch {
-                    clearInterval(pollRef.current!);
-                    pollRef.current = null;
-                }
-            }, 2000);
-        } catch (err: any) {
-            setError(err?.response?.data?.error ?? 'Erro ao iniciar lote');
-            setBatchProgress(null);
-        }
-    };
-
-    const renderParam = (p: any) => {
-        const val = params[p.id] ?? p.default;
-        switch (p.type) {
-            case 'text':
-                return (
-                    <div key={p.id} className="space-y-1">
-                        <label className="text-sm text-neutral-400">
-                            <ParameterLabel name={p.name} helpText={p.help_text} />
-                        </label>
-                        <input
-                            type="text" value={val} placeholder={p.placeholder ?? ''}
-                            onChange={e => setParam(p.id, e.target.value)}
-                            className="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm text-white focus:border-violet-500 focus:outline-none"
-                        />
-                    </div>
-                );
-            case 'range':
-                return (
-                    <div key={p.id} className="space-y-1">
-                        <label className="flex justify-between text-sm">
-                            <ParameterLabel name={p.name} helpText={p.help_text} className="text-neutral-400" />
-                            <span className="text-violet-400 font-mono">
-                                {Number(val).toFixed(p.step < 1 ? 1 : 0)}{p.unit ? ` ${p.unit}` : ''}
-                            </span>
-                        </label>
-                        <input
-                            type="range" min={p.min} max={p.max} step={p.step} value={val}
-                            onChange={e => setParam(p.id, parseFloat(e.target.value))}
-                            className="w-full accent-violet-500"
-                        />
-                    </div>
-                );
-            case 'color': {
-                const extField = p.id === 'base_color' ? 'extrusor_base' : 'extrusor_letras';
-                const extVal = params[extField] ?? (p.id === 'base_color' ? 1 : 4);
-                return (
-                    <BambuColorPicker
-                        key={p.id} label={p.name} helpText={p.help_text} color={val} extruder={extVal}
-                        onChangeColor={(newCol) => setParam(p.id, newCol)}
-                        onChangeExtruder={(newExt) => setParam(extField, newExt)}
-                    />
-                );
-            }
-            case 'select':
-                if (p.id === 'font_name') {
-                    return <FontPicker key={p.id} parameter={p} value={val} onChange={setParam} />;
-                }
-                return (
-                    <div key={p.id} className="space-y-1">
-                        <label className="text-sm text-neutral-400">
-                            <ParameterLabel name={p.name} helpText={p.help_text} />
-                        </label>
-                        <select
-                            value={val} onChange={e => setParam(p.id, e.target.value)}
-                            className="w-full bg-neutral-800 border border-neutral-700 rounded px-3 py-2 text-sm text-white focus:border-violet-500 focus:outline-none"
-                        >
-                            {p.options?.map((opt: any) => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                        </select>
-                    </div>
-                );
-            case 'checkbox':
-                return (
-                    <div key={p.id} className="space-y-1">
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={val === true || val === 'true'}
-                                onChange={e => setParam(p.id, e.target.checked)}
-                                className="w-4 h-4 accent-violet-500 cursor-pointer"
-                            />
-                            <ParameterLabel name={p.name} helpText={p.help_text} className="text-sm text-neutral-400" />
-                        </label>
-                    </div>
-                );
-            default: return null;
-        }
-    };
 
     const mainSections = config?.sections?.filter((s: any) => s.name !== 'Cores') ?? [];
     const colorsSection = config?.sections?.find((s: any) => s.name === 'Cores');
@@ -238,7 +57,9 @@ export default function PonteiraLapisTexto() {
                 </button>
                 {isOpen && (
                     <div className="px-3 pb-3 pt-2 space-y-4 bg-neutral-950 rounded-b-lg">
-                        {section.parameters?.map(renderParam)}
+                        {section.parameters?.map((p: any) => (
+                            <ParameterField key={p.id} parameter={p} value={params[p.id] ?? p.default} onChange={setParam} accent="violet" />
+                        ))}
                     </div>
                 )}
             </div>
@@ -256,7 +77,9 @@ export default function PonteiraLapisTexto() {
                                 <h2 className="text-xs font-semibold text-neutral-500 uppercase tracking-widest flex items-center gap-2">
                                     <Sliders className="w-3.5 h-3.5" /> Texto
                                 </h2>
-                                {config.parameters?.map(renderParam)}
+                                {config.parameters?.map((p: any) => (
+                                    <ParameterField key={p.id} parameter={p} value={params[p.id] ?? p.default} onChange={setParam} accent="violet" />
+                                ))}
                             </div>
                             {mainSections.map(renderAccordionSection)}
                             {colorsSection && renderAccordionSection(colorsSection)}
@@ -274,7 +97,7 @@ export default function PonteiraLapisTexto() {
                         >
                             {isGenerating ? 'Gerando...' : 'Gerar Modelo 3D'}
                         </button>
-                        <ClearCacheButton isClearingCache={isClearingCache} isGenerating={isGenerating} onClick={handleClearCache} />
+                        <ClearCacheButton isClearingCache={isClearingCache} isGenerating={isGenerating} onClick={clearCache} />
                     </div>
 
                     <div className="border-t border-neutral-800 pt-3 space-y-2">
@@ -293,8 +116,8 @@ export default function PonteiraLapisTexto() {
                 <div className="flex-1 relative min-h-0">
                     <div className="absolute inset-0">
                         <Viewer3D
-                            carimbBaseUrl={baseUrl}
-                            carimbArteUrl={lettersUrl}
+                            carimbBaseUrl={files.base ?? null}
+                            carimbArteUrl={files.letters ?? null}
                             cortadorUrl={null}
                             isGenerating={isGenerating}
                             artColor={(params['letters_color'] as string) ?? '#FFFFFF'}
@@ -303,11 +126,11 @@ export default function PonteiraLapisTexto() {
                         />
                     </div>
                 </div>
-                {tmfUrl && (
+                {files['3mf'] && (
                     <div className="flex-shrink-0 flex flex-col items-center gap-1">
                         <CacheBadge fromCache={fromCache} />
                         <button
-                            onClick={() => downloadBlob(tmfUrl!, 'ponteira_texto_all.3mf')}
+                            onClick={() => downloadBlob(files['3mf'], 'ponteira_texto_all.3mf')}
                             className="flex items-center gap-2 px-6 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-lg shadow-lg text-sm transition-colors"
                         >
                             Baixar 3MF
