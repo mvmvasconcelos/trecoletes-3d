@@ -160,7 +160,6 @@ case 'checkbox':
 ### Modelos Já Implementados
 
 - `ponteira_lapis_texto` — totalmente funcional
-- `tampa_caneta` — totalmente funcional
 
 ## Exemplos de Uso
 

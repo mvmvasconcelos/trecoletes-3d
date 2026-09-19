@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Scissors, Image, Type, PenTool, Sliders, FlaskConical, PenLine, KeyRound, Cake, Stamp, GlassWater, Layers, LayoutTemplate, Wand2, Timer, Box } from 'lucide-react';
+import { Scissors, Image, Type, PenTool, Sliders, PenLine, Cake, Stamp, GlassWater, Layers, LayoutTemplate, Wand2, Timer } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -55,16 +55,6 @@ export default function Home() {
           </div>
         </Link>
 
-        <Link to="/chaveiro-sindicato" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
-          <div className="w-12 h-12 rounded-lg bg-emerald-900/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
-            <KeyRound className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Chaveiro Sindicato</h2>
-            <p className="text-neutral-500 mt-2 text-sm">Gere nomes na face traseira do chaveiro SSPMVA (Arial Black, 1ª camada espelhada).</p>
-          </div>
-        </Link>
-
         <Link to="/chaveiro-simples-svg" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
           <div className="w-12 h-12 rounded-lg bg-emerald-900/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
             <Image className="w-6 h-6" />
@@ -82,16 +72,6 @@ export default function Home() {
           <div>
             <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Ponteira com Texto</h2>
             <p className="text-neutral-500 mt-2 text-sm">Gere ponteiras com nomes e textos 3D multicoloridos.</p>
-          </div>
-        </Link>
-
-        <Link to="/tampa-caneta" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
-          <div className="w-12 h-12 rounded-lg bg-emerald-900/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
-            <PenLine className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Tampa de Caneta</h2>
-            <p className="text-neutral-500 mt-2 text-sm">Gere tampas personalizadas com furo cônico para canetas BIC.<br />(Em desenvolvimento)</p>
           </div>
         </Link>
 
@@ -165,15 +145,6 @@ export default function Home() {
           </div>
         </Link>
 
-        <Link to="/caixa-deslizante" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
-          <div className="w-12 h-12 rounded-lg bg-emerald-900/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
-            <Box className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Caixa com Tampa Deslizante</h2>
-            <p className="text-neutral-500 mt-2 text-sm">Caixa paramétrica com tampa deslizante em canaleta, chanfros, trava e pega em meia-lua — ajuste as dimensões internas.</p>
-          </div>
-        </Link>
         </div>
       </div>
 
@@ -184,36 +155,6 @@ export default function Home() {
       <div className="w-full max-w-4xl">
         <h2 className="text-lg font-semibold text-sky-400 uppercase tracking-widest mb-6">Testes & Ferramentas</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Link to="/teste-tampa-caneta" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-sky-500 hover:shadow-lg hover:shadow-sky-900/20 transition-all">
-          <div className="w-12 h-12 rounded-lg bg-sky-900/30 flex items-center justify-center text-sky-500 group-hover:scale-110 transition-transform">
-            <FlaskConical className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-sky-400 transition-colors">Teste Tampa Caneta BIC</h2>
-            <p className="text-neutral-500 mt-2 text-sm">Protótipo de encaixe com furo cônico + cilindro final para calibrar folga.</p>
-          </div>
-        </Link>
-
-        <Link to="/teste-tolerancia-texto" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-900/20 transition-all">
-          <div className="w-12 h-12 rounded-lg bg-emerald-900/30 flex items-center justify-center text-emerald-500 group-hover:scale-110 transition-transform">
-            <Sliders className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-emerald-400 transition-colors">Teste de Tolerância Texto</h2>
-            <p className="text-neutral-500 mt-2 text-sm">Teste tolerâncias de encaixe com textos subtraídos em chapas.</p>
-          </div>
-        </Link>
-
-        <Link to="/teste-tolerancia-cq" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-violet-500 hover:shadow-lg hover:shadow-violet-900/20 transition-all">
-          <div className="w-12 h-12 rounded-lg bg-violet-900/30 flex items-center justify-center text-violet-500 group-hover:scale-110 transition-transform">
-            <Sliders className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-neutral-100 group-hover:text-violet-400 transition-colors">Teste de Tolerância (CQ)</h2>
-            <p className="text-neutral-500 mt-2 text-sm">Variante CadQuery — largura de texto real via fonttools, sem OpenSCAD.</p>
-          </div>
-        </Link>
-
         <Link to="/ferramentas" className="group rounded-xl border border-neutral-800 bg-neutral-950 p-6 flex flex-col gap-4 hover:border-amber-500 hover:shadow-lg hover:shadow-amber-900/20 transition-all">
           <div className="w-12 h-12 rounded-lg bg-amber-900/30 flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
             <Sliders className="w-6 h-6" />

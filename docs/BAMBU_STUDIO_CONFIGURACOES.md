@@ -55,7 +55,6 @@ Atualmente os seguintes modelos possuem `bambu_template/` configurado:
 | `models/chaveiro_simples/` | `base` (extrusor 1), `letters` (extrusor 2) |
 | `models/cortador_bolacha/` | `carimbo_base` (3), `carimbo_arte` (3), `cortador` (3) |
 | `models/ponteira_lapis_texto/` | `base` (extrusor 3), `letters` (extrusor 1) |
-| `models/tampa_caneta/` | `base` (extrusor 3), `letters` (extrusor 1) |
 | `models/topo_bolo_svg/` | `base` (extrusor 1), `svg` (extrusor 4) |
 
 ---

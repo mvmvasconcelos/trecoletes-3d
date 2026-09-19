@@ -67,9 +67,7 @@ Sempre que o usuário solicitar "Crie um novo modelo", siga rigorosamente os pas
 
 3. **Criar o Arquivo de Modelo:**
 
-   **Opção A — OpenSCAD** (`model.scad`): para a maioria dos modelos. As variáveis dos parâmetros são injetadas em caixa baixa (ex: `art_width`, `base_height`). Consulte `docs/CENTRALIZACAO_SVG_OPENSCAD.md` para posicionamento correto do viewBox.
-
-   **Opção B — Python** (`model.py`): para modelos que usam Shapely + trimesh (sem OpenSCAD). Veja `models/teste_tolerancia_texto_cq/model.py` como referência. O backend detecta o engine pelo nome do arquivo.
+   Crie `model.scad`. As variáveis dos parâmetros são injetadas em caixa baixa (ex: `art_width`, `base_height`). Consulte `docs/CENTRALIZACAO_SVG_OPENSCAD.md` para posicionamento correto do viewBox.
 
    Com `text_to_svg: true`, o backend resolve as geometrias de texto antes de chamar o OpenSCAD — não é necessário lidar com fontes dentro do `.scad`.
 
@@ -80,7 +78,7 @@ Sempre que o usuário solicitar "Crie um novo modelo", siga rigorosamente os pas
    Crie `frontend/src/pages/<NomeEmCamelCase>.tsx`.
 
    **Escolha do template base:**
-   - Modelo de **texto** (com `text_to_svg: true`, endpoint paramétrico): copie `PonteiraLapisTexto.tsx` ou `TampaCaneta.tsx`.
+   - Modelo de **texto** (com `text_to_svg: true`, endpoint paramétrico): copie `PonteiraLapisTexto.tsx` ou `TampaBic.tsx`.
    - Modelo de **upload SVG** (endpoint de upload): copie `CortadorBolacha.tsx` ou `PonteiraLapisSvg.tsx`.
 
    **Endpoints de geração:**
@@ -113,7 +111,7 @@ Sempre que o usuário solicitar "Crie um novo modelo", siga rigorosamente os pas
 
    - **`SvgPreviewModal`** — para modelos com upload SVG (preview antes de gerar). Use em conjunto com o endpoint `/api/generate/{id}`. Veja `CortadorBolacha.tsx` como referência.
 
-   - **`BatchGenerationModal`** — para geração em lote. Usado nos modelos de texto (ChaveiroSimples, PonteiraLapisTexto, TampaCaneta). O botão de lote chama `POST /api/generate_batch/{id}` e faz polling em `GET /api/batch_status/{job_id}`. Consulte `docs/GERACAO_EM_LOTES.md`. Importe assim:
+   - **`BatchGenerationModal`** — para geração em lote. Usado nos modelos de texto (ChaveiroSimples, PonteiraLapisTexto). O botão de lote chama `POST /api/generate_batch/{id}` e faz polling em `GET /api/batch_status/{job_id}`. Consulte `docs/GERACAO_EM_LOTES.md`. Importe assim:
      ```tsx
      import { BatchGenerationModal } from '../components/ui/BatchGenerationModal';
      ```

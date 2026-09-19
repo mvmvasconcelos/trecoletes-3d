@@ -7,7 +7,6 @@ O fluxo é gerenciado por um componente React reutilizável (`BatchGenerationMod
 **Páginas que atualmente utilizam este componente:**
 - `ChaveiroSimples.tsx`
 - `PonteiraLapisTexto.tsx`
-- `TampaCaneta.tsx`
 
 ---
 
