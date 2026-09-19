@@ -2,11 +2,11 @@
 
 O Trecoletes 3D suporta geração em lote: a partir de uma lista de nomes, o sistema gera um arquivo `.3mf` individual para cada nome e entrega tudo compactado em um único ZIP — pronto para importar no Bambu Studio.
 
-O fluxo é gerenciado por um componente React reutilizável (`BatchGenerationModal`) que substitui o padrão antigo de "Carregar JSON → Gerar em Lote" embutido em cada página.
+O fluxo tem duas peças: o componente `BatchGenerationModal` (UI) e o hook `useBatchGeneration` (lógica de post + polling).
 
-**Páginas que atualmente utilizam este componente:**
-- `ChaveiroSimples.tsx`
-- `PonteiraLapisTexto.tsx`
+**Páginas que atualmente exibem o modal de lote:**
+- `ChaveiroSimples.tsx`, `LetreiraSocial.tsx`, `GeradorTopoBolo.tsx`, `TampaBic.tsx` — lógica de post + polling escrita na própria página.
+- `PonteiraLapisTexto.tsx` — usa o hook `useBatchGeneration` (ver §2), que encapsula essa mesma lógica.
 
 ---
 
@@ -55,79 +55,29 @@ Este é o mesmo formato enviado ao endpoint `/api/generate_batch/{model_id}` via
 
 ## 2. Como Integrar em uma Nova Página
 
-### 2.1 Estado necessário na página
+### 2.1 Hook `useBatchGeneration`
+
+Localização: `frontend/src/hooks/useBatchGeneration.ts`. Encapsula estado
+(`isBatchModalOpen`, `batchProgress`, `batchTmfUrl`), o polling em
+`batch_status`, e a limpeza do `setInterval` no unmount — nada disso
+precisa ser escrito na página.
 
 ```tsx
-const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-const [batchProgress, setBatchProgress] = useState<{done: number, total: number} | null>(null);
-const [batchTmfUrl, setBatchTmfUrl] = useState<string | null>(null);
-const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+import { useBatchGeneration } from '../hooks/useBatchGeneration';
+
+// params e setError vêm do useModelGenerate (ver docs/CRIANDO_NOVO_MODELO.md §2.1)
+const { isBatchModalOpen, setIsBatchModalOpen, batchProgress, batchTmfUrl, handleBatchGenerate } =
+    useBatchGeneration('meu_modelo', params, {
+        skipKeys: ['text_line_1'], // campos do params que NÃO entram no POST (recalculados por nome)
+        setError,
+    });
 ```
 
-### 2.2 Função de geração (polling do status)
+`skipKeys` lista os campos de `params` que são recalculados por linha do
+lote (sempre `text_line_1`; alguns modelos também excluem `text_line_2` ou
+um campo de toggle secundário — ver `secondaryToggle` em §2.4).
 
-Copie e adapte a função abaixo, trocando apenas o `model_id` e o endpoint:
-
-```tsx
-const handleBatchGenerate = async (rows: BatchNameEntry[]) => {
-    if (rows.length === 0) return;
-    if (pollRef.current) clearInterval(pollRef.current);
-    setBatchProgress({ done: 0, total: rows.length });
-    setBatchTmfUrl(null);
-    setError(null);
-    try {
-        const form = new FormData();
-        form.append('names', JSON.stringify(rows));
-        Object.entries(params)
-            .filter(([k]) => k !== 'text_line_1')
-            .forEach(([k, v]) => form.append(k, String(v ?? '')));
-        const res = await axios.post(`${API_BASE}/api/generate_batch/meu_modelo`, form);
-        const id: string = res.data.batch_id;
-        setBatchProgress({ done: res.data.done ?? 0, total: res.data.total });
-
-        if (res.data.status === 'done') {
-            setBatchProgress({ done: res.data.total, total: res.data.total });
-            setBatchTmfUrl(`${API_BASE}${res.data.file}`);
-            return;
-        }
-
-        pollRef.current = setInterval(async () => {
-            try {
-                const status = await axios.get(`${API_BASE}/api/batch_status/${id}`);
-                const job = status.data;
-                setBatchProgress({ done: job.done, total: job.total });
-                if (job.status === 'done') {
-                    clearInterval(pollRef.current!);
-                    pollRef.current = null;
-                    setBatchTmfUrl(`${API_BASE}${job.file}`);
-                } else if (job.status === 'error') {
-                    clearInterval(pollRef.current!);
-                    pollRef.current = null;
-                    setError(job.error ?? 'Erro na geração em lote');
-                }
-            } catch {
-                clearInterval(pollRef.current!);
-                pollRef.current = null;
-            }
-        }, 2000);
-    } catch (err: any) {
-        setError(err?.response?.data?.error ?? 'Erro ao iniciar lote');
-        setBatchProgress(null);
-    }
-};
-```
-
-Não esqueça de limpar o interval no unmount do componente:
-
-```tsx
-useEffect(() => {
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-}, []);
-```
-
-### 2.3 Botão de abertura do modal (na sidebar)
-
-Substitua o bloco antigo de "Carregar JSON / Gerar em Lote" por:
+### 2.2 Botão de abertura do modal (na sidebar)
 
 ```tsx
 <div className="border-t border-neutral-800 pt-3 space-y-2">
@@ -142,7 +92,7 @@ Substitua o bloco antigo de "Carregar JSON / Gerar em Lote" por:
 </div>
 ```
 
-### 2.4 Instância do modal (ao final do JSX, antes de fechar `</Layout>`)
+### 2.3 Instância do modal (ao final do JSX, antes de fechar `</Layout>`)
 
 ```tsx
 <BatchGenerationModal

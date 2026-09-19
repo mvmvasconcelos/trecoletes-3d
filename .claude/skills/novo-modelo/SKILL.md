@@ -56,8 +56,10 @@ frontend depois.
 | Texto em relevo (`text_to_svg`) | `models/tampa_bic/` ou `models/ponteira_lapis_texto/` | `/api/generate_parametric/{id}` |
 | Geometria pura, sem SVG/texto | `models/gerador_topo_bolo/` (mínimo) | `/api/generate_parametric/{id}` |
 
-Frontend: duplique a página mais próxima em `frontend/src/pages/` (ex.:
-`GeradorTopoBoloSvg.tsx` pro caso de 1 SVG) e adapte — não escreva do zero.
+Frontend: componha os hooks compartilhados (`useModelGenerate` sempre,
+`useBatchGeneration`/`useSvgUpload` conforme o caso) — ver Passo 3. Não
+escreva o ciclo de config/params/cache/geração nem um `renderParam` do
+zero, e não clone uma página que ainda não usa esses hooks.
 
 ## Passo 2 — Backend (`models/<id>/`)
 
@@ -77,11 +79,23 @@ que ainda não está documentado:
 
 ## Passo 3 — Frontend
 
-Siga `docs/CRIANDO_NOVO_MODELO.md` §2. Resumo do que muda por página:
+Siga `docs/CRIANDO_NOVO_MODELO.md` §2. Resumo do que a página compõe:
 
-- Clone o template do Passo 1, troque o `model_id` e o endpoint.
-- Peça única sem cor: remova a seção "Cores"/`BambuColorPicker` da página —
-  não force um split de extrusor que a geometria não tem.
+- `useModelGenerate('meu_modelo')` — sempre. Dá `config`, `params`/`setParam`,
+  `isGenerating`/`error`/`files`/`fromCache`/`clearCache`, e
+  `generate(requestFn)` (a página monta o `axios.post`, o hook só envolve o
+  estado ao redor — funciona tanto para `generate_parametric` quanto para o
+  `/generate` legado).
+- `useBatchGeneration(modelId, params, { setError })` — só se tiver
+  `BatchGenerationModal`.
+- `useSvgUpload()` — só se receber upload de SVG/PNG.
+- `<ParameterField parameter={p} value={...} onChange={setParam} accent="violet|emerald" />`
+  em vez de um `renderParam` na mão — já trata `font_name`/`color` internamente.
+- Referências atuais: `PonteiraLapisTexto.tsx`, `CarimboRelevoSvg.tsx`,
+  `CortadorBolacha.tsx`. As demais páginas de `frontend/src/pages/` não usam
+  esses hooks — não as use como template.
+- Peça única sem cor: não force um parâmetro `type: "color"`/split de
+  extrusor que a geometria não tem.
 - `Viewer3D`: para peça única use `modelType="ferramenta"` e só preencha
   `carimbBaseUrl` (deixe `carimbArteUrl`/`cortadorUrl` como `null`).
 - Adicione `<Route>` em `App.tsx` e o card em `Home.tsx` (seção decidida no
@@ -94,7 +108,7 @@ Não declare o modelo pronto sem rodar isto:
 1. **Render direto do OpenSCAD** (pega erros de sintaxe/geometria antes de
    subir a pilha toda):
    ```bash
-   docker exec trecoletes_backend openscad -o /tmp/test.stl \
+   docker exec trecoletes_backend openscad-nightly -o /tmp/test.stl \
      -D 'svg_linhas_path="/caminho/de/teste.svg"' \
      -D 'art_width=60' -D 'art_height=20' \
      -D 'part="<nome_da_parte>"' \

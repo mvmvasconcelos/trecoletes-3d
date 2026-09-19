@@ -4,19 +4,29 @@ Plataforma web para geração parametrizada de modelos 3D personalizados. O usu�
 
 ## Arquitetura
 
-- **Backend:** FastAPI + OpenSCAD headless + Python (Shapely / trimesh), rodando em container Docker.
+- **Backend:** FastAPI + OpenSCAD headless (`openscad-nightly`, engine Manifold — único engine suportado) + Python (trimesh), rodando em container Docker.
 - **Frontend:** React + TypeScript + Vite + TailwindCSS.
-- **Modelos:** definidos por `config.json` + `model.scad` (ou `model.py`) em `models/<id>/`. A interface é gerada automaticamente a partir do config (Server-Driven UI).
+- **Modelos:** definidos por `config.json` + `model.scad` em `models/<id>/`. A interface é gerada automaticamente a partir do config (Server-Driven UI).
 
 ## Modelos disponíveis
 
-| Modelo | Descrição |
-|--------|-----------|
-| `chaveiro_simples` | Chaveiro com texto em relevo e argola |
-| `ponteira_lapis_texto` | Ponteira de lápis com texto (nome topper) |
-| `tampa_bic` | Tampa BIC com cápsula BOSL2 e texto em duas linhas |
-| `cortador_bolacha` | Cortador de biscoito a partir de SVG |
-| `ponteira_lapis_svg` | Ponteira de lápis a partir de SVG |
+| Modelo (`id`) | Rota | Descrição |
+|---|---|---|
+| `chaveiro_simples` | `/chaveiro-simples` | Chaveiro com texto em relevo e argola |
+| `chaveiro_simples_com_svg` | `/chaveiro-simples-svg` | Chaveiro com texto e uma arte SVG |
+| `ponteira_lapis_texto` | `/ponteira-texto` | Ponteira de lápis com texto (nome topper) |
+| `ponteira_lapis_svg` | `/ponteira-svg` | Ponteira de lápis a partir de SVG |
+| `tampa_bic` | `/tampa-bic` | Tampa BIC com cápsula BOSL2 e texto em duas linhas |
+| `cortador_bolacha` | `/cortador-bolacha` | Cortador de biscoito a partir de SVG |
+| `cortador_bolacha_formato` | `/cortador-bolacha-formato` | Cortador cuja silhueta SVG é a própria forma do cortador |
+| `carimbo_eva_svg` | `/carimbo-eva-svg` | Kit de carimbo EVA (segurador, molde e forma) a partir de SVG |
+| `carimbo_relevo_svg` | `/carimbo-relevo-svg` | Carimbo dobradiçado com relevo positivo e cavidade negativa |
+| `gerador_topo_bolo` | `/topo-bolo` | Topo de bolo com texto em relevo |
+| `topo_bolo_svg` | `/topo-bolo-svg` | Topo de bolo a partir de arte SVG |
+| `mexedor_drinks_svg` | `/mexedor-drinks-svg` | Mexedor de drinks com arte SVG em relevo |
+| `letreiro_social` | `/letreiro-social` | Letreiro com texto em 3 camadas de cor |
+| `editor_generico` | `/editor-2d` | Camadas de texto/imagem compostas livremente pelo usuário (até 4 partes) |
+| `test_holes_vertical` | `/ferramentas` | Calibrador de tolerância de furos |
 
 ## Instalação
 

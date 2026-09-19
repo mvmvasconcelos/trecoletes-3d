@@ -1,10 +1,14 @@
 """
-Compara a malha gerada por dois binários OpenSCAD (ex.: stable vs nightly)
-para cada model.scad em models/, usando os parâmetros default do próprio
-.scad (sem overrides -D). Fase 2 do plano de migração para OpenSCAD nightly:
-sinaliza divergência geométrica antes de decidir promover o nightly.
+Compara a malha gerada por dois binários OpenSCAD para cada model.scad em
+models/, usando os parâmetros default do próprio .scad (sem overrides -D).
+Sinaliza divergência geométrica entre os dois binários comparados.
 
-Uso (dentro do container backend, onde os dois binários existem):
+O backend usa só `openscad-nightly` em produção (é o único engine instalado
+na imagem). Este script serve para comparar duas versões do nightly (ex.:
+antes/depois de bumpar OPENSCAD_NIGHTLY_DATE no Dockerfile) — aponte BIN_A/
+BIN_B abaixo para os dois binários que quer comparar.
+
+Uso (dentro do container backend):
     python compare_openscad_backends.py
     python compare_openscad_backends.py tampa_bic ponteira_lapis_texto
 """
@@ -19,8 +23,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODELS_DIR = os.environ.get("MODELS_DIR", os.path.abspath(os.path.join(BASE_DIR, "..", "models")))
 FONTS_DIR = os.path.join(BASE_DIR, "static", "fonts")
 
-STABLE_BIN = "openscad"
-NIGHTLY_BIN = "openscad-nightly"
+BIN_A = "openscad-nightly"
+BIN_B = "openscad-nightly"
 TIMEOUT = 300
 
 # Tolerância: motores diferentes trianguem diferente, então comparamos
@@ -49,33 +53,33 @@ def compare_model(model_id: str) -> str:
         return "SKIP (sem model.scad)"
 
     with tempfile.TemporaryDirectory() as tmp:
-        stable_stl = os.path.join(tmp, "stable.stl")
-        nightly_stl = os.path.join(tmp, "nightly.stl")
+        a_stl = os.path.join(tmp, "a.stl")
+        b_stl = os.path.join(tmp, "b.stl")
 
-        err_stable = render(STABLE_BIN, model_dir, stable_stl)
-        err_nightly = render(NIGHTLY_BIN, model_dir, nightly_stl)
+        err_a = render(BIN_A, model_dir, a_stl)
+        err_b = render(BIN_B, model_dir, b_stl)
 
-        if err_stable and err_nightly:
-            return "SKIP (falha nos dois binários, não é regressão do nightly)"
-        if err_stable:
-            return f"FAIL (renderiza no nightly mas não no stable: {err_stable[:200]})"
-        if err_nightly:
-            return f"FAIL (renderiza no stable mas não no nightly: {err_nightly[:200]})"
+        if err_a and err_b:
+            return "SKIP (falha nos dois binários)"
+        if err_a:
+            return f"FAIL (renderiza em BIN_B mas não em BIN_A: {err_a[:200]})"
+        if err_b:
+            return f"FAIL (renderiza em BIN_A mas não em BIN_B: {err_b[:200]})"
 
-        mesh_stable = trimesh.load(stable_stl)
-        mesh_nightly = trimesh.load(nightly_stl)
+        mesh_a = trimesh.load(a_stl)
+        mesh_b = trimesh.load(b_stl)
 
-        vol_stable, vol_nightly = abs(mesh_stable.volume), abs(mesh_nightly.volume)
-        vol_diff = abs(vol_stable - vol_nightly) / max(vol_stable, 1e-9)
+        vol_a, vol_b = abs(mesh_a.volume), abs(mesh_b.volume)
+        vol_diff = abs(vol_a - vol_b) / max(vol_a, 1e-9)
 
-        bbox_stable = mesh_stable.bounding_box.extents
-        bbox_nightly = mesh_nightly.bounding_box.extents
-        bbox_diff = max(abs(a - b) for a, b in zip(bbox_stable, bbox_nightly))
+        bbox_a = mesh_a.bounding_box.extents
+        bbox_b = mesh_b.bounding_box.extents
+        bbox_diff = max(abs(x - y) for x, y in zip(bbox_a, bbox_b))
 
         detail = (
-            f"vol={vol_stable:.1f}->{vol_nightly:.1f}mm3 ({vol_diff:.1%}), "
+            f"vol={vol_a:.1f}->{vol_b:.1f}mm3 ({vol_diff:.1%}), "
             f"bbox_diff={bbox_diff:.2f}mm, "
-            f"verts={len(mesh_stable.vertices)}->{len(mesh_nightly.vertices)}"
+            f"verts={len(mesh_a.vertices)}->{len(mesh_b.vertices)}"
         )
 
         if vol_diff > VOLUME_TOLERANCE or bbox_diff > BBOX_TOLERANCE_MM:

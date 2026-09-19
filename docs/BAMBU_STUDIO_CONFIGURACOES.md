@@ -48,14 +48,23 @@ Comparando os dois arquivos ZIP:
 
 ## Modelos com Suporte a Bambu Studio
 
-Atualmente os seguintes modelos possuem `bambu_template/` configurado:
+Os seguintes modelos possuem `bambu_template/` configurado (extrusor padrão do template — pode ser sobrescrito por parâmetro `extrusor_*` do frontend em tempo de geração):
 
 | Pasta do modelo | Partes |
 |---|---|
-| `models/chaveiro_simples/` | `base` (extrusor 1), `letters` (extrusor 2) |
+| `models/chaveiro_simples/` | `base` (1), `letters` (2) |
+| `models/chaveiro_simples_com_svg/` | `base` (1), `letters` (2) |
 | `models/cortador_bolacha/` | `carimbo_base` (3), `carimbo_arte` (3), `cortador` (3) |
-| `models/ponteira_lapis_texto/` | `base` (extrusor 3), `letters` (extrusor 1) |
-| `models/topo_bolo_svg/` | `base` (extrusor 1), `svg` (extrusor 4) |
+| `models/cortador_bolacha_formato/` | `cortador` (1) |
+| `models/editor_generico/` | `part_1` (1), `part_2` (2), `part_3` (3), `part_4` (4) |
+| `models/letreiro_social/` | `base` (1), `borda` (2), `letras` (3) |
+| `models/mexedor_drinks_svg/` | `base` (1), `svg` (4), `verso` (3) |
+| `models/ponteira_lapis_svg/` | `base` (1), `svg` (2) |
+| `models/ponteira_lapis_texto/` | `base` (1), `letters` (2) |
+| `models/tampa_bic/` | `base` (3), `letters` (1) |
+| `models/topo_bolo_svg/` | `base` (1), `svg` (4) |
+
+Os demais modelos não têm `bambu_template/` — o backend usa o fallback via trimesh automaticamente (sem atribuição de extrusor por parte). `carimbo_relevo_svg` e `test_holes_vertical` são de peça única, então isso não afeta o resultado; `carimbo_eva_svg` (`segurador`, `molde_base`, `molde_arte`, `forma`) e `gerador_topo_bolo` (`base`, `letters`) têm múltiplas partes mas saem todas no mesmo extrusor por não terem template.
 
 ---
 

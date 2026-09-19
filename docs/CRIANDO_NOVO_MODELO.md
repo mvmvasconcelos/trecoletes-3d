@@ -16,9 +16,9 @@ models/meu_novo_modelo/
 
 Use sempre letras minúsculas e `underscores`.
 
-### 1.2 Crie o `model.scad` (ou `model.py`)
+### 1.2 Crie o `model.scad`
 
-Implemente a geometria. O arquivo receberá parâmetros via flags `-D key=value` do OpenSCAD.
+Implemente a geometria. O arquivo receberá parâmetros via flags `-D key=value` do OpenSCAD. O backend renderiza todo modelo com `openscad-nightly` (engine Manifold) — é o único engine suportado.
 
 - Para modelos com texto, o backend injeta `chars1`, `char_xs1`, `chars2`, `char_xs2`, `fill_gap_rects` automaticamente (ver `GAP_ENTRE_LINHAS.md`).
 - Para modelos com SVG, leia `CENTRALIZACAO_SVG_OPENSCAD.md` para o padrão correto de `resize + translate`.
@@ -27,6 +27,7 @@ Implemente a geometria. O arquivo receberá parâmetros via flags `-D key=value`
   if (part == "base")    { base_3d(); }
   if (part == "letters") { letters_3d(); }
   ```
+- Se usar BOSL2, inclua pelo caminho **absoluto**: `include </usr/share/openscad/libraries/BOSL2/std.scad>`. O `openscad-nightly` não resolve o include relativo `<BOSL2/std.scad>` — falha silenciosamente (só warning) e qualquer módulo do BOSL2 (`cyl()`, etc.) vira indefinido, sumindo com a geometria sem erro visível.
 
 ### 1.3 Crie o `config.json`
 
@@ -187,71 +188,60 @@ para um modelo novo se ele realmente precisar de duas artes relacionadas
 
 ### 2.1 Crie a página do gerador
 
-Duplique uma página existente em `frontend/src/pages/` que se assemelhe ao novo modelo:
-- Modelos com texto → copiar `PonteiraLapisTexto.tsx` ou `TampaBic.tsx`
-- Modelos com SVG → copiar `PonteiraLapisSvg.tsx` ou `CortadorBolacha.tsx`
+Crie `frontend/src/pages/MeuNovoModelo.tsx` compondo os hooks compartilhados —
+não escreva o ciclo de config/params/cache/geração nem o switch de
+parâmetros na mão. Existem quatro peças reutilizáveis:
 
-Renomeie para `MeuNovoModelo.tsx` e troque todas as referências ao `model_id` antigo pelo novo.
+| Peça | Responsabilidade | Usa sempre? |
+|---|---|---|
+| `hooks/useModelGenerate.ts` | Config, `params`/`setParam`, `openSections`/`toggleSection`, `isGenerating`, `error`, `files` (mapa genérico das URLs retornadas), `fromCache`/`clearCache`, e `generate(requestFn)` | Sim, em toda página |
+| `hooks/useBatchGeneration.ts` | Geração em lote + polling de `batch_status`. Recebe `params`/`setError` do `useModelGenerate` | Só se o modelo tiver `BatchGenerationModal` |
+| `hooks/useSvgUpload.ts` | Upload de arte (SVG/PNG), preview, trava de proporção artWidth/artHeight | Só se o modelo receber upload de SVG |
+| `components/ui/ParameterField.tsx` | Renderiza um parâmetro do `config.json` pelo `type` (text/range/color/select/checkbox — aceita `boolean` como sinônimo de `checkbox`); prop `accent="violet"\|"emerald"` escolhe a cor de destaque da página | Sim, em vez de escrever um `renderParam` próprio |
+
+`useModelGenerate.generate(requestFn)` não sabe como a requisição é montada
+— `requestFn(params)` é uma função que a própria página passa, devolvendo a
+promise do `axios.post`. Isso cobre tanto o endpoint `generate_parametric`
+(FormData de `params`) quanto o legado `/generate` (upload de 2 arquivos
+fixos), sem a página precisar saber qual dos dois é.
+
+```tsx
+const { config, params, setParam, openSections, toggleSection,
+        isGenerating, error, files, fromCache, isClearingCache, clearCache, generate,
+      } = useModelGenerate('meu_novo_modelo');
+
+const handleGenerate = () => generate(params => {
+    const form = new FormData();
+    Object.entries(params).forEach(([k, v]) => form.append(k, String(v ?? '')));
+    return axios.post(`${API_BASE}/api/generate_parametric/meu_novo_modelo`, form);
+});
+
+// No JSX:
+{config.parameters?.map(p => (
+    <ParameterField key={p.id} parameter={p} value={params[p.id] ?? p.default} onChange={setParam} accent="violet" />
+))}
+```
+
+`files` é um mapa genérico (`files.base`, `files.letters`, `files['3mf']`,
+...) — a página só lê as chaves que o `parts` do seu modelo declara; não
+declare um `useState` por parte.
+
+Páginas que usam este padrão hoje, e servem de referência:
+`PonteiraLapisTexto.tsx` (texto + lote), `CarimboRelevoSvg.tsx` (SVG via
+`generate_parametric`), `CortadorBolacha.tsx` (SVG via `/generate` legado —
+a mais customizada, mostra como compor `useSvgUpload` com estado extra
+próprio da página, como formato de cortador). As demais páginas em
+`frontend/src/pages/` escrevem o ciclo config/params/cache/geração e o
+`renderParam` diretamente na página, sem os hooks — não as use como
+referência para modelos novos.
 
 #### Suporte a PNG em modelos com SVG
 
-Todas as páginas com upload de SVG já suportam PNG nativamente. O padrão implementado em todas elas é:
-
-1. **Backend (universal):** o endpoint `POST /api/generate_parametric/{model_id}` detecta automaticamente quando o arquivo enviado é um PNG (por magic bytes) e chama `_png_bytes_to_svg()` antes de processar. Nenhuma mudança de backend é necessária para novos modelos.
-
-2. **Endpoint de conversão:** `POST /api/convert/png-to-svg` — recebe um PNG e retorna um SVG vetorizado via potrace, com transforms já achatados (compatível com Paper.js).
-
-3. **Padrão frontend** — ao criar uma página para modelo com SVG, use o padrão:
-   ```tsx
-   const [isConvertingPng, setIsConvertingPng] = useState(false);
-
-   const _processSvgText = async (text: string) => {
-       setSvgText(text);
-       // ... processSvgFile, setSvgPreview, calcular aspecto, setIsModalOpen(true)
-   };
-
-   const handleSvgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-       const file = e.target.files?.[0];
-       if (!file) return;
-       setSvgFile(file);
-       const fileIsPng = file.name.toLowerCase().endsWith('.png') || file.type === 'image/png';
-       if (fileIsPng) {
-           setIsConvertingPng(true);
-           try {
-               const form = new FormData();
-               form.append('file', file, file.name);
-               const res = await axios.post<string>(
-                   `${API_BASE}/api/convert/png-to-svg`, form, { responseType: 'text' }
-               );
-               await _processSvgText(res.data);
-           } catch (err: any) {
-               alert(`Erro ao converter PNG: ${err?.response?.data?.error ?? 'Falha desconhecida'}`);
-           } finally {
-               setIsConvertingPng(false);
-           }
-           return;
-       }
-       const reader = new FileReader();
-       reader.onload = async (evt) => { await _processSvgText(evt.target?.result as string); };
-       reader.readAsText(file);
-   };
-   ```
-
-4. No `<input>`, use `accept=".svg,.png"` e adicione o estado de loading na UI:
-   ```tsx
-   <input ref={fileInputRef} type="file" className="hidden" accept=".svg,.png" onChange={handleSvgUpload} />
-   {isConvertingPng ? (
-       <div className="...border-amber-700/50...">
-           <span className="text-amber-400 animate-pulse">Convertendo PNG para SVG...</span>
-       </div>
-   ) : svgPreview ? (
-       // botão "clique para editar"
-   ) : (
-       // botão "Selecionar SVG ou PNG"
-   )}
-   ```
-
-**Páginas já atualizadas:** `MexedorDrinksSvg`, `ChaveiroSimplesSvg`, `GeradorTopoBoloSvg`, `CarimboEvaSvg`, `CortadorBolacha`, `PonteiraLapisSvg`, `CortadorBolachaFormato`.
+`useSvgUpload` já trata isso — detecta PNG (por extensão/magic bytes),
+chama `POST /api/convert/png-to-svg` (vetorização via potrace) antes de
+processar, e expõe `isConvertingPng` para o loading state. Nenhum código
+extra é necessário na página: use `handleSvgUpload` do hook direto no
+`onChange` do `<input type="file" accept=".svg,.png">`.
 
 O componente `<Viewer3D>` aceita o prop `modelType` para ajustar as mensagens de loading:
 - `'cortador'` — para cortadores de bolacha
@@ -300,7 +290,7 @@ modelo pronto:
 1. **Render isolado do `.scad`** — pega erro de sintaxe/geometria sem
    precisar da API:
    ```bash
-   docker exec trecoletes_backend openscad -o /tmp/test.stl \
+   docker exec trecoletes_backend openscad-nightly -o /tmp/test.stl \
      -D 'art_width=60' -D 'art_height=20' -D 'part="minha_parte"' \
      /models/meu_novo_modelo/model.scad
    ```
