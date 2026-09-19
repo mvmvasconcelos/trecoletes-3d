@@ -1,8 +1,9 @@
 FROM python:3.11-slim
 
-# Install OpenSCAD + libspatialindex (required by rtree for trimesh ray casting)
+# Libs de runtime (OpenSCAD em si vem só do nightly, instalado abaixo) +
+# libspatialindex (required by rtree for trimesh ray casting)
 RUN apt-get update && \
-    apt-get install -y openscad libgl1 libglu1-mesa fonts-liberation libspatialindex-dev potrace librsvg2-bin git ca-certificates curl libgpg-error0 && \
+    apt-get install -y libgl1 libglu1-mesa libegl1 fonts-liberation libspatialindex-dev potrace librsvg2-bin git ca-certificates curl libgpg-error0 && \
     git init /usr/share/openscad/libraries/BOSL2 && \
     git -C /usr/share/openscad/libraries/BOSL2 fetch --depth 1 \
       https://github.com/BelfrySCAD/BOSL2.git afe82db884ee4409aa76ecfcfbbf54d446964af1 && \
@@ -10,8 +11,8 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# OpenSCAD nightly snapshot (pinned by date, lives alongside the stable apt
-# package). --appimage-extract unpacks without needing FUSE in the container.
+# OpenSCAD nightly snapshot (pinned by date) — único engine usado pelo backend.
+# --appimage-extract unpacks without needing FUSE in the container.
 # Bump OPENSCAD_NIGHTLY_DATE/SHA256 together when refreshing the snapshot.
 ARG OPENSCAD_NIGHTLY_DATE=2026.07.26
 ARG OPENSCAD_NIGHTLY_SHA256=570a39a199b443c2072312db458a405e18efe51d4c83756e76048ea1069d946c

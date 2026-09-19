@@ -1,4 +1,7 @@
-include <BOSL2/std.scad>
+// Path absoluto necessário: openscad-nightly não resolve o include relativo
+// <BOSL2/...> — falha silenciosamente (só warning) e o objeto some sem erro
+// visível. Ver OPENSCAD_NIGHTLY_MODELS em backend/app/api/generator.py.
+include </usr/share/openscad/libraries/BOSL2/std.scad>
 
 // =====================================================================
 // CARIMBO EM RELEVO - SVG

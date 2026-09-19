@@ -1,5 +1,4 @@
 import hashlib
-import math
 import os
 import re
 import shutil
@@ -10,7 +9,6 @@ import uuid
 import zipfile
 import threading
 import unicodedata
-import numpy as np
 import trimesh
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import APIRouter, UploadFile, Form, Request
@@ -507,11 +505,6 @@ GENERATED_DIR = os.path.join(BASE_DIR, "static", "generated")
 OPENSCAD_TIMEOUT = 300  # segundos por parte
 JOB_MAX_AGE_HOURS = 24
 
-# Modelos em teste com o binário nightly do OpenSCAD (backend Manifold, muito
-# mais rápido em booleanas). Ver backend/compare_openscad_backends.py para
-# checagem de divergência geométrica antes de expandir esta lista.
-OPENSCAD_NIGHTLY_MODELS = {"ponteira_lapis_texto", "tampa_bic", "chaveiro_simples"}
-
 # Modelos com toggle "2 linhas" no lote (BatchGenerationModal): a primeira
 # palavra do nome vira uma linha, o restante vira a outra.
 TWO_LINE_TOGGLE_MODELS = {"tampa_bic", "chaveiro_simples", "ponteira_lapis_texto"}
@@ -530,10 +523,6 @@ SECONDARY_TOGGLE_FIELDS = {
         "valid": {"FRONTBACK", "TOPBOTTOM"}, "default": "FRONTBACK",
     },
 }
-
-
-def _openscad_bin(model_id: str) -> str:
-    return "openscad-nightly" if model_id in OPENSCAD_NIGHTLY_MODELS else "openscad"
 
 
 def _cleanup_old_jobs():
@@ -1408,121 +1397,6 @@ def _inject_char_positions(scad_args: list, params: dict, model_dir: str) -> lis
     return args
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Detecção de paredes finas
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _warn_thin_text_sizes(params: dict, min_feature_mm: float) -> list:
-    """
-    Opção 3: estima a espessura mínima do traço para cada linha de texto e
-    avisa se essa estimativa ficar abaixo de min_feature_mm.
-    Usa stem_ratio=0.12 (conservador para fontes cursivas/display).
-    Para fontes com peso regular, traços típicos são ~12-15% do tamanho.
-    """
-    warnings = []
-    STEM_RATIO = 0.12
-    for key in ("text_size_1", "text_size_2"):
-        raw = params.get(key)
-        if not raw:
-            continue
-        try:
-            size = float(raw)
-        except (ValueError, TypeError):
-            continue
-        estimated_stroke = size * STEM_RATIO
-        if estimated_stroke < min_feature_mm:
-            min_safe = math.ceil(min_feature_mm / STEM_RATIO)
-            warnings.append(
-                f"Texto '{key}={size:.1f}mm': espessura estimada do traço "
-                f"~{estimated_stroke:.2f}mm < mínimo recomendado {min_feature_mm}mm. "
-                f"Partes da letra podem não ser fatiadas pelo fatiador. "
-                f"Tente aumentar o tamanho para ≥{min_safe}mm."
-            )
-    return warnings
-
-
-def _warn_thin_params(params: dict, model_config: dict) -> list:
-    """
-    Opção 4: verifica parâmetros que possuem 'min_safe_mm' declarado no
-    config.json do modelo e avisa se o valor fornecido estiver abaixo desse limiar.
-    """
-    warnings = []
-    all_params = list(model_config.get("parameters", []))
-    for section in model_config.get("sections", []):
-        all_params.extend(section.get("parameters", []))
-    for p in all_params:
-        min_safe = p.get("min_safe_mm")
-        if min_safe is None:
-            continue
-        pid = p["id"]
-        raw = params.get(pid)
-        if raw is None:
-            continue
-        try:
-            val = float(raw)
-        except (ValueError, TypeError):
-            continue
-        if val < float(min_safe):
-            warnings.append(
-                f"'{p.get('name', pid)}' ({val}mm) está abaixo de {min_safe}mm: "
-                f"essa espessura pode não ser impressa corretamente com bico 0.4mm."
-            )
-    return warnings
-
-
-def _check_thin_walls_mesh(mesh, min_thickness_mm: float = 0.8, n_samples: int = 1500) -> tuple:
-    """
-    Opção 1: detecta paredes finas via ray casting nas faces verticais da malha.
-    Lança raios para dentro da superfície ao longo das normais invertidas e mede
-    a espessura no ponto de saída oposto.
-    Retorna (fração_fina, espessura_mínima_mm):
-      - fração_fina [0.0, 1.0]: fração de amostras com espessura < min_thickness_mm
-      - espessura_mínima_mm: menor espessura medida (float('inf') se nenhum hit)
-    Threshold de alerta: fração > 0.06 (6%) OU espessura_mínima < min_thickness_mm * 0.6
-    """
-    try:
-        # Apenas faces "verticais": |normal.z| < 0.3 → paredes laterais das letras
-        vert_mask = np.abs(mesh.face_normals[:, 2]) < 0.3
-        if not np.any(vert_mask):
-            return 0.0, float('inf')
-        vert_indices = np.where(vert_mask)[0]
-        n = min(n_samples, len(vert_indices))
-        if n == 0:
-            return 0.0, float('inf')
-
-        rng = np.random.default_rng(42)  # seed fixo → resultado determinístico
-        sampled = rng.choice(vert_indices, n, replace=False)
-
-        normals = mesh.face_normals[sampled]                        # (n, 3)
-        centers = mesh.vertices[mesh.faces[sampled]].mean(axis=1)  # (n, 3)
-        origins = centers - normals * 0.01    # pequeno offset para dentro
-        directions = -normals                  # direção: atravessa a parede
-
-        locs, ray_ids, _ = mesh.ray.intersects_location(
-            ray_origins=origins,
-            ray_directions=directions,
-            multiple_hits=False,
-        )
-        if len(locs) == 0:
-            return 0.0, float('inf')
-
-        thin_hits: set = set()
-        min_thickness = float('inf')
-        for i in range(len(ray_ids)):
-            ri = int(ray_ids[i])
-            dist = float(np.linalg.norm(locs[i] - origins[ri]))
-            if 0.02 < dist:
-                if dist < min_thickness:
-                    min_thickness = dist
-                if dist < min_thickness_mm:
-                    thin_hits.add(ri)
-
-        return len(thin_hits) / n, min_thickness
-    except Exception as exc:
-        print(f"[THIN_WALL] Erro no ray casting: {exc}", flush=True)
-        return 0.0, float('inf')
-
-
 @router.post("/clear_cache")
 async def clear_cache():
     """Remove todos os arquivos e diretórios gerados em static/generated."""
@@ -1706,7 +1580,7 @@ async def generate_model(
             return part, output_path
 
         cmd = [
-            "openscad",
+            "openscad-nightly",
             "-o", output_path,
             *scad_variables_base,
             "-D", f'part="{part}"',
@@ -1876,18 +1750,7 @@ async def generate_parametric_model(request: Request, model_id: str):
         hasher.update(svg_bytes_map[_svg_field])
     job_id = hasher.hexdigest()[:16]
 
-    # ── Detecção de paredes finas (Opções 3 e 4) ─────────────────────────────
-    # Executado sempre, inclusive em cache hits, pois é rápido (sem I/O de disco).
     _params_dict = dict(text_params)
-    _min_feature_mm = float(model_config.get("min_feature_size_mm", 0.0))
-    gen_warnings: list = []
-    gen_thin_parts: list = []
-    if _min_feature_mm > 0:
-        gen_warnings += _warn_thin_params(_params_dict, model_config)
-        if model_config.get("text_to_svg"):
-            gen_warnings += _warn_thin_text_sizes(_params_dict, _min_feature_mm)
-    if gen_warnings:
-        print(f"[THIN_WALL] {len(gen_warnings)} aviso(s) de parede fina detectado(s)", flush=True)
 
     job_dir = os.path.join(GENERATED_DIR, job_id)
     font_path = f"{FONTS_DIR}:{os.path.join(MODELS_DIR, model_id)}"
@@ -1914,30 +1777,7 @@ async def generate_parametric_model(request: Request, model_id: str):
             print(f"[CACHE HIT parametric 3mf] job_id={job_id}", flush=True)
             cached_urls = {p: f"/static/generated/{job_id}/{model_id}_{p}.stl" for p in parts_to_render}
             cached_urls["3mf"] = f"/static/generated/{job_id}/{mf_filename}"
-            # Ray casting também no cache hit
-            if model_config.get("thin_wall_check") and _min_feature_mm > 0:
-                for _check_part in ("letters", "svg", "nome", "verso"):
-                    _stl_p = os.path.join(job_dir, f"{model_id}_{_check_part}.stl")
-                    if not os.path.exists(_stl_p):
-                        continue
-                    try:
-                        _loaded = trimesh.load(_stl_p)
-                        _mesh = (trimesh.util.concatenate(list(_loaded.geometry.values()))
-                                 if isinstance(_loaded, trimesh.Scene) else _loaded)
-                        _frac, _min_thick = _check_thin_walls_mesh(_mesh, _min_feature_mm)
-                        _critical_thin = _min_thick < _min_feature_mm * 0.6
-                        if _frac > 0.06 or _critical_thin:
-                            gen_thin_parts.append(_check_part)
-                            _min_str = f"{_min_thick:.2f}mm" if _min_thick != float('inf') else "?"
-                            gen_warnings.append(
-                                f"Parte '{_check_part}': {_frac * 100:.0f}% das faces laterais "
-                                f"têm espessura < {_min_feature_mm}mm "
-                                f"(mínimo detectado: {_min_str}). "
-                                f"Alguns traços podem não ser fatiados."
-                            )
-                    except Exception as _exc:
-                        print(f"[THIN_WALL cache] Erro ao verificar '{_check_part}': {_exc}", flush=True)
-            return {"success": True, "job_id": job_id, "files": cached_urls, "from_cache": True, "warnings": gen_warnings, "thin_wall_parts": gen_thin_parts}
+            return {"success": True, "job_id": job_id, "files": cached_urls, "from_cache": True}
 
         _cleanup_old_jobs()
         os.makedirs(job_dir, exist_ok=True)
@@ -1970,7 +1810,7 @@ async def generate_parametric_model(request: Request, model_id: str):
             if os.path.exists(output_path):
                 return part, output_path
             cmd = [
-                _openscad_bin(model_id), "-o", output_path,
+                "openscad-nightly", "-o", output_path,
                 *scad_args_base,
                 "-D", f'part="{part}"',
                 scad_path,
@@ -2002,32 +1842,6 @@ async def generate_parametric_model(request: Request, model_id: str):
         if errors:
             print(f"[PARAMETRIC 3MF ERROR] {errors}", flush=True)
             return JSONResponse(status_code=500, content={"error": "OpenSCAD falhou", "details": errors})
-
-        # ── Opção 1: ray casting nas malhas geradas ───────────────────────────────
-        # Verifica paredes laterais das peças de texto/SVG após renderização.
-        if model_config.get("thin_wall_check") and _min_feature_mm > 0:
-            for _check_part in ("letters", "svg", "nome", "verso"):
-                _stl_p = os.path.join(job_dir, f"{model_id}_{_check_part}.stl")
-                if not os.path.exists(_stl_p):
-                    continue
-                try:
-                    _loaded = trimesh.load(_stl_p)
-                    _mesh = (trimesh.util.concatenate(list(_loaded.geometry.values()))
-                             if isinstance(_loaded, trimesh.Scene) else _loaded)
-                    _frac, _min_thick = _check_thin_walls_mesh(_mesh, _min_feature_mm)
-                    print(f"[THIN_WALL] Parte '{_check_part}': fração fina={_frac:.2f}, min_thick={_min_thick:.2f}mm", flush=True)
-                    _critical_thin = _min_thick < _min_feature_mm * 0.6
-                    if _frac > 0.06 or _critical_thin:
-                        gen_thin_parts.append(_check_part)
-                        _min_str = f"{_min_thick:.2f}mm" if _min_thick != float('inf') else "?"
-                        gen_warnings.append(
-                            f"Parte '{_check_part}': {_frac * 100:.0f}% das faces laterais "
-                            f"têm espessura < {_min_feature_mm}mm "
-                            f"(mínimo detectado: {_min_str}). "
-                            f"Alguns traços podem não ser fatiados."
-                        )
-                except Exception as _exc:
-                    print(f"[THIN_WALL] Erro ao verificar '{_check_part}': {_exc}", flush=True)
 
         ov = {}
         for k, v in text_params:
@@ -2082,7 +1896,7 @@ async def generate_parametric_model(request: Request, model_id: str):
             except Exception as e:
                 print(f"[PARAMETRIC FALLBACK] Erro ao exportar 3MF via trimesh: {repr(e)}")
 
-        return {"success": True, "job_id": job_id, "files": generated_urls, "from_cache": False, "warnings": gen_warnings, "thin_wall_parts": gen_thin_parts}
+        return {"success": True, "job_id": job_id, "files": generated_urls, "from_cache": False}
 
     # ── Fluxo STL único (original) ────────────────────────────────────────
     output_filename = f"{model_id}.stl"
@@ -2095,7 +1909,6 @@ async def generate_parametric_model(request: Request, model_id: str):
             "job_id": job_id,
             "files": {"model": f"/static/generated/{job_id}/{output_filename}"},
             "from_cache": True,
-            "warnings": gen_warnings,
         }
 
     _cleanup_old_jobs()
@@ -2105,7 +1918,7 @@ async def generate_parametric_model(request: Request, model_id: str):
     for key, value in text_params:
         scad_args.extend(["-D", _to_scad_assignment(key, value)])
 
-    cmd = ["openscad", "-o", output_path, *scad_args, scad_path]
+    cmd = ["openscad-nightly", "-o", output_path, *scad_args, scad_path]
     env = os.environ.copy()
     env["OPENSCAD_FONT_PATH"] = font_path
 
@@ -2134,7 +1947,6 @@ async def generate_parametric_model(request: Request, model_id: str):
         "job_id": job_id,
         "files": {"model": f"/static/generated/{job_id}/{output_filename}"},
         "from_cache": False,
-        "warnings": gen_warnings,
     }
 
 
@@ -2353,7 +2165,7 @@ async def generate_batch(request: Request, model_id: str):
                 if os.path.exists(out):
                     continue  # cache hit da peça
 
-                cmd = [_openscad_bin(model_id), "-o", out,
+                cmd = ["openscad-nightly", "-o", out,
                        *scad_args,
                        "-D", f'part="{part}"',
                        scad_path]
@@ -2463,96 +2275,3 @@ async def generate_batch(request: Request, model_id: str):
         "total": len(names),
         "done": 0,
     }
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# CadQuery: engine alternativo ao OpenSCAD para modelos com model.py
-# ─────────────────────────────────────────────────────────────────────────────
-
-@router.post("/generate_cq/{model_id}")
-async def generate_cq_model(request: Request, model_id: str):
-    """
-    Endpoint para modelos CadQuery (engine=cadquery no config.json).
-    Carrega model.py do diretório do modelo e chama generate(params, output_dir).
-    Reutiliza o mesmo mecanismo de cache/hash e empacotamento 3MF do fluxo padrão.
-    """
-    import importlib.util
-
-    model_py_path = os.path.join(MODELS_DIR, model_id, "model.py")
-    if not os.path.exists(model_py_path):
-        return JSONResponse(status_code=404, content={"error": "model.py não encontrado"})
-
-    config_path = os.path.join(MODELS_DIR, model_id, "config.json")
-    model_config = {}
-    if os.path.exists(config_path):
-        with open(config_path, "r", encoding="utf-8") as f:
-            model_config = json.load(f)
-
-    parts_to_render = model_config.get("parts", [])
-
-    form_data = await request.form()
-    params = {k: v for k, v in form_data.items() if isinstance(v, str)}
-
-    # Hash determinístico (mesmo mecanismo do fluxo OpenSCAD)
-    hasher = hashlib.md5()
-    hasher.update(("cq_" + model_id).encode())
-    for k, v in sorted(params.items()):
-        hasher.update(f"{k}={v}".encode())
-    job_id = hasher.hexdigest()[:16]
-
-    job_dir     = os.path.join(GENERATED_DIR, job_id)
-    mf_filename = f"{model_id}_all.3mf"
-    mf_filepath = os.path.join(job_dir, mf_filename)
-
-    # Cache hit
-    if os.path.exists(mf_filepath):
-        print(f"[CQ CACHE HIT] job_id={job_id}", flush=True)
-        urls = {p: f"/static/generated/{job_id}/{model_id}_{p}.stl" for p in parts_to_render}
-        urls["3mf"] = f"/static/generated/{job_id}/{mf_filename}"
-        return {"success": True, "job_id": job_id, "files": urls, "from_cache": True}
-
-    _cleanup_old_jobs()
-    os.makedirs(job_dir, exist_ok=True)
-
-    # Carregar model.py dinamicamente
-    spec = importlib.util.spec_from_file_location(f"cq_model_{model_id}", model_py_path)
-    mod  = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-
-    try:
-        raw_paths = mod.generate(params, job_dir)
-    except Exception as e:
-        import traceback
-        print(f"[CQ ERROR] {traceback.format_exc()}", flush=True)
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-    # Renomear arquivos para o padrão {model_id}_{part}.stl
-    for part in parts_to_render:
-        src = raw_paths.get(part)
-        dst = os.path.join(job_dir, f"{model_id}_{part}.stl")
-        if src and os.path.exists(src) and src != dst:
-            os.rename(src, dst)
-
-    generated_urls = {
-        p: f"/static/generated/{job_id}/{model_id}_{p}.stl"
-        for p in parts_to_render
-        if os.path.exists(os.path.join(job_dir, f"{model_id}_{p}.stl"))
-    }
-
-    # Empacotar 3MF via trimesh
-    try:
-        meshes = []
-        for part in parts_to_render:
-            stl_path = os.path.join(job_dir, f"{model_id}_{part}.stl")
-            if os.path.exists(stl_path):
-                loaded = trimesh.load(stl_path)
-                mesh = (trimesh.util.concatenate(list(loaded.geometry.values()))
-                        if isinstance(loaded, trimesh.Scene) else loaded)
-                meshes.append(mesh)
-        if meshes:
-            trimesh.Scene(meshes).export(mf_filepath, file_type='3mf')
-            generated_urls["3mf"] = f"/static/generated/{job_id}/{mf_filename}"
-    except Exception as e:
-        print(f"[CQ 3MF ERROR] {repr(e)}", flush=True)
-
-    return {"success": True, "job_id": job_id, "files": generated_urls, "from_cache": False}
