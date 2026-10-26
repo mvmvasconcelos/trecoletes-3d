@@ -1,3 +1,4 @@
+import contextlib
 import hashlib
 import os
 import re
@@ -9,6 +10,7 @@ import uuid
 import zipfile
 import threading
 import unicodedata
+from urllib.parse import quote
 import trimesh
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import APIRouter, UploadFile, Form, Request
@@ -1933,6 +1935,12 @@ async def generate_parametric_model(request: Request, model_id: str):
 # BATCH: gera um 3MF com múltiplos letreiros na mesma prancheta
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _batch_safe_name(name: str, model_id: str) -> str:
+    """Nome de arquivo do 3MF de um item do lote."""
+    safe = "".join(c if c.isalnum() or c in " _-" else "_" for c in name).strip()
+    return safe or model_id
+
+
 @router.get("/batch_status/{batch_id}")
 async def batch_status(batch_id: str):
     """Retorna o estado atual de um job de batch."""
@@ -2031,15 +2039,19 @@ async def generate_batch(request: Request, model_id: str):
     batch_id = hasher.hexdigest()[:16]
 
     batch_dir = os.path.join(GENERATED_DIR, f"batch_{batch_id}")
-    batch_zip = os.path.join(batch_dir, f"{model_id}_batch.zip")
+    # Lote de 1 entrada entrega o .3mf direto (com o nome do item), sem ZIP.
+    single = len(names) == 1
+    batch_name = f"{_batch_safe_name(names[0], model_id)}.3mf" if single else f"{model_id}_batch.zip"
+    batch_file = os.path.join(batch_dir, batch_name)
+    batch_url = f"/static/generated/batch_{batch_id}/{quote(batch_name)}"
 
     # Cache hit
-    if os.path.exists(batch_zip):
+    if os.path.exists(batch_file):
         print(f"[BATCH CACHE HIT] batch_id={batch_id}", flush=True)
         return {
             "batch_id": batch_id,
             "status": "done",
-            "file": f"/static/generated/batch_{batch_id}/{model_id}_batch.zip",
+            "file": batch_url,
             "total": len(names),
             "done": len(names),
             "from_cache": True,
@@ -2183,10 +2195,9 @@ async def generate_batch(request: Request, model_id: str):
                 _batch_jobs[batch_id]["status"] = "error"
             return
 
-        # ── Gera um 3MF por nome e zipa tudo ─────────────────────────────
+        # ── Gera um 3MF por nome e zipa tudo (ou só o 3MF, se single) ────
         try:
-            zip_path = os.path.join(batch_dir, f"{model_id}_batch.zip")
-            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            with (contextlib.nullcontext() if single else zipfile.ZipFile(batch_file, "w", zipfile.ZIP_DEFLATED)) as zf:
                 arc_name_count: dict = {}
                 for name, name_hash, src_hash, is_dup, extruder_ov, _two_lines, _secondary_value in render_tasks:
                     piece_hash = src_hash if is_dup else name_hash
@@ -2194,9 +2205,7 @@ async def generate_batch(request: Request, model_id: str):
                     if not stl_paths:
                         continue
 
-                    safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in name).strip()
-                    if not safe_name:
-                        safe_name = model_id
+                    safe_name = _batch_safe_name(name, model_id)
                     # Desambigua nomes iguais *e* nomes que diferem só por caixa
                     # (ex: "KID" e "KId" → conflito em Windows que é case-insensitive).
                     # A chave do contador é sempre lowercase; o nome exibido preserva a caixa original.
@@ -2221,12 +2230,16 @@ async def generate_batch(request: Request, model_id: str):
                         print(f"[BATCH ZIP] _pack_bambu_3mf falhou para '{name}'", flush=True)
                         continue
 
-                    zf.write(mf_path, arc_name)
-                    print(f"[BATCH ZIP] adicionado: {arc_name}", flush=True)
+                    if zf:
+                        zf.write(mf_path, arc_name)
+                        print(f"[BATCH ZIP] adicionado: {arc_name}", flush=True)
+
+            if single and not os.path.exists(batch_file):
+                raise RuntimeError(f"3MF não gerado para '{names[0]}'")
 
             with _batch_jobs_lock:
                 _batch_jobs[batch_id]["status"] = "done"
-                _batch_jobs[batch_id]["file"] = f"/static/generated/batch_{batch_id}/{model_id}_batch.zip"
+                _batch_jobs[batch_id]["file"] = batch_url
         except Exception as exc:
             print(f"[BATCH ASSEMBLE ERROR] {repr(exc)}", flush=True)
             with _batch_jobs_lock:

@@ -192,6 +192,11 @@ function playCompletionBeep() {
     }
 }
 
+/** Lote de 1 item vem como .3mf direto (nome do item na URL); senão, usa o nome padrão do ZIP. */
+export function batchDownloadName(url: string, zipName: string) {
+    return url.endsWith('.3mf') ? decodeURIComponent(url.split('/').pop()!) : zipName;
+}
+
 export function BatchGenerationModal({
     isOpen,
     onClose,
@@ -508,7 +513,7 @@ export function BatchGenerationModal({
                                 onClick={onDownload}
                                 className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors"
                             >
-                                {downloadLabel}
+                                {downloadUrl.endsWith('.3mf') ? 'Baixar 3MF' : downloadLabel}
                             </button>
                         </div>
                     )}

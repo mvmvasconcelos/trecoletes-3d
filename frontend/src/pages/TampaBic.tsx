@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Sliders, ChevronDown } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
-import { BatchGenerationModal, type BatchNameEntry } from '../components/ui/BatchGenerationModal';
+import { BatchGenerationModal, type BatchNameEntry, batchDownloadName } from '../components/ui/BatchGenerationModal';
 import { BambuColorPicker } from '../components/ui/BambuColorPicker';
 import { ParameterLabel } from '../components/ui/ParameterLabel';
 import Viewer3D from '../components/ui/Viewer3D';
@@ -335,7 +335,7 @@ export default function TampaBic() {
                 onClose={() => setIsBatchModalOpen(false)}
                 onGenerate={handleBatchGenerate}
                 onDownload={() => {
-                    if (batchTmfUrl) downloadBlob(batchTmfUrl, 'tampa_bic_lote.zip');
+                    if (batchTmfUrl) downloadBlob(batchTmfUrl, batchDownloadName(batchTmfUrl, 'tampa_bic_lote.zip'));
                 }}
                 defaultExtrusorBase={Number(params['extrusor_base']) || 1}
                 defaultExtrusorLetras={Number(params['extrusor_letras']) || 4}

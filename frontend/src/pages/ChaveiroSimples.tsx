@@ -9,7 +9,7 @@ import { useNomesFragment } from '../hooks/useNomesFragment';
 import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 import { FontPicker } from '../components/ui/FontPicker';
-import { BatchGenerationModal, type BatchNameEntry } from '../components/ui/BatchGenerationModal';
+import { BatchGenerationModal, type BatchNameEntry, batchDownloadName } from '../components/ui/BatchGenerationModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -354,7 +354,7 @@ export default function ChaveiroSimples() {
                 onGenerate={handleBatchGenerate}
                 onDownload={() => {
                     if (batchTmfUrl) {
-                        downloadBlob(batchTmfUrl, 'chaveiro_simples_lote.zip');
+                        downloadBlob(batchTmfUrl, batchDownloadName(batchTmfUrl, 'chaveiro_simples_lote.zip'));
                     }
                 }}
                 defaultExtrusorBase={Number(params['extrusor_base']) || 1}

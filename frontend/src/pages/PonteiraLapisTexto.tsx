@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import axios from 'axios';
 import { Sliders, ChevronDown } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
-import { BatchGenerationModal } from '../components/ui/BatchGenerationModal';
+import { BatchGenerationModal, batchDownloadName } from '../components/ui/BatchGenerationModal';
 import { ParameterField } from '../components/ui/ParameterField';
 import Viewer3D from '../components/ui/Viewer3D';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
@@ -149,7 +149,7 @@ export default function PonteiraLapisTexto() {
                 onClose={() => setIsBatchModalOpen(false)}
                 onGenerate={handleBatchGenerate}
                 onDownload={() => {
-                    if (batchTmfUrl) downloadBlob(batchTmfUrl, 'ponteira_texto_lote.zip');
+                    if (batchTmfUrl) downloadBlob(batchTmfUrl, batchDownloadName(batchTmfUrl, 'ponteira_texto_lote.zip'));
                 }}
                 defaultExtrusorBase={Number(params['extrusor_base']) || 1}
                 defaultExtrusorLetras={Number(params['extrusor_letras']) || 4}
