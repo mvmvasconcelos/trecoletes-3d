@@ -165,6 +165,12 @@ Prof Jade
 
 Linhas vazias são ignoradas automaticamente em todos os formatos.
 
+### 3.3.1 Lista via URL (`#nomes=`)
+
+`/ponteira-texto`, `/tampa-bic` e `/chaveiro-simples` aceitam `#nomes=<JSON>` no fim da URL, onde `<JSON>` é um array de strings codificado com `encodeURIComponent` (ex.: `#nomes=%5B%22Ana%22%2C%22Helo%C3%ADsa%20M.%22%5D`). Ao carregar, o modal abre com uma linha por nome (extrusores no padrão da página) e o fragmento é apagado da barra. Usado pelo admin da Loja da Cati. Os nomes vão no fragmento, e não na query, para não caírem no log do servidor. Fragmento inválido é ignorado.
+
+Para ligar em outra página: `const nomesDaUrl = useNomesFragment();`, abrir o modal se `nomesDaUrl !== null` e passar `initialNames={nomesDaUrl}` ao `BatchGenerationModal`.
+
 ### 3.4 Aviso de duplicados
 
 Nomes iguais são permitidos (geram arquivos distintos no ZIP com sufixo `_2`, `_3` etc.), mas o modal exibe um aviso em amarelo listando quais nomes aparecem mais de uma vez.

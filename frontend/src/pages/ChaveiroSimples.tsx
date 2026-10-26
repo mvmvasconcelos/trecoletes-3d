@@ -5,6 +5,7 @@ import { Layout } from '../components/ui/Layout';
 import { BambuColorPicker } from '../components/ui/BambuColorPicker';
 import { ParameterLabel } from '../components/ui/ParameterLabel';
 import Viewer3D from '../components/ui/Viewer3D';
+import { useNomesFragment } from '../hooks/useNomesFragment';
 import { useCacheManagement } from '../hooks/useCacheManagement';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 import { FontPicker } from '../components/ui/FontPicker';
@@ -35,7 +36,8 @@ export default function ChaveiroSimples() {
     
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
-    const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+    const nomesDaUrl = useNomesFragment();
+    const [isBatchModalOpen, setIsBatchModalOpen] = useState(nomesDaUrl !== null);
     const [batchProgress, setBatchProgress] = useState<{done: number, total: number} | null>(null);
     const [batchTmfUrl, setBatchTmfUrl] = useState<string | null>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -346,6 +348,7 @@ export default function ChaveiroSimples() {
             </section>
             <BatchGenerationModal
                 isOpen={isBatchModalOpen}
+                initialNames={nomesDaUrl}
                 onClose={() => setIsBatchModalOpen(false)}
                 onGenerate={handleBatchGenerate}
                 onDownload={() => {

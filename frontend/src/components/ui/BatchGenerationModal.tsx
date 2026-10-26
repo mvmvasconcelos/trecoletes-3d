@@ -41,11 +41,13 @@ interface BatchGenerationModalProps {
     downloadLabel?: string;
     enableTwoLineToggle?: boolean;
     secondaryToggle?: SecondaryToggleConfig;
+    /** Nomes para as linhas iniciais (ex.: vindos de `#nomes=` na URL). Só lido na montagem. */
+    initialNames?: string[] | null;
 }
 
-function makeEmptyRow(defaultExtrusorBase: number, defaultExtrusorLetras: number, secondaryToggle?: SecondaryToggleConfig): BatchNameEntry {
+function makeRow(defaultExtrusorBase: number, defaultExtrusorLetras: number, secondaryToggle?: SecondaryToggleConfig, nome = ''): BatchNameEntry {
     const row: BatchNameEntry = {
-        nome: '',
+        nome,
         extrusor_base: defaultExtrusorBase,
         extrusor_letras: defaultExtrusorLetras,
         two_lines: false,
@@ -205,8 +207,11 @@ export function BatchGenerationModal({
     downloadLabel = 'Baixar Lote (ZIP)',
     enableTwoLineToggle = false,
     secondaryToggle,
+    initialNames,
 }: BatchGenerationModalProps) {
-    const [rows, setRows] = useState<BatchNameEntry[]>(() => [makeEmptyRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)]);
+    const [rows, setRows] = useState<BatchNameEntry[]>(() => initialNames?.length
+        ? initialNames.map((nome) => makeRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle, nome))
+        : [makeRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)]);
     const [localError, setLocalError] = useState<string | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
     const previousDownloadUrlRef = useRef<string | null>(null);
@@ -249,13 +254,13 @@ export function BatchGenerationModal({
     if (!isOpen) return null;
 
     const addRow = () => {
-        setRows((prev) => [...prev, makeEmptyRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)]);
+        setRows((prev) => [...prev, makeRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)]);
     };
 
     const removeRow = (index: number) => {
         setRows((prev) => {
             if (prev.length <= 1) {
-                return [makeEmptyRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)];
+                return [makeRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)];
             }
             return prev.filter((_, i) => i !== index);
         });
@@ -319,7 +324,7 @@ export function BatchGenerationModal({
         if (isGenerating) return;
         const confirmed = window.confirm('Tem certeza que deseja apagar todas as linhas?');
         if (!confirmed) return;
-        setRows([makeEmptyRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)]);
+        setRows([makeRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)]);
         setLocalError(null);
     };
 

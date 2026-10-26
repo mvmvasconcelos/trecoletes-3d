@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import axios from 'axios';
 import { Sliders, ChevronDown } from 'lucide-react';
 import { Layout } from '../components/ui/Layout';
@@ -7,6 +8,7 @@ import Viewer3D from '../components/ui/Viewer3D';
 import { CacheBadge, ClearCacheButton } from '../components/ui/CacheControls';
 import { useModelGenerate } from '../hooks/useModelGenerate';
 import { useBatchGeneration } from '../hooks/useBatchGeneration';
+import { useNomesFragment } from '../hooks/useNomesFragment';
 
 const MODEL_ID = 'ponteira_lapis_texto';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -33,6 +35,9 @@ export default function PonteiraLapisTexto() {
             skipKeys: ['text_line_1', 'text_line_2', 'hole_orientation'],
             setError,
         });
+
+    const nomesDaUrl = useNomesFragment();
+    useEffect(() => { if (nomesDaUrl) setIsBatchModalOpen(true); }, [nomesDaUrl]);
 
     const handleGenerate = () => generate(params => {
         const form = new FormData();
@@ -140,6 +145,7 @@ export default function PonteiraLapisTexto() {
             </section>
             <BatchGenerationModal
                 isOpen={isBatchModalOpen}
+                initialNames={nomesDaUrl}
                 onClose={() => setIsBatchModalOpen(false)}
                 onGenerate={handleBatchGenerate}
                 onDownload={() => {
