@@ -41,8 +41,8 @@ interface BatchGenerationModalProps {
     downloadLabel?: string;
     enableTwoLineToggle?: boolean;
     secondaryToggle?: SecondaryToggleConfig;
-    /** Nomes para as linhas iniciais (ex.: vindos de `#nomes=` na URL). Só lido na montagem. */
-    initialNames?: string[] | null;
+    /** Lista que substitui as linhas sempre que muda (ex.: vinda de `#nomes=` na URL). */
+    presetNames?: string[] | null;
 }
 
 function makeRow(defaultExtrusorBase: number, defaultExtrusorLetras: number, secondaryToggle?: SecondaryToggleConfig, nome = ''): BatchNameEntry {
@@ -207,11 +207,9 @@ export function BatchGenerationModal({
     downloadLabel = 'Baixar Lote (ZIP)',
     enableTwoLineToggle = false,
     secondaryToggle,
-    initialNames,
+    presetNames,
 }: BatchGenerationModalProps) {
-    const [rows, setRows] = useState<BatchNameEntry[]>(() => initialNames?.length
-        ? initialNames.map((nome) => makeRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle, nome))
-        : [makeRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)]);
+    const [rows, setRows] = useState<BatchNameEntry[]>(() => [makeRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle)]);
     const [localError, setLocalError] = useState<string | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
     const previousDownloadUrlRef = useRef<string | null>(null);
@@ -220,6 +218,14 @@ export function BatchGenerationModal({
         if (!isOpen) return;
         setLocalError(null);
     }, [isOpen]);
+
+    useEffect(() => {
+        if (!presetNames?.length) return;
+        setRows(presetNames.map((nome) => makeRow(defaultExtrusorBase, defaultExtrusorLetras, secondaryToggle, nome)));
+        setLocalError(null);
+        // Só reage a uma lista nova; defaults/toggle são lidos no momento em que ela chega.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [presetNames]);
 
     useEffect(() => {
         const hadDownloadUrl = Boolean(previousDownloadUrlRef.current);

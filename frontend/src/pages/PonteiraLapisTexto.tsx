@@ -37,7 +37,7 @@ export default function PonteiraLapisTexto() {
         });
 
     const nomesDaUrl = useNomesFragment();
-    useEffect(() => { if (nomesDaUrl) setIsBatchModalOpen(true); }, [nomesDaUrl]);
+    useEffect(() => { if (nomesDaUrl) setIsBatchModalOpen(true); }, [nomesDaUrl, setIsBatchModalOpen]);
 
     const handleGenerate = () => generate(params => {
         const form = new FormData();
@@ -145,7 +145,7 @@ export default function PonteiraLapisTexto() {
             </section>
             <BatchGenerationModal
                 isOpen={isBatchModalOpen}
-                initialNames={nomesDaUrl}
+                presetNames={nomesDaUrl}
                 onClose={() => setIsBatchModalOpen(false)}
                 onGenerate={handleBatchGenerate}
                 onDownload={() => {

@@ -167,9 +167,9 @@ Linhas vazias são ignoradas automaticamente em todos os formatos.
 
 ### 3.3.1 Lista via URL (`#nomes=`)
 
-`/ponteira-texto`, `/tampa-bic` e `/chaveiro-simples` aceitam `#nomes=<JSON>` no fim da URL, onde `<JSON>` é um array de strings codificado com `encodeURIComponent` (ex.: `#nomes=%5B%22Ana%22%2C%22Helo%C3%ADsa%20M.%22%5D`). Ao carregar, o modal abre com uma linha por nome (extrusores no padrão da página) e o fragmento é apagado da barra. Usado pelo admin da Loja da Cati. Os nomes vão no fragmento, e não na query, para não caírem no log do servidor. Fragmento inválido é ignorado.
+`/ponteira-texto`, `/tampa-bic` e `/chaveiro-simples` aceitam `#nomes=<JSON>` no fim da URL, onde `<JSON>` é um array de strings codificado com `encodeURIComponent` (ex.: `#nomes=%5B%22Ana%22%2C%22Helo%C3%ADsa%20M.%22%5D`). Ao carregar (ou ao colar um `#nomes=` novo com a página aberta), o modal abre com uma linha por nome (extrusores no padrão da página) e o fragmento é apagado da barra. Usado pelo admin da Loja da Cati. Os nomes vão no fragmento, e não na query, para não caírem no log do servidor. Fragmento inválido é ignorado.
 
-Para ligar em outra página: `const nomesDaUrl = useNomesFragment();`, abrir o modal se `nomesDaUrl !== null` e passar `initialNames={nomesDaUrl}` ao `BatchGenerationModal`.
+Para ligar em outra página: `const nomesDaUrl = useNomesFragment();`, abrir o modal num `useEffect` quando `nomesDaUrl` mudar e passar `presetNames={nomesDaUrl}` ao `BatchGenerationModal`.
 
 ### 3.4 Aviso de duplicados
 
