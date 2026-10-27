@@ -113,7 +113,10 @@ module capsule_cutout(capsula_start_x, capsula_end_x, base_height, raio_bic, rai
 module base_with_tunnel() {
     margem_fixa_capsula = 2.5;
     capsula_end_x = primary_right_bound() + margem_fixa_capsula;
-    capsula_start_x = capsula_end_x - tamanho_capsula;
+    // Texto longo: a cápsula cobre a linha primária inteira (35 mm é só o mínimo),
+    // senão o furo fica exposto onde o contorno do texto é mais baixo que a cápsula.
+    capsula_start_x = min(capsula_end_x - tamanho_capsula, primary_left_bound());
+    comprimento_capsula = capsula_end_x - capsula_start_x;
     raio_ext = max(base_height / 2, raio_bic + 0.01);
     parede_capsula = raio_ext - raio_bic;
 
@@ -123,7 +126,7 @@ module base_with_tunnel() {
                 offset(r = outline_margin, $fn = 64)
                     text_base_2d();
 
-            capsule_body(capsula_start_x, base_height, tamanho_capsula, raio_ext);
+            capsule_body(capsula_start_x, base_height, comprimento_capsula, raio_ext);
         }
 
         capsule_cutout(capsula_start_x, capsula_end_x, base_height, raio_bic, raio_ponta, parede_capsula, prof_cone, outline_margin);
